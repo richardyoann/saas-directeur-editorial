@@ -1,0 +1,33 @@
+# Python
+.project-git/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Fichiers médias
+media/input/*
+media/generated/*
+media/working/*
+media/export/*
+
+# Modèles locaux
+models/*
+
+# Éditeurs
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Mémoire privée et installations locales
+docs/memory/
+.agents/
+.codex/
