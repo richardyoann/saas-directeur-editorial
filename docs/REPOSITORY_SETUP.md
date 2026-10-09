@@ -33,8 +33,6 @@ natives et les métadonnées alternatives sont exclus par `.gitignore`.
 La connexion GitHub nécessite encore l’installation et l’autorisation de
 l’intégration, ou une authentification Git dans un terminal WSL2 normal.
 
-### État initial
-
 ### Authentification persistante — vérification ultérieure
 
 GitHub CLI est désormais installé dans WSL2. Le compte actif `richardyoann`

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {"namespace": "lessie", "repo": "LessieAI/lessie-skill", "ref": "main", "selectors": [{"name": "people-search"}, {"name": "lessie-email"}], "note": "Email skill is installed only; sending requires explicit authorization."},
+    {"namespace": "superpowers", "repo": "obra/superpowers", "ref": "main", "selectors": [{"glob": "skills/*/SKILL.md"}]},
+    {"namespace": "anthropic", "repo": "anthropics/skills", "ref": "main", "selectors": [{"name": "frontend-design"}, {"name": "mcp-builder"}]},
+    {"namespace": "mattpocock", "repo": "mattpocock/skills", "ref": "main", "selectors": [{"name": "grill-me"}, {"name": "grilling", "dependency_of": "grill-me"}], "note": "Default source chosen for grill-me; recursive discovery supports repository restructuring."},
+    {"namespace": "toolmonsters", "repo": "ToolMonsters/handoff-skill", "ref": "main", "selectors": [{"path": ".", "name": "handoff"}], "note": "Default source chosen for handoff."},
+    {"namespace": "coleam00", "repo": "coleam00/excalidraw-diagram-skill", "ref": "main", "selectors": [{"path": ".", "name": "excalidraw-diagram"}], "note": "Default source chosen for excalidraw."},
+    {"namespace": "openai", "repo": "openai/skills", "ref": "main", "selectors": [{"name": "gh-fix-ci"}, {"name": "gh-address-comments"}, {"name": "playwright"}, {"name": "security-best-practices"}, {"name": "security-threat-model"}], "note": "Relevant curated selection; not the entire catalog."},
+    {"namespace": "oriolrius", "repo": "oriolrius/pki-manager-web", "ref": "10a5c8a55c731a86b12197c00168563abc8be74d", "selectors": [{"path": ".claude/skills/git", "name": "git-version-control-mmbizit6"}], "note": "User-requested Git guide, pinned to the supplied revision; installation uses the complete source directory and preserves references."}
+  ]
+}

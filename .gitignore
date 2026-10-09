@@ -2,6 +2,7 @@
 .project-git/
 __pycache__/
 *.pyc
+*.bak
 .venv/
 .pytest_cache/
 
@@ -31,3 +32,4 @@ logs/
 docs/memory/
 .agents/
 .codex/
+vendor/skills/

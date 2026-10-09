@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "package_version": "1.0.0",
+  "skills": [
+    {
+      "name": "editorial-documentation",
+      "version": "1.0.0"
+    },
+    {
+      "name": "editorial-fastapi",
+      "version": "1.0.0"
+    },
+    {
+      "name": "editorial-functional-tests",
+      "version": "1.0.0"
+    },
+    {
+      "name": "editorial-memory",
+      "version": "1.0.0"
+    },
+    {
+      "name": "editorial-orchestrator",
+      "version": "1.0.0"
+    },
+    {
+      "name": "editorial-postgres-design",
+      "version": "1.0.0"
+    },
+    {
+      "name": "editorial-technical-tests",
+      "version": "1.0.0"
+    },
+    {
+      "name": "editorial-versioning",
+      "version": "1.0.0"
+    }
+  ],
+  "agents": [
+    {
+      "name": "analyst",
+      "path": "agents/analyst.toml"
+    },
+    {
+      "name": "developer",
+      "path": "agents/developer.toml"
+    },
+    {
+      "name": "documenter",
+      "path": "agents/documenter.toml"
+    },
+    {
+      "name": "functional_tester",
+      "path": "agents/functional_tester.toml"
+    },
+    {
+      "name": "orchestrator",
+      "path": "agents/orchestrator.toml"
+    },
+    {
+      "name": "reviewer",
+      "path": "agents/reviewer.toml"
+    },
+    {
+      "name": "technical_tester",
+      "path": "agents/technical_tester.toml"
+    },
+    {
+      "name": "versioner",
+      "path": "agents/versioner.toml"
+    }
+  ],
+  "files": [
+    {
+      "path": "skills/editorial-documentation/SKILL.md",
+      "sha256": "6c5edb3626174bd526f47f323436ba2b1062163c04779b00e429d5c1c0a2ae76"
+    },
+    {
+      "path": "skills/editorial-fastapi/SKILL.md",
+      "sha256": "3767ef7f83cf1309f08b6ed331181119ab0855af6341bfc687b6a75ce1389e2e"
+    },
+    {
+      "path": "skills/editorial-functional-tests/SKILL.md",
+      "sha256": "370398ba7cfef6423907d47e8cc0aeb28061869b4a614e5097728be6249972d1"
+    },
+    {
+      "path": "skills/editorial-memory/SKILL.md",
+      "sha256": "43c44fb084928d19b24e4b4b06adcf31993441a368eb77d02f77f1c08d1b622d"
+    },
+    {
+      "path": "skills/editorial-orchestrator/SKILL.md",
+      "sha256": "5f9785b706ef0450be118a9311409b6490ea05c1e5c157dd2eaa2415896cc68d"
+    },
+    {
+      "path": "skills/editorial-postgres-design/SKILL.md",
+      "sha256": "a6b909651dc6e932fcf168b9c8d36413ab137a0d55b110849de403cf312485b6"
+    },
+    {
+      "path": "skills/editorial-technical-tests/SKILL.md",
+      "sha256": "0d217cb727f57015f308aca869cc23ee2e780055c2b2fe05549112380b8fe6a2"
+    },
+    {
+      "path": "skills/editorial-versioning/SKILL.md",
+      "sha256": "92023db69fdede67598a024b14cd3fef68c2fbeebefeadb3d7bdf21263285fe3"
+    },
+    {
+      "path": "agents/analyst.toml",
+      "sha256": "bf75013d884b771e06c9df4b74f8fc3cb934110e8c92b60e2bdcaa66f51c4b26"
+    },
+    {
+      "path": "agents/developer.toml",
+      "sha256": "b0dbe84d26302f0ad9568958fdfdc6190aa329bc6d68f9b836a0e0221d3210fd"
+    },
+    {
+      "path": "agents/documenter.toml",
+      "sha256": "a9ab05f263ab5a1cc4709779057e8385206da5d3bc69b189d914c279f9854684"
+    },
+    {
+      "path": "agents/functional_tester.toml",
+      "sha256": "7e87a1814f100c9afa62ac4927286aac783030336443eab61a6166c94e1a324f"
+    },
+    {
+      "path": "agents/orchestrator.toml",
+      "sha256": "031473383fe6b98ec100a3f78232ffdc3884e986c306d1a8e721f35d1dab29a0"
+    },
+    {
+      "path": "agents/reviewer.toml",
+      "sha256": "5ef0c3514907317476360431c6f68419a667664327663c91c9220eb5b1fbe66a"
+    },
+    {
+      "path": "agents/technical_tester.toml",
+      "sha256": "a9806d922c6c0ab2c608218b6a6712f097c819a08ecfd9b74e93834e190b92cf"
+    },
+    {
+      "path": "agents/versioner.toml",
+      "sha256": "4c859c1c710dc35a229c4bdf5f1ce042f4f915879065c2de2a11c06607314059"
+    }
+  ]
+}
