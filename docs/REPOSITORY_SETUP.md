@@ -35,6 +35,28 @@ l’intégration, ou une authentification Git dans un terminal WSL2 normal.
 
 ### État initial
 
+### Authentification persistante — vérification ultérieure
+
+GitHub CLI est désormais installé dans WSL2. Le compte actif `richardyoann`
+est enregistré dans la configuration locale de `gh` ; aucun jeton n’est copié
+dans le projet. Git utilise `gh auth git-credential`, configuré globalement
+et explicitement dans le dépôt alternatif `.project-git`.
+Ce réglage est conservé entre les processus et les sessions sur cette machine.
+
+La validité de la connexion distante reste non vérifiée : la résolution DNS
+de `github.com` échoue dans l’environnement restreint. Le résultat négatif
+de `gh auth status` ici ne suffit donc pas à conclure que le jeton est invalide.
+Depuis un terminal WSL2 disposant du réseau, vérifier :
+
+```bash
+gh auth status --hostname github.com
+bash scripts/git_project.sh ls-remote origin
+```
+
+L’intégration GitHub de l’application demeure séparée de cette connexion CLI.
+
+### État historique avant installation de GitHub CLI
+
 La création n’a pas été exécutée. La consultation publique ne permet pas de
 confirmer l’existence du dépôt. GitHub CLI (`gh`) est absent de l’environnement
 Codex ; `.git` local est inexploitable et en lecture seule.
