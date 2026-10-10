@@ -1,0 +1,23 @@
+{
+  "trace": {
+    "run": 16,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "passed": 16
+  },
+  "generation": {
+    "run": 6,
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "passed": 6
+  },
+  "full_windows": {
+    "run": 48,
+    "errors": 14,
+    "failures": 2,
+    "skipped": 0,
+    "passed": 32
+  }
+}

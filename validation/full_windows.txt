@@ -1,0 +1,283 @@
+test_activation_adds_links_and_preserves_configuration (test_capabilities.CapabilityTests.test_activation_adds_links_and_preserves_configuration) ... FAIL
+test_activation_reports_partial_failure_without_removing_links (test_capabilities.CapabilityTests.test_activation_reports_partial_failure_without_removing_links) ... FAIL
+test_changed_skill_is_rejected_without_rewriting_lock (test_capabilities.CapabilityTests.test_changed_skill_is_rejected_without_rewriting_lock) ... ok
+test_conflict_preserves_existing_file_and_creates_no_partial_links (test_capabilities.CapabilityTests.test_conflict_preserves_existing_file_and_creates_no_partial_links) ... ok
+test_invalid_package_does_not_create_empty_lock (test_capabilities.CapabilityTests.test_invalid_package_does_not_create_empty_lock) ... ok
+test_parent_symlink_outside_repository_is_blocked (test_capabilities.CapabilityTests.test_parent_symlink_outside_repository_is_blocked) ... ERROR
+test_repository_lock_matches_current_sources (test_capabilities.CapabilityTests.test_repository_lock_matches_current_sources) ... ok
+test_source_parent_symlink_is_rejected_before_activation (test_capabilities.CapabilityTests.test_source_parent_symlink_is_rejected_before_activation) ... ERROR
+test_probe_does_not_print_secret_output (test_diagnose_project.DiagnoseTests.test_probe_does_not_print_secret_output) ... ok
+test_probe_handles_unavailable_commands_and_timeout (test_diagnose_project.DiagnoseTests.test_probe_handles_unavailable_commands_and_timeout) ... ok
+test_activation_creates_verified_native_link_and_is_idempotent (test_external_skills.ExternalSkillsTests.test_activation_creates_verified_native_link_and_is_idempotent) ... ERROR
+test_activation_requires_complete_install_and_preserves_conflicts (test_external_skills.ExternalSkillsTests.test_activation_requires_complete_install_and_preserves_conflicts) ... ERROR
+test_apply_pins_helper_preserves_files_and_skips_matching_receipt (test_external_skills.ExternalSkillsTests.test_apply_pins_helper_preserves_files_and_skips_matching_receipt) ... ERROR
+test_default_plan_and_check_use_no_network_or_writes (test_external_skills.ExternalSkillsTests.test_default_plan_and_check_use_no_network_or_writes) ... ok
+test_destination_symlink_is_refused_without_touching_target (test_external_skills.ExternalSkillsTests.test_destination_symlink_is_refused_without_touching_target) ... ERROR
+test_discovery_matches_single_segment_globs_and_dependencies (test_external_skills.ExternalSkillsTests.test_discovery_matches_single_segment_globs_and_dependencies) ... ok
+test_existing_without_receipt_is_preserved_without_subprocess (test_external_skills.ExternalSkillsTests.test_existing_without_receipt_is_preserved_without_subprocess) ... ERROR
+test_modified_install_fails_check_and_is_not_overwritten (test_external_skills.ExternalSkillsTests.test_modified_install_fails_check_and_is_not_overwritten) ... ERROR
+test_new_sha_conflicts_and_incomplete_selection_reports_partial (test_external_skills.ExternalSkillsTests.test_new_sha_conflicts_and_incomplete_selection_reports_partial) ... ERROR
+test_partial_glob_collection_is_not_reported_complete (test_external_skills.ExternalSkillsTests.test_partial_glob_collection_is_not_reported_complete) ... ERROR
+test_resolver_pins_sha_and_rejects_truncated_tree (test_external_skills.ExternalSkillsTests.test_resolver_pins_sha_and_rejects_truncated_tree) ... ok
+test_timeout_and_resolution_failures_have_blocked_receipts (test_external_skills.ExternalSkillsTests.test_timeout_and_resolution_failures_have_blocked_receipts) ... ERROR
+test_unsafe_source_path_and_ref_are_rejected (test_external_skills.ExternalSkillsTests.test_unsafe_source_path_and_ref_are_rejected) ... ok
+test_invalid_input (test_generate.GenerateTests.test_invalid_input) ... ok
+test_invalid_upstream_response (test_generate.GenerateTests.test_invalid_upstream_response) ... ok
+test_missing_or_invalid_configuration (test_generate.GenerateTests.test_missing_or_invalid_configuration) ... ok
+test_success_and_upstream_contract (test_generate.GenerateTests.test_success_and_upstream_contract) ... ok
+test_timeout (test_generate.GenerateTests.test_timeout) ... ok
+test_unavailable_and_upstream_http_failure (test_generate.GenerateTests.test_unavailable_and_upstream_http_failure) ... ok
+test_memory (unittest.loader._FailedTest.test_memory) ... ERROR
+test_orchestrator (unittest.loader._FailedTest.test_orchestrator) ... ERROR
+test_project_cli (unittest.loader._FailedTest.test_project_cli) ... ERROR
+test_auth_and_validation_precede_database (test_traceability.TraceApiTests.test_auth_and_validation_precede_database) ... ok
+test_create_persists_with_server_correlation (test_traceability.TraceApiTests.test_create_persists_with_server_correlation) ... ok
+test_disabled_configuration_is_closed (test_traceability.TraceApiTests.test_disabled_configuration_is_closed) ... ok
+test_foreign_repository_rejected (test_traceability.TraceApiTests.test_foreign_repository_rejected) ... ok
+test_signed_pr_and_delivery_deduplication_key (test_traceability.TraceApiTests.test_signed_pr_and_delivery_deduplication_key) ... ok
+test_unavailable_audit_blocks_generation (test_traceability.TraceApiTests.test_unavailable_audit_blocks_generation) ... ok
+test_connect_retry_but_read_timeout_uncertain (test_traceability.TraceTests.test_connect_retry_but_read_timeout_uncertain) ... ok
+test_payload_stable_event_and_correlation (test_traceability.TraceTests.test_payload_stable_event_and_correlation) ... ok
+test_secrets_and_free_text_rejected_before_storage (test_traceability.TraceTests.test_secrets_and_free_text_rejected_before_storage) ... ok
+test_signature_tampering (test_traceability.TraceTests.test_signature_tampering) ... ok
+test_slack_failure_classification (test_traceability.TraceTests.test_slack_failure_classification) ... ok
+test_atomic_rollback_and_deduplication (test_traceability_postgres.PostgresTraceTests.test_atomic_rollback_and_deduplication) ... ok
+test_expired_claim_becomes_uncertain_without_send (test_traceability_postgres.PostgresTraceTests.test_expired_claim_becomes_uncertain_without_send) ... ok
+test_fastapi_generation_real_audit_without_content (test_traceability_postgres.PostgresTraceTests.test_fastapi_generation_real_audit_without_content) ... ok
+test_hierarchy_and_optimistic_lock (test_traceability_postgres.PostgresTraceTests.test_hierarchy_and_optimistic_lock) ... ok
+test_worker_claim_concurrency_and_sent_no_resend (test_traceability_postgres.PostgresTraceTests.test_worker_claim_concurrency_and_sent_no_resend) ... ok
+
+======================================================================
+ERROR: test_parent_symlink_outside_repository_is_blocked (test_capabilities.CapabilityTests.test_parent_symlink_outside_repository_is_blocked)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_capabilities.py", line 101, in test_parent_symlink_outside_repository_is_blocked
+    (self.root / ".agents").symlink_to(external, target_is_directory=True)
+  File "C:\Python312\Lib\pathlib.py", line 1386, in symlink_to
+    os.symlink(target, self, target_is_directory)
+OSError: [WinError 1314] Le client ne dispose pas d’un privilège nécessaire: 'C:\\Users\\Admin\\AppData\\Local\\Temp\\tmp50_vsce7-external' -> 'C:\\Users\\Admin\\AppData\\Local\\Temp\\tmp50_vsce7\\.agents'
+
+======================================================================
+ERROR: test_source_parent_symlink_is_rejected_before_activation (test_capabilities.CapabilityTests.test_source_parent_symlink_is_rejected_before_activation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_capabilities.py", line 68, in test_source_parent_symlink_is_rejected_before_activation
+    (self.root / "agents").symlink_to(external, target_is_directory=True)
+  File "C:\Python312\Lib\pathlib.py", line 1386, in symlink_to
+    os.symlink(target, self, target_is_directory)
+OSError: [WinError 1314] Le client ne dispose pas d’un privilège nécessaire: 'C:\\Users\\Admin\\AppData\\Local\\Temp\\tmptdgqk9up-source' -> 'C:\\Users\\Admin\\AppData\\Local\\Temp\\tmptdgqk9up\\agents'
+
+======================================================================
+ERROR: test_activation_creates_verified_native_link_and_is_idempotent (test_external_skills.ExternalSkillsTests.test_activation_creates_verified_native_link_and_is_idempotent)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_external_skills.py", line 163, in test_activation_creates_verified_native_link_and_is_idempotent
+    external.apply(self.root, self.helper)
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 266, in apply
+    results.append(write_receipt(root, result))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 170, in write_receipt
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                                                                      ^^^^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'O_NOFOLLOW'
+
+======================================================================
+ERROR: test_activation_requires_complete_install_and_preserves_conflicts (test_external_skills.ExternalSkillsTests.test_activation_requires_complete_install_and_preserves_conflicts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_external_skills.py", line 151, in test_activation_requires_complete_install_and_preserves_conflicts
+    external.apply(self.root, self.helper)
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 266, in apply
+    results.append(write_receipt(root, result))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 170, in write_receipt
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                                                                      ^^^^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'O_NOFOLLOW'
+
+======================================================================
+ERROR: test_apply_pins_helper_preserves_files_and_skips_matching_receipt (test_external_skills.ExternalSkillsTests.test_apply_pins_helper_preserves_files_and_skips_matching_receipt)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_external_skills.py", line 84, in test_apply_pins_helper_preserves_files_and_skips_matching_receipt
+    results = external.apply(self.root, self.helper)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 266, in apply
+    results.append(write_receipt(root, result))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 170, in write_receipt
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                                                                      ^^^^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'O_NOFOLLOW'
+
+======================================================================
+ERROR: test_destination_symlink_is_refused_without_touching_target (test_external_skills.ExternalSkillsTests.test_destination_symlink_is_refused_without_touching_target)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_external_skills.py", line 113, in test_destination_symlink_is_refused_without_touching_target
+    (self.root / "vendor").symlink_to(target, target_is_directory=True)
+  File "C:\Python312\Lib\pathlib.py", line 1386, in symlink_to
+    os.symlink(target, self, target_is_directory)
+OSError: [WinError 1314] Le client ne dispose pas d’un privilège nécessaire: 'C:\\Users\\Admin\\AppData\\Local\\Temp\\tmpv83b1y99\\outside' -> 'C:\\Users\\Admin\\AppData\\Local\\Temp\\tmpv83b1y99\\vendor'
+
+======================================================================
+ERROR: test_existing_without_receipt_is_preserved_without_subprocess (test_external_skills.ExternalSkillsTests.test_existing_without_receipt_is_preserved_without_subprocess)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_external_skills.py", line 105, in test_existing_without_receipt_is_preserved_without_subprocess
+    results = external.apply(self.root, self.helper)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 266, in apply
+    results.append(write_receipt(root, result))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 170, in write_receipt
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                                                                      ^^^^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'O_NOFOLLOW'
+
+======================================================================
+ERROR: test_modified_install_fails_check_and_is_not_overwritten (test_external_skills.ExternalSkillsTests.test_modified_install_fails_check_and_is_not_overwritten)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_external_skills.py", line 124, in test_modified_install_fails_check_and_is_not_overwritten
+    external.apply(self.root, self.helper)
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 266, in apply
+    results.append(write_receipt(root, result))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 170, in write_receipt
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                                                                      ^^^^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'O_NOFOLLOW'
+
+======================================================================
+ERROR: test_new_sha_conflicts_and_incomplete_selection_reports_partial (test_external_skills.ExternalSkillsTests.test_new_sha_conflicts_and_incomplete_selection_reports_partial)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_external_skills.py", line 189, in test_new_sha_conflicts_and_incomplete_selection_reports_partial
+    external.apply(self.root, self.helper)
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 266, in apply
+    results.append(write_receipt(root, result))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 170, in write_receipt
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                                                                      ^^^^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'O_NOFOLLOW'
+
+======================================================================
+ERROR: test_partial_glob_collection_is_not_reported_complete (test_external_skills.ExternalSkillsTests.test_partial_glob_collection_is_not_reported_complete)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_external_skills.py", line 183, in test_partial_glob_collection_is_not_reported_complete
+    external.apply(self.root, self.helper)
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 266, in apply
+    results.append(write_receipt(root, result))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 170, in write_receipt
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                                                                      ^^^^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'O_NOFOLLOW'
+
+======================================================================
+ERROR: test_timeout_and_resolution_failures_have_blocked_receipts (test_external_skills.ExternalSkillsTests.test_timeout_and_resolution_failures_have_blocked_receipts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 230, in apply
+    sha, skills = resolve(source)
+                  ^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+TimeoutError: network timeout
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_external_skills.py", line 137, in test_timeout_and_resolution_failures_have_blocked_receipts
+    results = external.apply(self.root, self.helper)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 232, in apply
+    results.append(write_receipt(root, {"repo": source["repo"], "requested_ref": source["ref"],
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\install_external_skills.py", line 170, in write_receipt
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+                                                                      ^^^^^^^^^^^^^
+AttributeError: module 'os' has no attribute 'O_NOFOLLOW'
+
+======================================================================
+ERROR: test_memory (unittest.loader._FailedTest.test_memory)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_memory
+Traceback (most recent call last):
+  File "C:\Python312\Lib\unittest\loader.py", line 396, in _find_test_path
+    module = self._get_module_from_name(name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\unittest\loader.py", line 339, in _get_module_from_name
+    __import__(name)
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_memory.py", line 7, in <module>
+    from workflows.memory import MemoryIntegrityError, MemoryStore
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\workflows\memory.py", line 3, in <module>
+    import fcntl
+ModuleNotFoundError: No module named 'fcntl'
+
+
+======================================================================
+ERROR: test_orchestrator (unittest.loader._FailedTest.test_orchestrator)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_orchestrator
+Traceback (most recent call last):
+  File "C:\Python312\Lib\unittest\loader.py", line 396, in _find_test_path
+    module = self._get_module_from_name(name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\unittest\loader.py", line 339, in _get_module_from_name
+    __import__(name)
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_orchestrator.py", line 8, in <module>
+    from workflows.orchestrator import Orchestrator, WorkflowError
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\workflows\orchestrator.py", line 6, in <module>
+    import fcntl
+ModuleNotFoundError: No module named 'fcntl'
+
+
+======================================================================
+ERROR: test_project_cli (unittest.loader._FailedTest.test_project_cli)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: test_project_cli
+Traceback (most recent call last):
+  File "C:\Python312\Lib\unittest\loader.py", line 396, in _find_test_path
+    module = self._get_module_from_name(name)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python312\Lib\unittest\loader.py", line 339, in _get_module_from_name
+    __import__(name)
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_project_cli.py", line 8, in <module>
+    from scripts import project
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\scripts\project.py", line 11, in <module>
+    from workflows.orchestrator import Orchestrator, WorkflowError
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\workflows\orchestrator.py", line 6, in <module>
+    import fcntl
+ModuleNotFoundError: No module named 'fcntl'
+
+
+======================================================================
+FAIL: test_activation_adds_links_and_preserves_configuration (test_capabilities.CapabilityTests.test_activation_adds_links_and_preserves_configuration)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_capabilities.py", line 32, in test_activation_adds_links_and_preserves_configuration
+    self.assertTrue(report["activated"])
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_activation_reports_partial_failure_without_removing_links (test_capabilities.CapabilityTests.test_activation_reports_partial_failure_without_removing_links)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\Admin\.codex\.chatgpt-projects\g-p-6ac81c34a0208191934e9b11a34cd0fc\repo\tests\test_capabilities.py", line 93, in test_activation_reports_partial_failure_without_removing_links
+    self.assertTrue(report["partial"])
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 48 tests in 2.515s
+
+FAILED (failures=2, errors=14)

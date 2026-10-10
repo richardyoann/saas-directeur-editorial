@@ -1,0 +1,11 @@
+test_invalid_input (test_generate.GenerateTests.test_invalid_input) ... ok
+test_invalid_upstream_response (test_generate.GenerateTests.test_invalid_upstream_response) ... ok
+test_missing_or_invalid_configuration (test_generate.GenerateTests.test_missing_or_invalid_configuration) ... ok
+test_success_and_upstream_contract (test_generate.GenerateTests.test_success_and_upstream_contract) ... ok
+test_timeout (test_generate.GenerateTests.test_timeout) ... ok
+test_unavailable_and_upstream_http_failure (test_generate.GenerateTests.test_unavailable_and_upstream_http_failure) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.596s
+
+OK

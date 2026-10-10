@@ -67,3 +67,8 @@ Les capacités internes sont dans `skills/` et `agents/`, avec versions et
 empreintes dans `capabilities.lock.json`. Voir `docs/EXTERNAL_SKILLS.md` pour la
 suite tierce demandée et l’installation WSL2 préparée ; elle reste bloquée ici.
 Les manifestes locaux ne sont pas des commits Git. Aucune migration appliquée.
+# Traçabilité DEV-004
+
+POC, configuration, preuves et limites : [docs/TRACEABILITY.md](docs/TRACEABILITY.md).
+Audit/outbox PostgreSQL et webhook PR développés ; activation Slack automatique
+reste à configurer. Voir ETAT_PROJET.md pour les tests réellement exécutés.

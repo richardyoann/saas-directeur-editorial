@@ -1,5 +1,34 @@
 # État du projet
 
+## DEV-004 — POC traçabilité, vérification du 10 octobre 2026
+
+État actuel prioritaire sur les constats historiques ci-dessous.
+
+- GitHub accessible : dépôt privé `richardyoann/saas-directeur-editorial`, ID
+  1411435489, droits pull/push confirmés ; main caf1725ad0087fee1a78e078047de6382d210f39
+  inspecté, aucune PR ouverte à l'inspection. Copie locale récupérée via connecteur,
+  sans métadonnées Git et sans accès supposé au checkout WSL.
+- Développé : hiérarchie PostgreSQL, audit/outbox atomiques, déduplication,
+  corrélations UUID, métadonnées sans contenu/secrets, API de gestion authentifiée,
+  webhook PR signé et borné, audit génération opt-in, worker avec backoff,
+  concurrence et traitement des accusés perdus, réconciliation vérifiée.
+- Testé : 16 tests POC réussis, dont 5 sur PostgreSQL 16 réel dédié ; six tests
+  génération historiques réussis. Modèle et HTTP Slack simulés. Détails et résultats
+  relançables : `docs/TRACEABILITY.md`, `validation/results.json` et rapports texte.
+- Suite complète Windows : 48 tests/entrées, 32 réussis, 14 erreurs, 2 échecs.
+  Limites Linux/symlinks historiques ; aucune réussite globale annoncée.
+- Migration appliquée avec accord utilisateur uniquement à la nouvelle base
+  trace_test localhost:55432. Aucun service existant modifié ni migration production.
+- Slack : canal et backlog lus, suivi envoyé ; création DEV-004 dans la List
+  refusée `no_permission_to_edit_list`. Aucune modification EPIC-001/DEV-001.
+- Non activé : token Slack du processus, webhook distant, superviseur worker,
+  synchronisation automatique Slack List, production et autres objets métiers.
+  Aucune nouvelle validation Qwen réelle. DEV-004 reste ouvert pour activation.
+
+La preuve Slack initiale est dans le canal C0C883XR3DF, message
+https://saasdirecteur-t2x1885.slack.com/archives/C0C883XR3DF/p1791635529965279.
+La connexion ChatGPT à Slack ne prouve pas l'accès du worker à un bot token.
+
 ## Dernière vérification — correction des blocages, 9 octobre 2026
 
 Cette section actualise les constats historiques ci-dessous. Détail et reprise :
