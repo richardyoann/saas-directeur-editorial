@@ -1,0 +1,21 @@
+test_auth_and_validation_precede_database (test_traceability.TraceApiTests.test_auth_and_validation_precede_database) ... ok
+test_create_persists_with_server_correlation (test_traceability.TraceApiTests.test_create_persists_with_server_correlation) ... ok
+test_disabled_configuration_is_closed (test_traceability.TraceApiTests.test_disabled_configuration_is_closed) ... ok
+test_foreign_repository_rejected (test_traceability.TraceApiTests.test_foreign_repository_rejected) ... ok
+test_signed_pr_and_delivery_deduplication_key (test_traceability.TraceApiTests.test_signed_pr_and_delivery_deduplication_key) ... ok
+test_unavailable_audit_blocks_generation (test_traceability.TraceApiTests.test_unavailable_audit_blocks_generation) ... ok
+test_connect_retry_but_read_timeout_uncertain (test_traceability.TraceTests.test_connect_retry_but_read_timeout_uncertain) ... ok
+test_payload_stable_event_and_correlation (test_traceability.TraceTests.test_payload_stable_event_and_correlation) ... ok
+test_secrets_and_free_text_rejected_before_storage (test_traceability.TraceTests.test_secrets_and_free_text_rejected_before_storage) ... ok
+test_signature_tampering (test_traceability.TraceTests.test_signature_tampering) ... ok
+test_slack_failure_classification (test_traceability.TraceTests.test_slack_failure_classification) ... ok
+test_atomic_rollback_and_deduplication (test_traceability_postgres.PostgresTraceTests.test_atomic_rollback_and_deduplication) ... ok
+test_expired_claim_becomes_uncertain_without_send (test_traceability_postgres.PostgresTraceTests.test_expired_claim_becomes_uncertain_without_send) ... ok
+test_fastapi_generation_real_audit_without_content (test_traceability_postgres.PostgresTraceTests.test_fastapi_generation_real_audit_without_content) ... ok
+test_hierarchy_and_optimistic_lock (test_traceability_postgres.PostgresTraceTests.test_hierarchy_and_optimistic_lock) ... ok
+test_worker_claim_concurrency_and_sent_no_resend (test_traceability_postgres.PostgresTraceTests.test_worker_claim_concurrency_and_sent_no_resend) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 1.265s
+
+OK

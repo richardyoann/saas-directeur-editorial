@@ -1,5 +1,31 @@
 # Repository Guidelines
 
+## Current traceability workflow — 10 October 2026
+
+This section supersedes initial-state statements below about missing tests and
+dependencies. Read `docs/TRACEABILITY.md` and `ETAT_PROJET.md` on resumption.
+Use `requirements.txt` and `python -m unittest discover -s tests -v`; distinguish
+Linux-dependent legacy failures from the portable POC. Never report skipped tests
+or simulated Slack/model calls as successful live integrations.
+
+For work items and persisted business events, write domain mutation, audit and
+outbox in the same PostgreSQL transaction using `traceability.store.emit`.
+Keep stable item/parent IDs, UUID event/correlation and unique source keys.
+Allow only typed metadata from `traceability.events.safe_data`. Do not submit
+prompts, outputs, titles, secrets, headers or raw exception messages to Slack/audit.
+Authenticated trace endpoints and signed PR webhook are in `traceability/api.py`.
+Never resend uncertain Slack deliveries automatically; use verified reconciliation.
+
+Slack target: workspace T0C7ZUAM4DR, channel C0C883XR3DF, List F0C83UZ4XHB.
+List write access is currently refused; channel messages work. Trace operational
+changes and every created PR in that channel, with real evidence and blockers.
+Do not invent List items or claim automated synchronization is active.
+
+Do not assume WSL access. A Windows snapshot may not include unpushed local work.
+Ask before destructive operations or public publication. Apply migrations only
+to explicitly approved targets; the approval for trace_test is not production
+approval. Preserve `.env`, existing Compose/services, user changes and source files.
+
 ## Project Structure & Module Organization
 
 - `apps/api/main.py` contains the FastAPI application, request schema, health endpoint, and llama.cpp generation proxy.

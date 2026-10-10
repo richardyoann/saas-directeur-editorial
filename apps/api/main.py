@@ -14,6 +14,10 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 app = FastAPI(title="Directeur éditorial IA", version="0.1.0")
 
+from traceability.api import install as install_traceability
+
+install_traceability(app)
+
 
 class GenerateRequest(BaseModel):
     prompt: str = Field(min_length=1)
@@ -108,3 +112,4 @@ async def generate(
         "duration_seconds": round(time.perf_counter() - started, 3),
         "usage": data.usage,
     }
+
