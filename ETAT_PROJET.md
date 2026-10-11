@@ -1,5 +1,18 @@
 # État du projet
 
+## DEV-005 — workflow éditorial, 11 octobre 2026
+
+- L'utilisateur confirme base complète et LLM connectés, et autorise la progression autonome. Confirmation de son environnement, pas sonde exécutée ici.
+- Base du travail : branche ops/OPS-001-pilotage-prive au SHA 0645baf9eb96d23be7eff78de70ddae4c659a77d. Fournisseur de la PR #59 repris explicitement; PR #1/#58/#59 préservées, aucune fusion.
+- Nouveau parcours API privé : brief → analyse → scénario/scènes → waiting_validation; deux appels maximum, JSON strict, durée/nombre de scènes vérifiés.
+- Identité privée serveur, idempotence par tenant, prompts persistés avant appel, résultats exacts et erreurs archivés, données/audit/outbox atomiques à chaque étape.
+- Réutilise uniquement le schéma po_* versionné; aucune nouvelle migration, aucune preuve d'accès aux tables locales non versionnées.
+- Local : 60 tests exécutés avec succès, 5 tests PostgreSQL supplémentaires ignorés faute de cible dédiée; 7 tests pilotage exécutés avec succès, 4 PostgreSQL ignorés. Résultat PostgreSQL CI à vérifier séparément.
+- Code développé et tests modèle simulés; Qwen réel, interface, reprise durable et activation Slack runtime restent ouverts.
+- Guide : docs/EDITORIAL_WORKFLOW.md. La CI est configurée avec une base PostgreSQL 16 dédiée pour les 9 tests concernés, sans modifier la base SaaS.
+- DEV-005 reste en cours jusqu'à preuves réelles, revue et acceptation; aucune clôture de critère produit automatique.
+
+
 ## Pilotage — 11 octobre 2026 (prioritaire)
 
 - Dépôt privé confirmé : richardyoann/saas-directeur-editorial, ID 1411435489; main caf1725ad0087fee1a78e078047de6382d210f39 inspecté, droits admin/push/pull.
