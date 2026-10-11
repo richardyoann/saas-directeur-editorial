@@ -51,6 +51,22 @@ class GenerateTests(unittest.IsolatedAsyncioTestCase):
             "max_tokens": 32, "stream": False,
         })
 
+    async def test_finish_reason_and_truncation(self):
+        for reason, truncated in (("stop", False), ("length", True), (None, False),
+                                  ("content_filter", False)):
+            self.handler = lambda request: httpx.Response(200, json={
+                "choices": [{"message": {"content": "Texte"}, "finish_reason": reason}]
+            })
+            with self.subTest(reason=reason):
+                response = await self.generate()
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()["finish_reason"], reason)
+                self.assertEqual(response.json()["truncated"], truncated)
+        self.handler = lambda request: httpx.Response(200, json={
+            "choices": [{"message": {"content": "Texte"}, "finish_reason": 42}]
+        })
+        self.assertEqual((await self.generate()).status_code, 502)
+
     async def test_invalid_input(self):
         for body in ({}, {"prompt": ""}, {"prompt": "  \n"}, {"prompt": 42},
                      {"prompt": "OK", "max_tokens": 0}, {"prompt": "OK", "max_tokens": 2049}):

@@ -1,13 +1,13 @@
 import os
-import time
 from collections.abc import AsyncIterator
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import httpx
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
+
+from apps.api.llama_provider import ProviderError, generate_text
 
 # Existing process variables take precedence; never rewrite the environment file.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
@@ -27,27 +27,6 @@ class GenerateRequest(BaseModel):
         return value
 
 
-class UpstreamMessage(BaseModel):
-    content: str = Field(strict=True, min_length=1)
-
-    @field_validator("content")
-    @classmethod
-    def reject_blank_content(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("Contenu amont vide.")
-        return value
-
-
-class UpstreamChoice(BaseModel):
-    message: UpstreamMessage
-
-
-class UpstreamResponse(BaseModel):
-    choices: list[UpstreamChoice] = Field(min_length=1)
-    model: str = Field(default="unknown", strict=True, min_length=1)
-    usage: dict | None = None
-
-
 async def get_llm_client() -> AsyncIterator[httpx.AsyncClient]:
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(120.0, connect=5.0), trust_env=False
@@ -65,46 +44,9 @@ async def generate(
     request: GenerateRequest,
     client: httpx.AsyncClient = Depends(get_llm_client),
 ):
-    base_url = os.getenv("LLM_BASE_URL", "").strip().rstrip("/")
     try:
-        parsed = urlsplit(base_url)
-        valid_url = (
-            parsed.scheme in {"http", "https"}
-            and bool(parsed.hostname)
-            and parsed.port != 0
-            and parsed.username is None
-            and parsed.password is None
-            and not parsed.query
-            and not parsed.fragment
+        return await generate_text(
+            client, os.getenv("LLM_BASE_URL", ""), request.prompt, request.max_tokens
         )
-    except ValueError:
-        valid_url = False
-    if not valid_url:
-        raise HTTPException(status_code=503, detail="LLM_BASE_URL absente ou invalide.")
-
-    payload = {
-        "messages": [{"role": "user", "content": request.prompt}],
-        "max_tokens": request.max_tokens,
-        "stream": False,
-    }
-    started = time.perf_counter()
-    try:
-        response = await client.post(f"{base_url}/v1/chat/completions", json=payload)
-        response.raise_for_status()
-        data = UpstreamResponse.model_validate(response.json())
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="Délai de réponse du serveur IA dépassé.") from None
-    except httpx.HTTPError:
-        raise HTTPException(status_code=502, detail="Erreur de communication avec le serveur IA.") from None
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=502, detail="Réponse invalide du serveur IA.") from None
-
-    return {
-        "status": "success",
-        "provider": "llama.cpp",
-        "model": data.model,
-        "prompt": request.prompt,
-        "response": data.choices[0].message.content,
-        "duration_seconds": round(time.perf_counter() - started, 3),
-        "usage": data.usage,
-    }
+    except ProviderError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from None
