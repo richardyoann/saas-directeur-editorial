@@ -14,7 +14,9 @@ import subprocess
 import sys
 import time
 import urllib.request
+from uuid import UUID, uuid5
 
+from dotenv import dotenv_values
 from live_api_check import check
 
 
@@ -116,6 +118,11 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
         raise ValueError("Invalid service port")
     if not root.is_absolute() or not config.is_absolute() or not config.is_file():
         raise ValueError("Absolute release root and existing config required")
+    settings = dotenv_values(config)
+    editorial_token = os.environ.get("EDITORIAL_API_TOKEN") or settings.get("EDITORIAL_API_TOKEN")
+    if not isinstance(editorial_token, str) or len(editorial_token) < 32:
+        raise ValueError("Editorial authentication missing from private configuration")
+    business_key = uuid5(UUID("4b0d4554-36f5-4aeb-bbc2-8d811535f699"), sha)
     actual = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source, text=True).strip()
     if actual != sha:
         raise ValueError("Checkout differs from expected SHA")
@@ -129,16 +136,13 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
         "editorial-api.service", "--property=WorkingDirectory", "--value"], text=True).strip()
     if service_directory != str(root / "current"):
         raise ValueError("Service does not use the configured release root")
-    service_directory = subprocess.check_output(["systemctl", "--user", "show",
-        "editorial-api.service", "--property=WorkingDirectory", "--value"], text=True).strip()
-    if service_directory != str(root / "current"):
-        raise ValueError("Service does not use the configured release root")
     root.mkdir(parents=True, exist_ok=True)
     with (root / ".deploy.lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if already_delivered(root, sha):
             assert_service_release(root / "current")
-            check(f"http://127.0.0.1:{port}")
+            check(f"http://127.0.0.1:{port}", editorial_token=editorial_token,
+                  idempotency_key=business_key)
             print(json.dumps({"sha": sha, "delivery": "already_verified"}))
             return
         releases = root / "releases"
@@ -170,7 +174,7 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
         try:
             url = f"http://127.0.0.1:{candidate_port}"
             wait_api(url, process)
-            check(url)
+            check(url, editorial_token=editorial_token, idempotency_key=business_key)
         finally:
             process.terminate()
             try:
@@ -185,13 +189,14 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
                 "editorial-api.service", "--property=MainPID", "--value"], text=True).strip())
             if pid <= 0 or Path(f"/proc/{pid}/cwd").resolve(strict=True) != (root / "current").resolve(strict=True):
                 raise RuntimeError("Service did not start the selected release")
-            check(url)
+            check(url, editorial_token=editorial_token, idempotency_key=business_key)
         assert_current_main(sha)
         activate(root / "current", candidate,
             lambda: command(["systemctl", "--user", "restart", "editorial-api.service"]),
             verify, lambda: command(["systemctl", "--user", "stop", "editorial-api.service"]))
         report = {"sha": sha, "regression": "passed", "candidate_live": "passed",
-                  "installed_live": "passed", "database_migration": "none"}
+                  "installed_live": "passed", "real_editorial_workflow": "passed",
+                  "database_migration": "none"}
         (root / "last_delivery.json").write_text(json.dumps(report, indent=2) + "\n")
         print(json.dumps(report, sort_keys=True))
 
