@@ -56,8 +56,12 @@ Vérifier qu'aucun autre serveur n'occupe le port 8000 avant activation. Adapter
 les chemins au compte réel du runner. Charger le service (daemon-reload), sans
 démarrer une release inexistante. Configurer les variables GitHub du dépôt :
 LOCAL_RELEASE_ROOT, LOCAL_CONFIG_PATH, puis LOCAL_PC_ENABLED=true uniquement
-après vérification des prérequis. Une seule installation initiale du runner et
-du service est nécessaire ; ensuite les nouvelles versions sont automatiques.
+après vérification des prérequis. La configuration privée doit aussi fournir
+PO_DATABASE_URL, EDITORIAL_API_TOKEN (32 caractères minimum),
+EDITORIAL_TENANT_ID et EDITORIAL_ACTOR_ID en plus de LLM_BASE_URL. Aucun de ces
+secrets ne doit être copié dans GitHub, Slack ou les journaux. Une seule
+installation initiale du runner et du service est nécessaire ; ensuite les
+nouvelles versions sont automatiques.
 
 Le script prépare une nouvelle release immutable, un venv et toutes les suites
 avant de relier la configuration réelle. Il démarre une API candidate sur un
@@ -70,9 +74,13 @@ Aucune migration de la base métier et aucun effacement de volume ne sont faits.
 
 ## Limites et preuves
 
-Le contrôle actuel valide API et appel modèle, pas la qualité éditoriale,
-l'identité des poids ni les futurs parcours histoires/scènes. Ajouter leurs
-tests de persistance, isolation et interface avant de les annoncer livrés.
+Le contrôle réel valide API, appel modèle et, lorsque les routes éditoriales
+existent, le parcours brief → analyse → scénario, l'authentification, le rejeu
+idempotent, la persistance et l'historique. Une exécution technique synthétique
+par SHA est conservée dans la base privée afin que la preuve soit attribuable;
+elle n'est ni publiée ni envoyée à Slack. Le contrôle ne valide pas la qualité
+éditoriale, l'identité des poids ni l'interface. Ajouter leurs tests dédiés
+avant de les annoncer livrés.
 Les changements de schéma exigent un plan sauvegarde/migration/restauration
 spécifique ; le retour arrière de code seul ne restaure pas une base migrée.
 La version candidate est revérifiée contre le SHA courant de main avant la

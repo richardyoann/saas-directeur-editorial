@@ -2,6 +2,7 @@
 
 ## DEV-005 — workflow éditorial, 11 octobre 2026
 
+- Livraison privée renforcée : le contrôle PC doit maintenant exécuter le parcours éditorial réel, vérifier authentification, persistance, historique et rejeu idempotent avec une donnée technique synthétique par SHA. La CI complète du SHA final reste obligatoire avant fusion.
 - L'utilisateur confirme base complète et LLM connectés, et autorise la progression autonome. Confirmation de son environnement, pas sonde exécutée ici.
 - Base du travail : branche ops/OPS-001-pilotage-prive au SHA 0645baf9eb96d23be7eff78de70ddae4c659a77d. Fournisseur de la PR #59 repris explicitement; PR #1/#58/#59 préservées, aucune fusion.
 - Nouveau parcours API privé : brief → analyse → scénario/scènes → waiting_validation; deux appels maximum, JSON strict, durée/nombre de scènes vérifiés.
