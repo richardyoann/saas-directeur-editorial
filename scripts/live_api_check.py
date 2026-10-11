@@ -28,7 +28,7 @@ def check(base_url: str, client=None) -> dict:
             raise ValueError("Generation contract failed")
         if not isinstance(data.get("response"), str) or not data["response"].strip():
             raise ValueError("Empty model result")
-        if data.get("truncated") is True or data.get("finish_reason") not in {None, "stop"}:
+        if data.get("truncated") is True or data.get("finish_reason") != "stop":
             raise ValueError("Model did not complete normally")
         return {"health": "passed", "validation": "passed", "real_generation": "passed",
                 "finish_reason_available": data.get("finish_reason") is not None}

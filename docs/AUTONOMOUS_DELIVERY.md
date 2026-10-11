@@ -87,3 +87,14 @@ Un runner inaccessible, désactivé ou une CI absente n'est jamais un succès.
 
 Références : https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners
 et https://docs.github.com/en/actions/reference/security/secure-use
+
+
+## Renforcement de la revue PR #61
+
+Critères supplémentaires : bloquer une réponse sans finish_reason=stop, vérifier
+le PID systemd et son répertoire de release avant de qualifier les tests HTTP,
+refuser un checkout suivi modifié, éviter une réinstallation sur événement doublon.
+Un reçu de même SHA ne suffit pas : le lien current doit correspondre et les
+contrôles du processus et HTTP sont rejoués. Une autre release bloque le succès.
+L'API de main ne transmet pas encore finish_reason ; intégrer et revoir la PR #59
+avant toute livraison réelle. Aucun succès Qwen n'est déduit de son absence.
