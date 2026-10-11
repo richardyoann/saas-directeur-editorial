@@ -1,5 +1,23 @@
 # État du projet
 
+## Pilotage — 11 octobre 2026 (prioritaire)
+
+- Dépôt privé confirmé : richardyoann/saas-directeur-editorial, ID 1411435489; main caf1725ad0087fee1a78e078047de6382d210f39 inspecté, droits admin/push/pull.
+- Project privé n°3 créé, visibilité private vérifiée, dépôt par défaut correct. 56 issues importées; 48 relations natives vérifiées. Vues backlog hiérarchisé, exécution et PR; priorités/critères/dépendances dans les descriptions.
+- Auto-close, item closed → Done et PR merged → Done désactivés et vérifiés. Aucune issue clôturée par cette migration.
+- PR #1 brouillon ouvert : POC audit/outbox et webhook signé, head 67b1a52e63fa6b8423dc32f0c8afa75a432ccf79; aucun run Actions associé trouvé. Préserver ce travail. Il est publié sur branche privée, absent de main.
+- PO heartbeat créé ACTIVE toutes les quatre heures avec silence sur état inchangé; premier déclenchement planifié non encore testé. Définition CLI livrée; découverte native non testée.
+- Bibliothèque métier pilotage.audit et digest développés pour cinq types. 11 tests réussis, dont 4 sur PostgreSQL 16 réel dédié editorial-po-test-20261011 (localhost:55433). Tests HTTP Slack simulés. Base SaaS localhost:5432 inchangée. Aucun hook métier production activé.
+- Variables bot/base absentes dans le processus inspecté. Test worker→Slack réel non réalisé. Connecteur Slack distinct; activation runtime ouverte. Aucun webhook distant activé.
+- Workflow Actions préparé dans cette PR : tests PO/audit, PostgreSQL isolé et suite historique Linux. Résultat CI à vérifier après publication; ne pas supposer vert.
+- WSL : erreur disque Ubuntu introuvable après tentative de lecture hors sandbox. Aucun changement/réinstallation. Docker SaaS PostgreSQL/Redis/MinIO en cours d’exécution observé via docker ps; état Qwen non sondé.
+- 48 critères de stories initialement non validés sur la baseline actuelle. Cela ne signifie pas absence de développement; preuves historiques à réattribuer aux versions exactes. Roadmap MVP proposée à affiner.
+- Quotas numériques non exposés par le connecteur; pas de chiffre inventé. CLI WSL rate_limit inaccessible. Pas d’erreur rate limit observée sur les écritures réalisées.
+
+Détails : pilotage/GUIDE.md. Aucun merge, migration production, publication publique ou suppression.
+
+## Historique conservé
+
 ## Dernière vérification — correction des blocages, 9 octobre 2026
 
 Cette section actualise les constats historiques ci-dessous. Détail et reprise :

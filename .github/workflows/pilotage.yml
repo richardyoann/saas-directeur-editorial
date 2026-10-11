@@ -1,0 +1,41 @@
+name: Pilotage and API tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  acceptance-and-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: po_test
+          POSTGRES_PASSWORD: ephemeral_ci_only
+          POSTGRES_DB: po_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U po_test -d po_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt 'psycopg[binary]==3.3.6'
+      - name: PO, digest and real PostgreSQL tests
+        env:
+          PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:5432/po_test
+          PO_ALLOW_TEST_MIGRATION: 'yes'
+        run: python -m unittest pilotage.test_po pilotage.test_audit -v
+      - name: Existing API and orchestration tests
+        run: python -m unittest discover -s tests -v
