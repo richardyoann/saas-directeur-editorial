@@ -54,8 +54,8 @@ async def run_workflow(store, tenant, actor, key, brief, client, base_url):
         response, parsed, error = {}, None, None
         try:
             response = await generate_text(client, base_url, prompt, 2048)
-            if response["truncated"]:
-                error = "output_truncated"
+            if response.get("finish_reason") != "stop":
+                error = "output_incomplete"
             else:
                 try:
                     parsed = parse_output(response["response"], step, brief)

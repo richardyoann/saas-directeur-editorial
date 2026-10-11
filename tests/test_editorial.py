@@ -119,7 +119,9 @@ class EditorialApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_invalid_or_truncated_output_stops_and_is_saved(self):
         for reason, output, code in (("stop", "pas du JSON", "invalid_structured_output"),
-                                     ("length", json.dumps(outputs()[0]), "output_truncated")):
+                                     ("length", json.dumps(outputs()[0]), "output_incomplete"),
+                                     (None, json.dumps(outputs()[0]), "output_incomplete"),
+                                     ("content_filter", json.dumps(outputs()[0]), "output_incomplete")):
             self.key = uuid4()
             self.responses = [output]
             self.reason = reason
