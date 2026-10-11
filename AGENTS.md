@@ -1,5 +1,21 @@
 # Repository Guidelines
 
+## Pilotage privé — 11 octobre 2026 (prioritaire)
+
+Lire pilotage/GUIDE.md, ETAT_PROJET.md et le Project privé https://github.com/users/richardyoann/projects/3.
+Dépôt exclusif : richardyoann/saas-directeur-editorial, ID 1411435489. Préserver la PR brouillon #1 et les modifications WSL.
+Epics → Stories → tâches → sous-tâches; IDs stables, dépendances et critères concrets. Agent PO : agents/product_owner.toml.
+Calculer l’avancement sur les acceptations de stories, avec preuve revue liée au SHA, date, résultat et type. Ne jamais convertir automatiquement merge, CI verte ou fermeture en acceptation.
+Branches feat/ID-description, fix/ID-description, ops/ID-description; commits type(ID): résumé; PR avec critères, preuves, risques et reprise.
+Tester sous Linux les tests historiques et pilotage/test_*.py. Les tests PostgreSQL nécessitent une cible dédiée; ne pas présenter un skip comme réussite.
+Mutations métier : tenant/acteur issus de l’authentification, CRUD + audit + outbox dans la même transaction. pilotage.audit fournit la bibliothèque; aucune route métier production connectée n’est annoncée.
+Slack : T0C7ZUAM4DR/C0C883XR3DF. Compteurs et IDs seulement, jamais prompts, outputs, titres métier, secrets ou exceptions brutes. Digest borné, anti-doublons, timeout ambigu suspendu pour réconciliation. Le connecteur ne prouve pas un bot runtime disponible.
+Le PO périodique compare la dernière synthèse et reste silencieux sans changement utile. Vérifier son premier run avant de le dire opérationnel.
+Garder Project/dépôt privés. Aucun merge, suppression, migration production, élargissement d’accès ou infrastructure existante modifiée sans accord.
+Le disque WSL Ubuntu est introuvable dans cette session. Ne pas réinstaller/réinitialiser; identifier une sauvegarde avec l’utilisateur.
+
+## Instructions historiques (constats initiaux à relire à la lumière de la section ci-dessus)
+
 ## Project Structure & Module Organization
 
 - `apps/api/main.py` contains the FastAPI application, request schema, health endpoint, and llama.cpp generation proxy.

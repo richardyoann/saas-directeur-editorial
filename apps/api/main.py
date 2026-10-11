@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from apps.api.llama_provider import ProviderError, generate_text
+from editorial.api import create_router
 
 # Existing process variables take precedence; never rewrite the environment file.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
@@ -50,3 +51,7 @@ async def generate(
         )
     except ProviderError as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from None
+
+
+# Configured private identity; tenant and actor never come from request fields.
+app.include_router(create_router(get_llm_client))

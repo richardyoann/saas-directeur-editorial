@@ -1,0 +1,1861 @@
+{
+  "schema_version": 1,
+  "repository": "richardyoann/saas-directeur-editorial",
+  "repository_id": 1411435489,
+  "baseline": "caf1725ad0087fee1a78e078047de6382d210f39",
+  "scope": "MVP proposé, à affiner par le PO après inventaire WSL",
+  "items": [
+    {
+      "id": "EPIC-001",
+      "title": "Socle API et Qwen local",
+      "kind": "epic",
+      "parent": null,
+      "priority": "P0",
+      "dependencies": [],
+      "description": "Périmètre proposé du MVP : Socle API et Qwen local. Acceptation agrégée des stories enfants.",
+      "criteria": [],
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 2,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/2"
+    },
+    {
+      "id": "DEV-001",
+      "title": "Intégrer FastAPI avec Qwen local",
+      "kind": "story",
+      "parent": "EPIC-001",
+      "description": "API fiable avec erreurs normalisées et réponse réelle attribuée à une version.",
+      "criteria": [
+        {
+          "id": "DEV-001:AC1",
+          "text": "POST /ai/generate répond avec le modèle local identifié et un contenu non vide",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "DEV-001:AC2",
+          "text": "422, 502, 503, 504 et limites de saisie sont couverts",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "DEV-001:AC3",
+          "text": "Une preuve réelle datée référence le commit testé",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "main contient le proxy FastAPI. ETAT_PROJET.md rapporte une preuve utilisateur du 09/10/2026; pas de revalidation réelle actuelle.",
+      "issue_number": 3,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/3"
+    },
+    {
+      "id": "TASK-001",
+      "title": "Implémenter et intégrer : Intégrer FastAPI avec Qwen local",
+      "kind": "task",
+      "parent": "DEV-001",
+      "description": "Produire une modification révisable et ses preuves pour DEV-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-001:AC1",
+          "text": "Implémentation en PR reliée à DEV-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-001:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 4,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/4"
+    },
+    {
+      "id": "SUB-001",
+      "title": "Vérifier : Intégrer FastAPI avec Qwen local",
+      "kind": "subtask",
+      "parent": "TASK-001",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-001:AC1",
+          "text": "POST /ai/generate répond avec le modèle local identifié et un contenu non vide",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-001:AC2",
+          "text": "422, 502, 503, 504 et limites de saisie sont couverts",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-001:AC3",
+          "text": "Une preuve réelle datée référence le commit testé",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 5,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/5"
+    },
+    {
+      "id": "DEV-003",
+      "title": "Contrats du fournisseur et workflow borné",
+      "kind": "story",
+      "parent": "EPIC-001",
+      "description": "Séparer transport, contrats et orchestration sans modifier le contrat existant.",
+      "criteria": [
+        {
+          "id": "DEV-003:AC1",
+          "text": "Fournisseur injectable et sortie structurée validée",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "DEV-003:AC2",
+          "text": "Budget, timeout, troncature et nombre maximum d’étapes explicites",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "DEV-003:AC3",
+          "text": "Tests couvrent succès, sortie invalide et épuisement du budget",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DEV-001"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 6,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/6"
+    },
+    {
+      "id": "TASK-002",
+      "title": "Implémenter et intégrer : Contrats du fournisseur et workflow borné",
+      "kind": "task",
+      "parent": "DEV-003",
+      "description": "Produire une modification révisable et ses preuves pour DEV-003. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-002:AC1",
+          "text": "Implémentation en PR reliée à DEV-003 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-002:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DEV-001"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 7,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/7"
+    },
+    {
+      "id": "SUB-002",
+      "title": "Vérifier : Contrats du fournisseur et workflow borné",
+      "kind": "subtask",
+      "parent": "TASK-002",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-002:AC1",
+          "text": "Fournisseur injectable et sortie structurée validée",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-002:AC2",
+          "text": "Budget, timeout, troncature et nombre maximum d’étapes explicites",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-002:AC3",
+          "text": "Tests couvrent succès, sortie invalide et épuisement du budget",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 8,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/8"
+    },
+    {
+      "id": "EPIC-002",
+      "title": "Agents et pilotage produit",
+      "kind": "epic",
+      "parent": null,
+      "priority": "P0",
+      "dependencies": [],
+      "description": "Périmètre proposé du MVP : Agents et pilotage produit. Acceptation agrégée des stories enfants.",
+      "criteria": [],
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 9,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/9"
+    },
+    {
+      "id": "DEV-002",
+      "title": "Activer les capacités Codex et la reprise",
+      "kind": "story",
+      "parent": "EPIC-002",
+      "description": "Réconcilier les capacités locales, leur découverte native et les preuves.",
+      "criteria": [
+        {
+          "id": "DEV-002:AC1",
+          "text": "Agents et skills détectés dans WSL sans écrasement de configuration",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "DEV-002:AC2",
+          "text": "Reprise entre deux sessions conserve IDs et preuves",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "DEV-002:AC3",
+          "text": "Installation tierce liée à une révision vérifiée",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "main contient orchestration et tests historiques; découverte native WSL non vérifiée ici.",
+      "issue_number": 10,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/10"
+    },
+    {
+      "id": "TASK-003",
+      "title": "Implémenter et intégrer : Activer les capacités Codex et la reprise",
+      "kind": "task",
+      "parent": "DEV-002",
+      "description": "Produire une modification révisable et ses preuves pour DEV-002. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-003:AC1",
+          "text": "Implémentation en PR reliée à DEV-002 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-003:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 11,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/11"
+    },
+    {
+      "id": "SUB-003",
+      "title": "Vérifier : Activer les capacités Codex et la reprise",
+      "kind": "subtask",
+      "parent": "TASK-003",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-003:AC1",
+          "text": "Agents et skills détectés dans WSL sans écrasement de configuration",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-003:AC2",
+          "text": "Reprise entre deux sessions conserve IDs et preuves",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-003:AC3",
+          "text": "Installation tierce liée à une révision vérifiée",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 12,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/12"
+    },
+    {
+      "id": "PO-001",
+      "title": "Superviser les acceptations et les risques",
+      "kind": "story",
+      "parent": "EPIC-002",
+      "description": "Un PO contrôle le backlog et propose les prochains travaux sans clôture automatique.",
+      "criteria": [
+        {
+          "id": "PO-001:AC1",
+          "text": "Avancement calculé sur critères avec preuves valides et commit identifié",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "PO-001:AC2",
+          "text": "Rapport expose dépendances bloquantes, risques, PR et contrôles manquants",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "PO-001:AC3",
+          "text": "Aucun critère simulé ou périmé ne valide une intégration réelle",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [
+        "OPS-001"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 13,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/13"
+    },
+    {
+      "id": "TASK-004",
+      "title": "Implémenter et intégrer : Superviser les acceptations et les risques",
+      "kind": "task",
+      "parent": "PO-001",
+      "description": "Produire une modification révisable et ses preuves pour PO-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-004:AC1",
+          "text": "Implémentation en PR reliée à PO-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-004:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "OPS-001"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 14,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/14"
+    },
+    {
+      "id": "SUB-004",
+      "title": "Vérifier : Superviser les acceptations et les risques",
+      "kind": "subtask",
+      "parent": "TASK-004",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-004:AC1",
+          "text": "Avancement calculé sur critères avec preuves valides et commit identifié",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-004:AC2",
+          "text": "Rapport expose dépendances bloquantes, risques, PR et contrôles manquants",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-004:AC3",
+          "text": "Aucun critère simulé ou périmé ne valide une intégration réelle",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 15,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/15"
+    },
+    {
+      "id": "EPIC-003",
+      "title": "GitHub Projects, PR et CI",
+      "kind": "epic",
+      "parent": null,
+      "priority": "P0",
+      "dependencies": [],
+      "description": "Périmètre proposé du MVP : GitHub Projects, PR et CI. Acceptation agrégée des stories enfants.",
+      "criteria": [],
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 16,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/16"
+    },
+    {
+      "id": "OPS-001",
+      "title": "Configurer le Project privé et la hiérarchie",
+      "kind": "story",
+      "parent": "EPIC-003",
+      "description": "GitHub devient la référence; Slack conserve les synthèses.",
+      "criteria": [
+        {
+          "id": "OPS-001:AC1",
+          "text": "Project privé relié au dépôt privé confirmé par ID",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "OPS-001:AC2",
+          "text": "Epics, stories, tâches et sous-tâches visibles avec parent et dépendances",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "OPS-001:AC3",
+          "text": "Priorité, statut, preuve et vues backlog, exécution, risques et PR vérifiés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Dépôt privé ID 1411435489 vérifié. Connecteur sans outils Projects; navigateur non connecté.",
+      "issue_number": 17,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/17"
+    },
+    {
+      "id": "TASK-005",
+      "title": "Implémenter et intégrer : Configurer le Project privé et la hiérarchie",
+      "kind": "task",
+      "parent": "OPS-001",
+      "description": "Produire une modification révisable et ses preuves pour OPS-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-005:AC1",
+          "text": "Implémentation en PR reliée à OPS-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-005:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 18,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/18"
+    },
+    {
+      "id": "SUB-005",
+      "title": "Vérifier : Configurer le Project privé et la hiérarchie",
+      "kind": "subtask",
+      "parent": "TASK-005",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-005:AC1",
+          "text": "Project privé relié au dépôt privé confirmé par ID",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-005:AC2",
+          "text": "Epics, stories, tâches et sous-tâches visibles avec parent et dépendances",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-005:AC3",
+          "text": "Priorité, statut, preuve et vues backlog, exécution, risques et PR vérifiés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 19,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/19"
+    },
+    {
+      "id": "OPS-002",
+      "title": "Conventions et contrôles de PR",
+      "kind": "story",
+      "parent": "EPIC-003",
+      "description": "Branches et PR traçables avec tests avant acceptation.",
+      "criteria": [
+        {
+          "id": "OPS-002:AC1",
+          "text": "PR référence les IDs et critères, risques et résultats",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "OPS-002:AC2",
+          "text": "GitHub Actions exécute les tests Linux et les tests PostgreSQL isolés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "OPS-002:AC3",
+          "text": "Échec, skip et appel simulé ne sont jamais présentés comme validation réelle",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [
+        "OPS-001"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 20,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/20"
+    },
+    {
+      "id": "TASK-006",
+      "title": "Implémenter et intégrer : Conventions et contrôles de PR",
+      "kind": "task",
+      "parent": "OPS-002",
+      "description": "Produire une modification révisable et ses preuves pour OPS-002. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-006:AC1",
+          "text": "Implémentation en PR reliée à OPS-002 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-006:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "OPS-001"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 21,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/21"
+    },
+    {
+      "id": "SUB-006",
+      "title": "Vérifier : Conventions et contrôles de PR",
+      "kind": "subtask",
+      "parent": "TASK-006",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-006:AC1",
+          "text": "PR référence les IDs et critères, risques et résultats",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-006:AC2",
+          "text": "GitHub Actions exécute les tests Linux et les tests PostgreSQL isolés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-006:AC3",
+          "text": "Échec, skip et appel simulé ne sont jamais présentés comme validation réelle",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 22,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/22"
+    },
+    {
+      "id": "EPIC-004",
+      "title": "Audit PostgreSQL et notifications",
+      "kind": "epic",
+      "parent": null,
+      "priority": "P0",
+      "dependencies": [],
+      "description": "Périmètre proposé du MVP : Audit PostgreSQL et notifications. Acceptation agrégée des stories enfants.",
+      "criteria": [],
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 23,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/23"
+    },
+    {
+      "id": "DEV-004",
+      "title": "Réconcilier et activer le POC audit/outbox",
+      "kind": "story",
+      "parent": "EPIC-004",
+      "description": "Préserver le code local non publié et activer uniquement après vérification.",
+      "criteria": [
+        {
+          "id": "DEV-004:AC1",
+          "text": "Comparaison WSL/main réalisée sans perte de modifications",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "DEV-004:AC2",
+          "text": "Audit et outbox atomiques, rollback et concurrence testés sur PostgreSQL",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "DEV-004:AC3",
+          "text": "Un événement réel atteint Slack et son accusé est conservé",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [
+        "OPS-002"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "POC développé dans la copie Windows et dans la PR brouillon #1, commit 67b1a52e63fa6b8423dc32f0c8afa75a432ccf79; main ne le contient pas. Tests historiques déclarés; activation réelle non vérifiée.",
+      "issue_number": 24,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/24"
+    },
+    {
+      "id": "TASK-007",
+      "title": "Implémenter et intégrer : Réconcilier et activer le POC audit/outbox",
+      "kind": "task",
+      "parent": "DEV-004",
+      "description": "Produire une modification révisable et ses preuves pour DEV-004. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-007:AC1",
+          "text": "Implémentation en PR reliée à DEV-004 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-007:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "OPS-002"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 25,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/25"
+    },
+    {
+      "id": "SUB-007",
+      "title": "Vérifier : Réconcilier et activer le POC audit/outbox",
+      "kind": "subtask",
+      "parent": "TASK-007",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-007:AC1",
+          "text": "Comparaison WSL/main réalisée sans perte de modifications",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-007:AC2",
+          "text": "Audit et outbox atomiques, rollback et concurrence testés sur PostgreSQL",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-007:AC3",
+          "text": "Un événement réel atteint Slack et son accusé est conservé",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 26,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/26"
+    },
+    {
+      "id": "AUD-001",
+      "title": "Historiser toutes les mutations métier",
+      "kind": "story",
+      "parent": "EPIC-004",
+      "description": "Chaque création, modification et suppression produit un audit sans contenu sensible.",
+      "criteria": [
+        {
+          "id": "AUD-001:AC1",
+          "text": "Prompts, traitements, scénarios, scènes et résultats ont des hooks transactionnels",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "AUD-001:AC2",
+          "text": "Événements portent identifiant, version, acteur opaque et corrélation",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "AUD-001:AC3",
+          "text": "Retry idempotent, suppression auditée et refus inter-compte testés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DATA-001",
+        "DEV-004"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 27,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/27"
+    },
+    {
+      "id": "TASK-008",
+      "title": "Implémenter et intégrer : Historiser toutes les mutations métier",
+      "kind": "task",
+      "parent": "AUD-001",
+      "description": "Produire une modification révisable et ses preuves pour AUD-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-008:AC1",
+          "text": "Implémentation en PR reliée à AUD-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-008:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DATA-001",
+        "DEV-004"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 28,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/28"
+    },
+    {
+      "id": "SUB-008",
+      "title": "Vérifier : Historiser toutes les mutations métier",
+      "kind": "subtask",
+      "parent": "TASK-008",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-008:AC1",
+          "text": "Prompts, traitements, scénarios, scènes et résultats ont des hooks transactionnels",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-008:AC2",
+          "text": "Événements portent identifiant, version, acteur opaque et corrélation",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-008:AC3",
+          "text": "Retry idempotent, suppression auditée et refus inter-compte testés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 29,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/29"
+    },
+    {
+      "id": "EPIC-005",
+      "title": "Persistance et isolation SaaS",
+      "kind": "epic",
+      "parent": null,
+      "priority": "P0",
+      "dependencies": [],
+      "description": "Périmètre proposé du MVP : Persistance et isolation SaaS. Acceptation agrégée des stories enfants.",
+      "criteria": [],
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 30,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/30"
+    },
+    {
+      "id": "DATA-001",
+      "title": "Modéliser les objets éditoriaux",
+      "kind": "story",
+      "parent": "EPIC-005",
+      "description": "Préparer des migrations révisables pour comptes, projets et objets métier.",
+      "criteria": [
+        {
+          "id": "DATA-001:AC1",
+          "text": "Clés étrangères et isolation par compte/projet présentes",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "DATA-001:AC2",
+          "text": "Versions et clés d’idempotence empêchent les doublons",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "DATA-001:AC3",
+          "text": "Migration testée sur base jetable; production soumise à accord",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DEV-003"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 31,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/31"
+    },
+    {
+      "id": "TASK-009",
+      "title": "Implémenter et intégrer : Modéliser les objets éditoriaux",
+      "kind": "task",
+      "parent": "DATA-001",
+      "description": "Produire une modification révisable et ses preuves pour DATA-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-009:AC1",
+          "text": "Implémentation en PR reliée à DATA-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-009:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DEV-003"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 32,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/32"
+    },
+    {
+      "id": "SUB-009",
+      "title": "Vérifier : Modéliser les objets éditoriaux",
+      "kind": "subtask",
+      "parent": "TASK-009",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-009:AC1",
+          "text": "Clés étrangères et isolation par compte/projet présentes",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-009:AC2",
+          "text": "Versions et clés d’idempotence empêchent les doublons",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-009:AC3",
+          "text": "Migration testée sur base jetable; production soumise à accord",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 33,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/33"
+    },
+    {
+      "id": "AUTH-001",
+      "title": "Authentifier et isoler les accès",
+      "kind": "story",
+      "parent": "EPIC-005",
+      "description": "Protéger API et contenus avant toute utilisation partagée.",
+      "criteria": [
+        {
+          "id": "AUTH-001:AC1",
+          "text": "Authentification obligatoire sur routes privées",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "AUTH-001:AC2",
+          "text": "Tests prouvent qu’un compte ne lit ni modifie les objets d’un autre",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "AUTH-001:AC3",
+          "text": "Secrets hors Git et logs; contrôle des quotas et limites testé",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DATA-001"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 34,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/34"
+    },
+    {
+      "id": "TASK-010",
+      "title": "Implémenter et intégrer : Authentifier et isoler les accès",
+      "kind": "task",
+      "parent": "AUTH-001",
+      "description": "Produire une modification révisable et ses preuves pour AUTH-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-010:AC1",
+          "text": "Implémentation en PR reliée à AUTH-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-010:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DATA-001"
+      ],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 35,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/35"
+    },
+    {
+      "id": "SUB-010",
+      "title": "Vérifier : Authentifier et isoler les accès",
+      "kind": "subtask",
+      "parent": "TASK-010",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-010:AC1",
+          "text": "Authentification obligatoire sur routes privées",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-010:AC2",
+          "text": "Tests prouvent qu’un compte ne lit ni modifie les objets d’un autre",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-010:AC3",
+          "text": "Secrets hors Git et logs; contrôle des quotas et limites testé",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P0",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 36,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/36"
+    },
+    {
+      "id": "EPIC-006",
+      "title": "Parcours éditorial et interface",
+      "kind": "epic",
+      "parent": null,
+      "priority": "P1",
+      "dependencies": [],
+      "description": "Périmètre proposé du MVP : Parcours éditorial et interface. Acceptation agrégée des stories enfants.",
+      "criteria": [],
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 37,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/37"
+    },
+    {
+      "id": "EDIT-001",
+      "title": "Générer scénario puis scènes avec validation humaine",
+      "kind": "story",
+      "parent": "EPIC-006",
+      "description": "Premier workflow éditorial structuré, borné et versionné.",
+      "criteria": [
+        {
+          "id": "EDIT-001:AC1",
+          "text": "Cadrage, scénario, scènes et relecture suivent des schémas explicites",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "EDIT-001:AC2",
+          "text": "Utilisateur peut accepter, rejeter et réviser chaque résultat",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "EDIT-001:AC3",
+          "text": "Évaluation réelle Qwen suit un jeu de cas versionné et critères de qualité",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [
+        "DEV-003",
+        "DATA-001"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 38,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/38"
+    },
+    {
+      "id": "TASK-011",
+      "title": "Implémenter et intégrer : Générer scénario puis scènes avec validation humaine",
+      "kind": "task",
+      "parent": "EDIT-001",
+      "description": "Produire une modification révisable et ses preuves pour EDIT-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-011:AC1",
+          "text": "Implémentation en PR reliée à EDIT-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-011:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DEV-003",
+        "DATA-001"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 39,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/39"
+    },
+    {
+      "id": "SUB-011",
+      "title": "Vérifier : Générer scénario puis scènes avec validation humaine",
+      "kind": "subtask",
+      "parent": "TASK-011",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-011:AC1",
+          "text": "Cadrage, scénario, scènes et relecture suivent des schémas explicites",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-011:AC2",
+          "text": "Utilisateur peut accepter, rejeter et réviser chaque résultat",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-011:AC3",
+          "text": "Évaluation réelle Qwen suit un jeu de cas versionné et critères de qualité",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 40,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/40"
+    },
+    {
+      "id": "WEB-001",
+      "title": "Créer l’interface de suivi éditorial",
+      "kind": "story",
+      "parent": "EPIC-006",
+      "description": "Interface MVP pour saisir, suivre et revoir un traitement.",
+      "criteria": [
+        {
+          "id": "WEB-001:AC1",
+          "text": "Saisie et erreurs accessibles, états pending/running/failed/completed cohérents",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "WEB-001:AC2",
+          "text": "Consultation versions, scénario et scènes sans fuite inter-compte",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "WEB-001:AC3",
+          "text": "Parcours bout en bout authentifié validé",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [
+        "AUTH-001",
+        "EDIT-001"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 41,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/41"
+    },
+    {
+      "id": "TASK-012",
+      "title": "Implémenter et intégrer : Créer l’interface de suivi éditorial",
+      "kind": "task",
+      "parent": "WEB-001",
+      "description": "Produire une modification révisable et ses preuves pour WEB-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-012:AC1",
+          "text": "Implémentation en PR reliée à WEB-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-012:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "AUTH-001",
+        "EDIT-001"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 42,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/42"
+    },
+    {
+      "id": "SUB-012",
+      "title": "Vérifier : Créer l’interface de suivi éditorial",
+      "kind": "subtask",
+      "parent": "TASK-012",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-012:AC1",
+          "text": "Saisie et erreurs accessibles, états pending/running/failed/completed cohérents",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-012:AC2",
+          "text": "Consultation versions, scénario et scènes sans fuite inter-compte",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-012:AC3",
+          "text": "Parcours bout en bout authentifié validé",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        }
+      ],
+      "dependencies": [],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 43,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/43"
+    },
+    {
+      "id": "EPIC-007",
+      "title": "Traitements longs et résultats",
+      "kind": "epic",
+      "parent": null,
+      "priority": "P1",
+      "dependencies": [],
+      "description": "Périmètre proposé du MVP : Traitements longs et résultats. Acceptation agrégée des stories enfants.",
+      "criteria": [],
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 44,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/44"
+    },
+    {
+      "id": "JOB-001",
+      "title": "Exécuter les traitements longs et reprises",
+      "kind": "story",
+      "parent": "EPIC-007",
+      "description": "File Redis avec tentatives bornées et suivi persistant.",
+      "criteria": [
+        {
+          "id": "JOB-001:AC1",
+          "text": "Job ID stable; reprise après crash sans double résultat",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "JOB-001:AC2",
+          "text": "Timeout, annulation et état final persistés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "JOB-001:AC3",
+          "text": "Concurrence, indisponibilité Redis et doublons couverts",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DATA-001",
+        "EDIT-001"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 45,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/45"
+    },
+    {
+      "id": "TASK-013",
+      "title": "Implémenter et intégrer : Exécuter les traitements longs et reprises",
+      "kind": "task",
+      "parent": "JOB-001",
+      "description": "Produire une modification révisable et ses preuves pour JOB-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-013:AC1",
+          "text": "Implémentation en PR reliée à JOB-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-013:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DATA-001",
+        "EDIT-001"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 46,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/46"
+    },
+    {
+      "id": "SUB-013",
+      "title": "Vérifier : Exécuter les traitements longs et reprises",
+      "kind": "subtask",
+      "parent": "TASK-013",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-013:AC1",
+          "text": "Job ID stable; reprise après crash sans double résultat",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-013:AC2",
+          "text": "Timeout, annulation et état final persistés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-013:AC3",
+          "text": "Concurrence, indisponibilité Redis et doublons couverts",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 47,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/47"
+    },
+    {
+      "id": "MEDIA-001",
+      "title": "Stocker et exporter les résultats",
+      "kind": "story",
+      "parent": "EPIC-007",
+      "description": "Résultats structurés en PostgreSQL, médias en stockage privé.",
+      "criteria": [
+        {
+          "id": "MEDIA-001:AC1",
+          "text": "Références MinIO privées et accès limité au compte",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "MEDIA-001:AC2",
+          "text": "Export scénario/scènes conserve versions et provenance",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "MEDIA-001:AC3",
+          "text": "Suppression et rétention cohérentes avec audit et références",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "AUTH-001",
+        "JOB-001"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 48,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/48"
+    },
+    {
+      "id": "TASK-014",
+      "title": "Implémenter et intégrer : Stocker et exporter les résultats",
+      "kind": "task",
+      "parent": "MEDIA-001",
+      "description": "Produire une modification révisable et ses preuves pour MEDIA-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-014:AC1",
+          "text": "Implémentation en PR reliée à MEDIA-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-014:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "AUTH-001",
+        "JOB-001"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 49,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/49"
+    },
+    {
+      "id": "SUB-014",
+      "title": "Vérifier : Stocker et exporter les résultats",
+      "kind": "subtask",
+      "parent": "TASK-014",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-014:AC1",
+          "text": "Références MinIO privées et accès limité au compte",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-014:AC2",
+          "text": "Export scénario/scènes conserve versions et provenance",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-014:AC3",
+          "text": "Suppression et rétention cohérentes avec audit et références",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 50,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/50"
+    },
+    {
+      "id": "EPIC-008",
+      "title": "Exploitation, qualité et livraison",
+      "kind": "epic",
+      "parent": null,
+      "priority": "P1",
+      "dependencies": [],
+      "description": "Périmètre proposé du MVP : Exploitation, qualité et livraison. Acceptation agrégée des stories enfants.",
+      "criteria": [],
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 51,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/51"
+    },
+    {
+      "id": "NOTIF-001",
+      "title": "Notifier Slack sans secrets ni spam",
+      "kind": "story",
+      "parent": "EPIC-008",
+      "description": "Notifications de PR, CI et métier par outbox et synthèses dédupliquées.",
+      "criteria": [
+        {
+          "id": "NOTIF-001:AC1",
+          "text": "Destination T0C7ZUAM4DR/C0C883XR3DF vérifiée; bot habilité",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        },
+        {
+          "id": "NOTIF-001:AC2",
+          "text": "Métadonnées sur liste blanche; aucun titre, prompt, output ou erreur brute transmis",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "NOTIF-001:AC3",
+          "text": "429 respecte Retry-After; timeout ambigu suspendu; digest et reprise sans doublon testés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DEV-004"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 52,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/52"
+    },
+    {
+      "id": "TASK-015",
+      "title": "Implémenter et intégrer : Notifier Slack sans secrets ni spam",
+      "kind": "task",
+      "parent": "NOTIF-001",
+      "description": "Produire une modification révisable et ses preuves pour NOTIF-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-015:AC1",
+          "text": "Implémentation en PR reliée à NOTIF-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-015:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "DEV-004"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 53,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/53"
+    },
+    {
+      "id": "SUB-015",
+      "title": "Vérifier : Notifier Slack sans secrets ni spam",
+      "kind": "subtask",
+      "parent": "TASK-015",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-015:AC1",
+          "text": "Destination T0C7ZUAM4DR/C0C883XR3DF vérifiée; bot habilité",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        },
+        {
+          "id": "SUB-015:AC2",
+          "text": "Métadonnées sur liste blanche; aucun titre, prompt, output ou erreur brute transmis",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-015:AC3",
+          "text": "429 respecte Retry-After; timeout ambigu suspendu; digest et reprise sans doublon testés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 54,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/54"
+    },
+    {
+      "id": "REL-001",
+      "title": "Valider et livrer le MVP privé",
+      "kind": "story",
+      "parent": "EPIC-008",
+      "description": "Recette et exploitation avant utilisation réelle.",
+      "criteria": [
+        {
+          "id": "REL-001:AC1",
+          "text": "Recette bout en bout sur version figée avec Qwen et Slack réels",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        },
+        {
+          "id": "REL-001:AC2",
+          "text": "Sauvegarde/restauration isolée testée; métriques et alertes utiles",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "REL-001:AC3",
+          "text": "Procédure de déploiement et retour arrière revue; aucune mise en production implicite",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "WEB-001",
+        "MEDIA-001",
+        "AUD-001",
+        "NOTIF-001"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 55,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/55"
+    },
+    {
+      "id": "TASK-016",
+      "title": "Implémenter et intégrer : Valider et livrer le MVP privé",
+      "kind": "task",
+      "parent": "REL-001",
+      "description": "Produire une modification révisable et ses preuves pour REL-001. Préserver les changements WSL existants.",
+      "criteria": [
+        {
+          "id": "TASK-016:AC1",
+          "text": "Implémentation en PR reliée à REL-001 et revue sans blocage",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "TASK-016:AC2",
+          "text": "Tests pertinents exécutés sur le commit proposé avec résultats conservés",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [
+        "WEB-001",
+        "MEDIA-001",
+        "AUD-001",
+        "NOTIF-001"
+      ],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 56,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/56"
+    },
+    {
+      "id": "SUB-016",
+      "title": "Vérifier : Valider et livrer le MVP privé",
+      "kind": "subtask",
+      "parent": "TASK-016",
+      "description": "Exécuter les cas suivants et joindre une preuve datée/typée au commit; ne pas cocher sur simulation pour un cas réel.",
+      "criteria": [
+        {
+          "id": "SUB-016:AC1",
+          "text": "Recette bout en bout sur version figée avec Qwen et Slack réels",
+          "verified": false,
+          "evidence": null,
+          "requires_real": true
+        },
+        {
+          "id": "SUB-016:AC2",
+          "text": "Sauvegarde/restauration isolée testée; métriques et alertes utiles",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        },
+        {
+          "id": "SUB-016:AC3",
+          "text": "Procédure de déploiement et retour arrière revue; aucune mise en production implicite",
+          "verified": false,
+          "evidence": null,
+          "requires_real": false
+        }
+      ],
+      "dependencies": [],
+      "priority": "P1",
+      "status": "todo",
+      "evidence": [],
+      "observed": "Prévu; aucune acceptation vérifiée dans cette session.",
+      "issue_number": 57,
+      "url": "https://github.com/richardyoann/saas-directeur-editorial/issues/57"
+    }
+  ]
+}

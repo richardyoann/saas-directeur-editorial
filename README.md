@@ -76,3 +76,7 @@ le client doit permettre une revue ou une relance explicite. Aucune relance
 automatique n'est déclenchée. Si le serveur omet le motif, il vaut `null` et
 `truncated` vaut `false`; cela ne constitue pas une preuve de complétude.
 Le fournisseur HTTP est isolé dans `apps/api/llama_provider.py`.
+
+## Workflow éditorial privé (DEV-005)
+
+`POST /editorial/runs` produit un scénario découpé en scènes et conserve les prompts, résultats et erreurs dans le schéma PostgreSQL audit existant. Deux appels IA maximum; sorties structurées validées, revue humaine obligatoire et renvoi idempotent. Consultation : `GET /editorial/runs/{uuid}` et `/history`. Configuration, preuves et limites : [guide](docs/EDITORIAL_WORKFLOW.md).
