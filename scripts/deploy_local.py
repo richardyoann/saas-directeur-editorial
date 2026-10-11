@@ -88,8 +88,13 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
     actual = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source, text=True).strip()
     if actual != sha:
         raise ValueError("Checkout differs from expected SHA")
+    command(["git", "diff", "--exit-code", "HEAD"], source)
     assert_current_main(sha)
     command(["systemctl", "--user", "cat", "editorial-api.service"])
+    service_directory = subprocess.check_output(["systemctl", "--user", "show",
+        "editorial-api.service", "--property=WorkingDirectory", "--value"], text=True).strip()
+    if service_directory != str(root / "current"):
+        raise ValueError("Service does not use the configured release root")
     root.mkdir(parents=True, exist_ok=True)
     with (root / ".deploy.lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -133,6 +138,10 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
         url = f"http://127.0.0.1:{port}"
         def verify():
             wait_api(url)
+            pid = int(subprocess.check_output(["systemctl", "--user", "show",
+                "editorial-api.service", "--property=MainPID", "--value"], text=True).strip())
+            if pid <= 0 or Path(f"/proc/{pid}/cwd").resolve(strict=True) != (root / "current").resolve(strict=True):
+                raise RuntimeError("Service did not start the selected release")
             check(url)
         assert_current_main(sha)
         activate(root / "current", candidate,
