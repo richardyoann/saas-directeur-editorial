@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import unittest
@@ -14,6 +15,34 @@ from scripts.live_api_check import failure_category
 
 
 class ProviderHardeningTests(unittest.IsolatedAsyncioTestCase):
+    async def test_wall_timeout_stops_slow_provider_without_retry(self):
+        calls = []
+        async def handler(request):
+            calls.append(request)
+            await asyncio.sleep(0.05)
+            return httpx.Response(200)
+        timeout = asyncio.timeout
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            with patch("apps.api.llama_provider.asyncio.timeout", side_effect=lambda seconds: timeout(0.001)):
+                with self.assertRaises(ProviderError) as error:
+                    await generate_text(client, "http://model.test", "data", 32)
+        self.assertEqual(error.exception.status_code, 504)
+        self.assertEqual(len(calls), 1)
+
+    async def test_chunked_response_is_stopped_at_byte_limit(self):
+        reads = []
+        class Stream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                for index in range(4):
+                    reads.append(index)
+                    yield b"x" * 100000
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, stream=Stream()))) as client:
+            with self.assertRaises(ProviderError) as error:
+                await generate_text(client, "http://model.test", "data", 32)
+        self.assertEqual(error.exception.status_code, 502)
+        self.assertEqual(reads, [0, 1, 2])
+
     async def test_invalid_request_is_blocked_before_any_network_call(self):
         calls = []
         def handler(request):

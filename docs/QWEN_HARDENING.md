@@ -67,7 +67,7 @@ les journaux locaux du service; aucune conclusion inventée.
 
 ## Validation et limites
 
-Suite locale initiale : 104 tests découverts, 95 réussis, 9 PostgreSQL ignorés,
+Suite locale finale : 106 tests découverts, 97 réussis, 9 PostgreSQL ignorés,
 0 échec, 0 erreur. Le garde de livraison reste donc bloquant localement.
 La régression CI sur le SHA de la PR doit exécuter les 9 tests sur PostgreSQL
 16 jetable avant qualification. HTTP/Qwen simulés dans ces tests.

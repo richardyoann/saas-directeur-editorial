@@ -90,7 +90,7 @@ class PostgresStore:
                         {"run_id": str(run_id), "step": step, "prompt_id": str(prompt_id),
                          "status": "running", "started_at": started_at,
                          "parameters": {"max_tokens": 2048, "stream": False,
-                                        "temperature": 0.1, "response_format": "json_schema",
+                                        "temperature": 0.1, "response_format": "json_object",
                                         "system_prompt_version": "1.1.0"}})
             run.update(current_step={"name": step, "treatment_id": str(treatment_id),
                                      "prompt_id": str(prompt_id), "started_at": started_at}, updated_at=started_at)
@@ -120,7 +120,7 @@ class PostgresStore:
                          "provider": response.get("provider"), "usage": response.get("usage"),
                          "duration_seconds": response.get("duration_seconds"),
                          "finish_reason": response.get("finish_reason"), "parameters": {"max_tokens": 2048, "stream": False,
-                         "temperature": 0.1, "response_format": "json_schema", "system_prompt_version": "1.1.0"},
+                         "temperature": 0.1, "response_format": "json_object", "system_prompt_version": "1.1.0"},
                          "started_at": run["current_step"]["started_at"], "finished_at": now()}
             self._write(conn, tenant, actor, run_id, "treatment", treatment_id, treatment, 1)
             self._write(conn, tenant, actor, run_id, "result", result_id,

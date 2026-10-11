@@ -6,7 +6,7 @@
 - Requête structurée avec message system séparé, schéma contraint, température 0,1; contrats d'entrée/sortie bornés, redirections refusées, délai total et taille de réponse limités.
 - Route générique authentifiée dès configuration de l'identité privée; bootstrap local non configuré toujours historique/anonyme.
 - Diagnostic en lecture seule et catégories fixes, sans secrets ni contenus privés. Versions prompt 1.1.0/workflow editorial-v1.1; aucun résultat historique écrasé.
-- Validation locale initiale : 104 tests, 95 réussis, 9 PostgreSQL ignorés, 0 erreur/échec. CI complète obligatoire au SHA final; Qwen réel non accessible ici.
+- Validation locale finale : 106 tests, 97 réussis, 9 PostgreSQL ignorés, 0 erreur/échec. CI complète obligatoire au SHA final; Qwen réel non accessible ici.
 - Aucun déploiement PC ni réglage modèle/réseau, migration ou fusion. Détail : docs/QWEN_HARDENING.md.
 
 
