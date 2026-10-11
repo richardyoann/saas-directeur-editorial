@@ -14,7 +14,7 @@ class LiveContractTests(unittest.TestCase):
                 raise httpx.ReadTimeout("secret endpoint", request=request)
             return httpx.Response(200, json={"status": "success", "provider": "llama.cpp",
                 "response": "" if fail == "empty" else "Bretagne",
-                "finish_reason": "length" if fail == "truncated" else "stop",
+                "finish_reason": None if fail == "missing_finish" else ("length" if fail == "truncated" else "stop"),
                 "truncated": fail == "truncated"})
         return httpx.Client(transport=httpx.MockTransport(handler))
 
@@ -22,7 +22,7 @@ class LiveContractTests(unittest.TestCase):
         self.assertEqual(check("http://127.0.0.1:8000", self.client())["real_generation"], "passed")
 
     def test_failures_block_delivery(self):
-        for fail in ("health", "validation", "empty", "truncated", "timeout"):
+        for fail in ("health", "validation", "empty", "truncated", "timeout", "missing_finish"):
             with self.subTest(fail=fail), self.assertRaises((ValueError, httpx.HTTPError)):
                 check("http://127.0.0.1:8000", self.client(fail))
 

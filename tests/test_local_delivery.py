@@ -46,3 +46,60 @@ class ReleaseTests(unittest.TestCase):
             candidate = root / "candidate"; candidate.mkdir()
             activate(root / "current", candidate, Mock(), Mock(), Mock())
             self.assertEqual((root / "current").resolve(), candidate)
+
+
+class ServiceIdentityTests(unittest.TestCase):
+    def test_wrong_service_release_blocks_success(self):
+        from deploy_local import assert_service_release
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate = root / "candidate"
+            other = root / "other"
+            candidate.mkdir(); other.mkdir()
+            process = root / "proc" / "123"
+            process.mkdir(parents=True)
+            (process / "cwd").symlink_to(other)
+            with patch("deploy_local.subprocess.check_output", return_value="123\n"):
+                with self.assertRaises(RuntimeError):
+                    assert_service_release(candidate, root / "proc")
+
+    def test_matching_service_release_passes(self):
+        from deploy_local import assert_service_release
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate = root / "candidate"
+            candidate.mkdir()
+            process = root / "proc" / "123"
+            process.mkdir(parents=True)
+            (process / "cwd").symlink_to(candidate)
+            with patch("deploy_local.subprocess.check_output", return_value="123\n"):
+                assert_service_release(candidate, root / "proc")
+
+    def test_stopped_service_blocks_success(self):
+        from deploy_local import assert_service_release
+        from unittest.mock import patch
+        with patch("deploy_local.subprocess.check_output", return_value="0\n"):
+            with self.assertRaises(RuntimeError):
+                assert_service_release(Path("/synthetic"))
+
+
+class DuplicateDeliveryTests(unittest.TestCase):
+    def test_receipt_must_match_current_release(self):
+        from deploy_local import already_delivered
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sha = "a" * 40
+            releases = root / "releases"; releases.mkdir()
+            release = releases / (sha + "-123"); release.mkdir()
+            current = root / "current"; current.symlink_to(release)
+            report = root / "last_delivery.json"
+            report.write_text(json.dumps({"sha": sha, "installed_live": "passed"}))
+            self.assertTrue(already_delivered(root, sha))
+            self.assertFalse(already_delivered(root, "b" * 40))
+            current.unlink()
+            other = releases / ("b" * 40 + "-123"); other.mkdir()
+            current.symlink_to(other)
+            self.assertFalse(already_delivered(root, sha))

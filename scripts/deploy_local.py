@@ -29,6 +29,37 @@ def assert_current_main(sha):
         raise RuntimeError("Superseded release; wait for current main CI")
 
 
+def assert_service_release(expected: Path, proc_root: Path = Path("/proc")):
+    """Bind HTTP evidence to the actual systemd process working directory."""
+    pid = subprocess.check_output([
+        "systemctl", "--user", "show", "editorial-api.service",
+        "--property=MainPID", "--value"], text=True).strip()
+    if not pid.isdecimal() or int(pid) <= 0:
+        raise RuntimeError("Installed service has no live process")
+    try:
+        actual = (proc_root / pid / "cwd").resolve(strict=True)
+        target = expected.resolve(strict=True)
+    except OSError:
+        raise RuntimeError("Cannot verify installed release") from None
+    if actual != target:
+        raise RuntimeError("Service runs a different release")
+
+
+def already_delivered(root: Path, sha: str) -> bool:
+    report_path = root / "last_delivery.json"
+    current = root / "current"
+    if not report_path.is_file() or not current.is_symlink():
+        return False
+    try:
+        report = json.loads(report_path.read_text())
+        release = current.resolve(strict=True)
+    except (OSError, ValueError):
+        return False
+    return (report.get("sha") == sha and report.get("installed_live") == "passed"
+            and release.parent == (root / "releases").resolve()
+            and release.name.startswith(sha + "-"))
+
+
 def command(args, cwd=None, quiet=True):
     subprocess.run(args, cwd=cwd, check=True, timeout=600,
                    stdout=subprocess.DEVNULL if quiet else None,
@@ -89,8 +120,15 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
     if actual != sha:
         raise ValueError("Checkout differs from expected SHA")
     command(["git", "diff", "--exit-code", "HEAD"], source)
+    if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"],
+                               cwd=source, text=True).strip():
+        raise ValueError("Tracked checkout modifications invalidate SHA evidence")
     assert_current_main(sha)
     command(["systemctl", "--user", "cat", "editorial-api.service"])
+    service_directory = subprocess.check_output(["systemctl", "--user", "show",
+        "editorial-api.service", "--property=WorkingDirectory", "--value"], text=True).strip()
+    if service_directory != str(root / "current"):
+        raise ValueError("Service does not use the configured release root")
     service_directory = subprocess.check_output(["systemctl", "--user", "show",
         "editorial-api.service", "--property=WorkingDirectory", "--value"], text=True).strip()
     if service_directory != str(root / "current"):
@@ -98,6 +136,11 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
     root.mkdir(parents=True, exist_ok=True)
     with (root / ".deploy.lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if already_delivered(root, sha):
+            assert_service_release(root / "current")
+            check(f"http://127.0.0.1:{port}")
+            print(json.dumps({"sha": sha, "delivery": "already_verified"}))
+            return
         releases = root / "releases"
         releases.mkdir(exist_ok=True)
         # A unique directory preserves previous and partially failed releases.
