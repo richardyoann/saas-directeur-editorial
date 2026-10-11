@@ -1,4 +1,4 @@
-name: Pilotage and API tests
+name: Full regression
 on:
   pull_request:
   push:
@@ -7,12 +7,12 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: regression-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  acceptance-and-postgres:
+  regression:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -20,7 +20,7 @@ jobs:
           POSTGRES_USER: po_test
           POSTGRES_PASSWORD: ephemeral_ci_only
           POSTGRES_DB: po_test
-        ports: [5432:5432]
+        ports: [5432/tcp]
         options: >-
           --health-cmd "pg_isready -U po_test -d po_test"
           --health-interval 5s --health-timeout 5s --health-retries 10
@@ -32,13 +32,13 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt 'psycopg[binary]==3.3.6'
-      - name: PO, digest and real PostgreSQL tests
+      - name: Prepare disposable trace database when present
         env:
-          PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:5432/po_test
-          PO_ALLOW_TEST_MIGRATION: 'yes'
-        run: python -m unittest pilotage.test_po pilotage.test_audit -v
-      - name: Existing API, editorial persistence and orchestration tests
+          TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
+        run: python scripts/prepare_test_database.py
+      - name: All historical and new suites (skips fail)
         env:
-          PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:5432/po_test
+          PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
           PO_ALLOW_TEST_MIGRATION: 'yes'
-        run: python -m unittest discover -s tests -v
+          TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
+        run: python scripts/run_regression.py

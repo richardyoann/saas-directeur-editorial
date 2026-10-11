@@ -9,7 +9,7 @@
 - Réutilise uniquement le schéma po_* versionné; aucune nouvelle migration, aucune preuve d'accès aux tables locales non versionnées.
 - Local : 60 tests exécutés avec succès, 5 tests PostgreSQL supplémentaires ignorés faute de cible dédiée; 7 tests pilotage exécutés avec succès, 4 PostgreSQL ignorés.
 - CI vérifiée au SHA 458138bbf3d1bfccd4a7a7b5e5bad330206fdfef : run 38153196125 réussi, job et étapes pilotage/PostgreSQL/API confirmés. 76 tests configurés (65 API/historique/éditorial + 11 pilotage), dont 9 PostgreSQL exécutés sur une base de service isolée. Aucun appel Qwen réel. Preuve : https://github.com/richardyoann/saas-directeur-editorial/actions/runs/38153196125.
-- PR brouillon #60 empilée sur #58 : https://github.com/richardyoann/saas-directeur-editorial/pull/60. Cette mise à jour documentaire ne change pas le code testé.
+- PR brouillon #60 reprise sur `main` afin de tester la compatibilité réelle avec les workflows de livraison; #58 reste ouverte séparément. Une nouvelle preuve `Full regression` est obligatoire après chaque nouveau SHA.
 - Code développé et tests modèle simulés; Qwen réel, interface, reprise durable et activation Slack runtime restent ouverts.
 - Guide : docs/EDITORIAL_WORKFLOW.md. La CI est configurée avec une base PostgreSQL 16 dédiée pour les 9 tests concernés, sans modifier la base SaaS.
 - DEV-005 reste en cours jusqu'à preuves réelles, revue et acceptation; aucune clôture de critère produit automatique.
@@ -30,6 +30,18 @@
 - Quotas numériques non exposés par le connecteur; pas de chiffre inventé. CLI WSL rate_limit inaccessible. Pas d’erreur rate limit observée sur les écritures réalisées.
 
 Détails : pilotage/GUIDE.md. Aucun merge, migration production, publication publique ou suppression.
+
+## DEV-003 — incrément fournisseur, 11 octobre 2026
+
+- Baseline : main caf1725ad0087fee1a78e078047de6382d210f39, copie isolée.
+- Client HTTP et validation llama.cpp extraits dans apps/api/llama_provider.py.
+- Route /ai/generate et injection get_llm_client conservées; champs historiques et erreurs 422/503/502/504 préservés.
+- Champs additionnels : finish_reason (nullable) et truncated (true uniquement pour length).
+- Une raison absente reste inconnue : truncated=false ne garantit pas un contenu éditorial complet.
+- 54 tests Linux réussis, appels modèle simulés; aucun nouvel appel Qwen réel.
+- Pas de migration ni de modification WSL, infrastructure, secrets ou prototype Arvor.
+- Les PR #1 et #58 restent distinctes et préservées. DEV-003 global reste ouvert : workflow éditorial et persistance non livrés par cet incrément.
+- Reprise : valider sur Qwen réel le motif d'arrêt, puis préparer le workflow éditorial borné et intégrer l'historisation après revue des PR existantes.
 
 ## Historique conservé
 
