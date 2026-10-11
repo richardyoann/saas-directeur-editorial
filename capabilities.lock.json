@@ -57,6 +57,10 @@
       "path": "agents/orchestrator.toml"
     },
     {
+      "name": "product_owner",
+      "path": "agents/product_owner.toml"
+    },
+    {
       "name": "reviewer",
       "path": "agents/reviewer.toml"
     },
@@ -121,6 +125,10 @@
     {
       "path": "agents/orchestrator.toml",
       "sha256": "031473383fe6b98ec100a3f78232ffdc3884e986c306d1a8e721f35d1dab29a0"
+    },
+    {
+      "path": "agents/product_owner.toml",
+      "sha256": "6fa0a730c7ee19ba322775a2f4dd6658853ab94a2eb9be5c8933c4da7ae8a803"
     },
     {
       "path": "agents/reviewer.toml",
