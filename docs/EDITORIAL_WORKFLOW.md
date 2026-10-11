@@ -59,8 +59,13 @@ Variables du processus :
 - `EDITORIAL_CODE_VERSION` : SHA déployé; `unidentified` sinon, sans inventer
   une preuve de version réellement déployée.
 
-Conserver l'API locale ou derrière HTTPS authentifié. Le contrat historique
-`/ai/generate` est préservé; sa politique d'accès initiale n'est pas modifiée.
+Conserver l'API locale ou derrière HTTPS authentifié. `/ai/generate` exige aussi
+l'identité privée dès qu'une variable EDITORIAL_API_TOKEN/TENANT_ID/ACTOR_ID
+est configurée; une configuration partielle échoue fermée. Sans identité
+configurée, le bootstrap historique demeure anonyme et doit rester local.
+Le workflow 1.1 demande un schéma contraint à llama.cpp et sépare consignes
+système et données; la validation Python reste obligatoire. Détail :
+docs/QWEN_HARDENING.md.
 
 Exemple de corps (header de clé UUID et authentification requis) :
 

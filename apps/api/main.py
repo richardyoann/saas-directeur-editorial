@@ -8,7 +8,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from apps.api.llama_provider import ProviderError, generate_text
-from editorial.api import create_router
+from editorial.api import create_router, get_identity, security
+from fastapi.security import HTTPAuthorizationCredentials
 
 # Existing process variables take precedence; never rewrite the environment file.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
@@ -17,8 +18,8 @@ app = FastAPI(title="Directeur éditorial IA", version="0.1.0")
 
 
 class GenerateRequest(BaseModel):
-    prompt: str = Field(min_length=1)
-    max_tokens: int = Field(default=250, ge=1, le=2048)
+    prompt: str = Field(strict=True, min_length=1, max_length=16000)
+    max_tokens: int = Field(default=250, strict=True, ge=1, le=2048)
 
     @field_validator("prompt")
     @classmethod
@@ -44,7 +45,11 @@ def health():
 async def generate(
     request: GenerateRequest,
     client: httpx.AsyncClient = Depends(get_llm_client),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ):
+    # Preserve the local bootstrap contract, but never bypass a configured identity.
+    if any(os.getenv(name) for name in ("EDITORIAL_API_TOKEN", "EDITORIAL_TENANT_ID", "EDITORIAL_ACTOR_ID")):
+        get_identity(credentials)
     try:
         return await generate_text(
             client, os.getenv("LLM_BASE_URL", ""), request.prompt, request.max_tokens
@@ -55,3 +60,4 @@ async def generate(
 
 # Configured private identity; tenant and actor never come from request fields.
 app.include_router(create_router(get_llm_client))
+

@@ -1,5 +1,15 @@
 # État du projet
 
+## EDIT-001 — Renforcement Qwen, 11 octobre 2026
+
+- Analyse : échec réel signalé dans le suivi, cause exacte non démontrée faute de run ID/journal; livraison PC ignorée distincte d'un échec Qwen.
+- Requête structurée avec message system séparé, schéma contraint, température 0,1; contrats d'entrée/sortie bornés, redirections refusées, délai total et taille de réponse limités.
+- Route générique authentifiée dès configuration de l'identité privée; bootstrap local non configuré toujours historique/anonyme.
+- Diagnostic en lecture seule et catégories fixes, sans secrets ni contenus privés. Versions prompt 1.1.0/workflow editorial-v1.1; aucun résultat historique écrasé.
+- Validation locale finale : 106 tests, 97 réussis, 9 PostgreSQL ignorés, 0 erreur/échec. CI complète obligatoire au SHA final; Qwen réel non accessible ici.
+- Aucun déploiement PC ni réglage modèle/réseau, migration ou fusion. Détail : docs/QWEN_HARDENING.md.
+
+
 ## DEV-005 — workflow éditorial, 11 octobre 2026
 
 - Livraison privée renforcée : le contrôle PC doit maintenant exécuter le parcours éditorial réel, vérifier authentification, persistance, historique et rejeu idempotent avec une donnée technique synthétique par SHA. La CI complète du SHA final reste obligatoire avant fusion.
