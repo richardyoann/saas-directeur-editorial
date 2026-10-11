@@ -1,5 +1,18 @@
 # État du projet
 
+## DEV-003 — incrément fournisseur, 11 octobre 2026
+
+- Baseline : main caf1725ad0087fee1a78e078047de6382d210f39, copie isolée.
+- Client HTTP et validation llama.cpp extraits dans apps/api/llama_provider.py.
+- Route /ai/generate et injection get_llm_client conservées; champs historiques et erreurs 422/503/502/504 préservés.
+- Champs additionnels : finish_reason (nullable) et truncated (true uniquement pour length).
+- Une raison absente reste inconnue : truncated=false ne garantit pas un contenu éditorial complet.
+- 54 tests Linux réussis, appels modèle simulés; aucun nouvel appel Qwen réel.
+- Pas de migration ni de modification WSL, infrastructure, secrets ou prototype Arvor.
+- Les PR #1 et #58 restent distinctes et préservées. DEV-003 global reste ouvert : workflow éditorial et persistance non livrés par cet incrément.
+- Reprise : valider sur Qwen réel le motif d'arrêt, puis préparer le workflow éditorial borné et intégrer l'historisation après revue des PR existantes.
+
+
 ## Dernière vérification — correction des blocages, 9 octobre 2026
 
 Cette section actualise les constats historiques ci-dessous. Détail et reprise :

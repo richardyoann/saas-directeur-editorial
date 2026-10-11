@@ -67,3 +67,12 @@ Les capacités internes sont dans `skills/` et `agents/`, avec versions et
 empreintes dans `capabilities.lock.json`. Voir `docs/EXTERNAL_SKILLS.md` pour la
 suite tierce demandée et l’installation WSL2 préparée ; elle reste bloquée ici.
 Les manifestes locaux ne sont pas des commits Git. Aucune migration appliquée.
+
+## Motif d'arrêt de la génération (DEV-003)
+
+`/ai/generate` conserve ses champs historiques et ajoute `finish_reason` et
+`truncated`. `length` signifie que la limite de tokens a interrompu la sortie;
+le client doit permettre une revue ou une relance explicite. Aucune relance
+automatique n'est déclenchée. Si le serveur omet le motif, il vaut `null` et
+`truncated` vaut `false`; cela ne constitue pas une preuve de complétude.
+Le fournisseur HTTP est isolé dans `apps/api/llama_provider.py`.
