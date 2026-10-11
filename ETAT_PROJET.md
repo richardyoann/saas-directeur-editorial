@@ -7,7 +7,9 @@
 - Nouveau parcours API privé : brief → analyse → scénario/scènes → waiting_validation; deux appels maximum, JSON strict, durée/nombre de scènes vérifiés.
 - Identité privée serveur, idempotence par tenant, prompts persistés avant appel, résultats exacts et erreurs archivés, données/audit/outbox atomiques à chaque étape.
 - Réutilise uniquement le schéma po_* versionné; aucune nouvelle migration, aucune preuve d'accès aux tables locales non versionnées.
-- Local : 60 tests exécutés avec succès, 5 tests PostgreSQL supplémentaires ignorés faute de cible dédiée; 7 tests pilotage exécutés avec succès, 4 PostgreSQL ignorés. Résultat PostgreSQL CI à vérifier séparément.
+- Local : 60 tests exécutés avec succès, 5 tests PostgreSQL supplémentaires ignorés faute de cible dédiée; 7 tests pilotage exécutés avec succès, 4 PostgreSQL ignorés.
+- CI vérifiée au SHA 458138bbf3d1bfccd4a7a7b5e5bad330206fdfef : run 38153196125 réussi, job et étapes pilotage/PostgreSQL/API confirmés. 76 tests configurés (65 API/historique/éditorial + 11 pilotage), dont 9 PostgreSQL exécutés sur une base de service isolée. Aucun appel Qwen réel. Preuve : https://github.com/richardyoann/saas-directeur-editorial/actions/runs/38153196125.
+- PR brouillon #60 empilée sur #58 : https://github.com/richardyoann/saas-directeur-editorial/pull/60. Cette mise à jour documentaire ne change pas le code testé.
 - Code développé et tests modèle simulés; Qwen réel, interface, reprise durable et activation Slack runtime restent ouverts.
 - Guide : docs/EDITORIAL_WORKFLOW.md. La CI est configurée avec une base PostgreSQL 16 dédiée pour les 9 tests concernés, sans modifier la base SaaS.
 - DEV-005 reste en cours jusqu'à preuves réelles, revue et acceptation; aucune clôture de critère produit automatique.
