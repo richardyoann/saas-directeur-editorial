@@ -166,3 +166,7 @@ gh run rerun <ID> --repo richardyoann/saas-directeur-editorial
 ~~~
 
 Sur incident, consulter les journaux sans secrets ni contenu métier, préserver releases et base métier. deploy_local gère le retour au code précédent après échec de la bascule, selon les limites ci-dessus. Tenir scripts/deploy_local.py, scripts/live_api_check.py et .github/workflows/local-delivery.yml cohérents avec les instructions lorsque leur comportement change.
+
+## Economie de contexte Codex
+
+Voir docs/TOKEN_ECONOMY.md : profils .codex/agents, deux sous-agents maximum, contexte minimal et mesures comparables. Aucune modification du runner ni des controles de livraison.

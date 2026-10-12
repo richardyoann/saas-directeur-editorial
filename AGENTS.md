@@ -14,6 +14,16 @@ Le PO périodique compare la dernière synthèse et reste silencieux sans change
 Garder Project/dépôt privés. Aucun merge, suppression, migration production, élargissement d’accès ou infrastructure existante modifiée sans accord.
 Le disque WSL Ubuntu est introuvable dans cette session. Ne pas réinstaller/réinitialiser; identifier une sauvegarde avec l’utilisateur.
 
+## Economie de contexte et de tokens
+- Chercher avant de lire; extraire uniquement les passages utiles. Charger les skills et references a la demande.
+- Preferer scripts et CLI existants; regrouper les lectures independantes et limiter chaque sortie a un resume ou 150 lignes.
+- Eviter les polls rapproches; attendre un evenement ou un controle final.
+- Petites demandes : traitement direct. Delegation seulement utile ou revue requise, deux sous-agents maximum, sans recursion par defaut.
+- Transmettre objectif, chemins, SHA et contraintes, sans copier toute la conversation; retour concis avec preuves. Ne pas refaire le travail sans anomalie.
+- Navigation/documentation bornees : profils economiques. Garder un raisonnement adapte et les validations indispensables pour securite, incidents et deploiement.
+- Ne reutiliser les preuves que pour le meme SHA et les memes preconditions. Arreter apres les controles pertinents reussis.
+- Reponses courtes, sauf livrables demandant du detail. Documentation et installation/deploiement tenus a jour. Aucun gain chiffre sans comparaison incluant les sous-agents.
+
 ## Documentation continue — 12 octobre 2026
 
 Consigne utilisateur : à chaque changement, compléter dans la même PR la documentation concernée et les fichiers d’installation/déploiement dont le comportement change (scripts, workflows, modèles de configuration). Garder prérequis, commandes, configuration et reprise cohérents avec le projet réel. Consigner date, SHA vérifié, résultats, limites et blocages; distinguer préparation, CI, installation active et acceptation métier. Ne jamais versionner les secrets. Ubuntu 26.04 exclusivement; Ubuntu 24.04 est exclue.
