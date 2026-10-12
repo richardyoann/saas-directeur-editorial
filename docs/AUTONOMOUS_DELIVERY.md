@@ -1,9 +1,28 @@
 # Livraison privée guidée par les tests
 
-Autorisation utilisateur du 11 octobre 2026 : revue, corrections, fusion validée,
-installation privée sur PC et tests réels sans demande de Go à chaque étape.
-Le message de succès informe l'utilisateur ; il n'est pas une nouvelle demande
-d'autorisation. Publication publique exclue.
+Autorisation permanente du 12 octobre 2026 : diagnostic, développement,
+corrections, tests, revue, documentation, PR et fusion validée peuvent avancer
+sans demande de Go à chaque étape. **La MEP nécessite la validation humaine
+explicite du SHA exact**, y compris une activation sur le PC privé.
+Cette règle remplace l'autorisation d'installation automatique du 11 octobre.
+La validation des résultats éditoriaux reste humaine.
+
+## Validation et activation d'une MEP
+
+LOCAL_PC_ENABLED=false bloque le déclenchement automatique de livraison après
+la CI de main. Le service déjà actif reste en place. Préparer les changements,
+les preuves CI et de revue sur le SHA exact, les risques et le retour arrière,
+puis présenter ce dossier à l'utilisateur pour validation.
+
+Après accord explicite seulement : vérifier que main correspond toujours au
+SHA approuvé et que sa CI a réussi ; suspendre toute autre fusion pendant la
+fenêtre de livraison ; activer temporairement LOCAL_PC_ENABLED et relancer
+la livraison du run correspondant à ce SHA. Vérifier la release active et sa
+preuve réelle, puis remettre LOCAL_PC_ENABLED=false même en cas d'échec.
+Si main a changé, demander une validation du nouveau candidat. Aucun script
+de préparation ni suivi planifié ne peut donner cette validation à sa place.
+Le workflow existant prépare et active dans la même exécution : ne pas le
+déclencher avant l'accord MEP. Les travaux indépendants peuvent continuer.
 
 ## Critères obligatoires
 
@@ -23,8 +42,8 @@ défaut bloquant et tests requis réussis ; CI PR teste le merge avec main.
 
 Le workflow Full regression teste les PR et main, PostgreSQL 16 jetable compris.
 Les migrations de traçabilité sont appliquées uniquement à sa base po_test.
-La livraison PC se déclenche après CI réussie d'un push main, jamais à partir
-d'une PR non fusionnée. L'automatisation ChatGPT événementielle assure revue,
+La livraison PC peut se déclencher après CI réussie d'un push main, uniquement
+après validation MEP et activation temporaire, jamais depuis une PR non fusionnée. L'automatisation ChatGPT événementielle assure revue,
 correction et suivi ; sa création ne prouve pas son premier déclenchement.
 
 ## Raccordement unique du PC
@@ -55,13 +74,13 @@ WantedBy=default.target
 Vérifier qu'aucun autre serveur n'occupe le port 8000 avant activation. Adapter
 les chemins au compte réel du runner. Charger le service (daemon-reload), sans
 démarrer une release inexistante. Configurer les variables GitHub du dépôt :
-LOCAL_RELEASE_ROOT, LOCAL_CONFIG_PATH, puis LOCAL_PC_ENABLED=true uniquement
-après vérification des prérequis. La configuration privée doit aussi fournir
+LOCAL_RELEASE_ROOT, LOCAL_CONFIG_PATH, et garder LOCAL_PC_ENABLED=false ;
+passer temporairement à true uniquement après validation MEP et des prérequis. La configuration privée doit aussi fournir
 PO_DATABASE_URL, EDITORIAL_API_TOKEN (32 caractères minimum),
 EDITORIAL_TENANT_ID et EDITORIAL_ACTOR_ID en plus de LLM_BASE_URL. Aucun de ces
 secrets ne doit être copié dans GitHub, Slack ou les journaux. Une seule
-installation initiale du runner et du service est nécessaire ; ensuite les
-nouvelles versions sont automatiques.
+installation initiale du runner et du service est nécessaire ; chaque nouvelle
+activation reste soumise à validation MEP.
 
 Le script prépare une nouvelle release immutable, un venv et toutes les suites
 avant de relier la configuration réelle. Il démarre une API candidate sur un

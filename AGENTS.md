@@ -1,3 +1,19 @@
+## Autorisation permanente — 12 octobre 2026 (prioritaire)
+
+L'utilisateur autorise diagnostic, développement, corrections, tests, revue,
+documentation, préparation, création de PR et fusion après contrôles requis
+réussis, sans nouvelle demande d'accord. Cette règle remplace les restrictions
+historiques qui demandaient un accord pour chaque fusion ou action courante.
+
+Toute mise en production (MEP), y compris l'activation d'une nouvelle release
+sur le PC privé, exige sa validation explicite du SHA exact. Ne pas activer
+une release, réactiver LOCAL_PC_ENABLED ou appliquer une migration production
+sans cette validation. Une validation ne couvre pas un SHA ultérieur.
+La validation humaine des résultats éditoriaux reste obligatoire.
+Préserver données, secrets, accès privés et les checkouts de développement.
+Les permissions techniques de l'environnement restent applicables.
+Continuer les travaux indépendants lorsqu'une MEP attend validation.
+
 # Repository Guidelines
 
 ## Pilotage privé — 11 octobre 2026 (prioritaire)
