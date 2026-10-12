@@ -9,6 +9,7 @@ from uuid import UUID, uuid4, uuid5
 
 import psycopg
 from pilotage.audit import mutate
+from editorial.models import Brief, Analysis, Storyboard, ReviewDecision
 
 WORKFLOW_VERSION = "editorial-v1.1"
 
@@ -35,6 +36,22 @@ class RunConflict(Exception):
 
 class RunMissing(Exception):
     pass
+
+
+class ReviewInvalid(Exception):
+    pass
+
+
+
+def validated_review_output(step, output, brief):
+    try:
+        brief = Brief.model_validate(brief)
+        result = (Analysis if step == "analysis" else Storyboard).model_validate(output)
+        if step == "storyboard":
+            result.validate_brief(brief)
+        return result.model_dump()
+    except (ValueError, TypeError):
+        raise ReviewInvalid() from None
 
 
 class PostgresStore:
@@ -161,3 +178,88 @@ class PostgresStore:
             self._write(conn, tenant, actor, run_id, "treatment", run_id, run, version)
             return run
 
+
+    def review(self, tenant, actor, run_id, step, decision):
+        decision = ReviewDecision.model_validate(decision)
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT version,content FROM po_entity WHERE tenant_id=%s AND kind='treatment' AND entity_id=%s AND NOT deleted FOR UPDATE",
+                (tenant, run_id)).fetchone()
+            if not row or row[1].get("type") != "editorial_run":
+                raise RunMissing()
+            version, run = row
+            if (step not in {"analysis", "storyboard"} or run["status"] not in {"waiting_validation", "changes_requested"}
+                    or run.get("current_step") or len(run.get("steps", [])) != 2
+                    or any(s["status"] != "success" for s in run["steps"])
+                    or decision.expected_revision != run.get("review_revision", 0)):
+                raise RunConflict()
+            if step == "storyboard" and run.get("storyboard_stale") and decision.action == "accept":
+                raise RunConflict()
+            parsed = None
+            if decision.action == "revise":
+                parsed = validated_review_output(step, decision.revised_output, run["brief"])
+            elif decision.action == "accept":
+                validated_review_output(step, run.get(step), run["brief"])
+            revision = run.get("review_revision", 0) + 1
+            review_id = uuid5(run_id, "human-review:" + str(revision))
+            reviews = run.setdefault("reviews", {})
+            if parsed is not None:
+                run[step] = parsed
+                if step == "analysis":
+                    run["storyboard_stale"] = True
+                    if "storyboard" in reviews:
+                        reviews["storyboard"]["valid"] = False
+                else:
+                    run["storyboard_stale"] = False
+                    scenario_id = uuid5(review_id, "scenario")
+                    scene_ids = []
+                    for order, scene in enumerate(parsed["scenes"], 1):
+                        scene_id = uuid5(scenario_id, str(order))
+                        scene_ids.append(str(scene_id))
+                        self._write(conn, tenant, actor, run_id, "scene", scene_id,
+                                    scene | {"scenario_id": str(scenario_id), "run_id": str(run_id),
+                                             "order": order, "source_review_id": str(review_id)})
+                    self._write(conn, tenant, actor, run_id, "scenario", scenario_id,
+                                {"run_id": str(run_id), "title": parsed["title"], "synopsis": parsed["synopsis"],
+                                 "scene_ids": scene_ids, "source_review_id": str(review_id),
+                                 "requires_human_validation": True})
+                    run.update(scenario_id=str(scenario_id), scene_ids=scene_ids)
+            reviews[step] = {"action": decision.action, "revision": revision, "valid": True,
+                             "review_id": str(review_id)}
+            approved = not run.get("storyboard_stale") and all(
+                reviews.get(s, {}).get("action") == "accept" and reviews[s].get("valid")
+                for s in ("analysis", "storyboard"))
+            pending_changes = run.get("storyboard_stale") or any(
+                r["action"] in {"reject", "revise"} for r in reviews.values())
+            run.update(review_revision=revision, updated_at=now(), requires_human_validation=not approved,
+                       status="approved" if approved else ("changes_requested" if pending_changes else "waiting_validation"))
+            if approved:
+                for approved_step in ("analysis", "storyboard"):
+                    validated_review_output(approved_step, run.get(approved_step), run["brief"])
+                scenario = conn.execute(
+                    "SELECT version,content FROM po_entity WHERE tenant_id=%s AND kind='scenario' AND entity_id=%s AND NOT deleted FOR UPDATE",
+                    (tenant, UUID(run["scenario_id"]))).fetchone()
+                if not scenario:
+                    raise RunConflict()
+                scenario_version, content = scenario
+                content.update(requires_human_validation=False, approved_by=str(actor), approved_at=run["updated_at"])
+                self._write(conn, tenant, actor, run_id, "scenario", UUID(run["scenario_id"]), content, scenario_version)
+            self._write(conn, tenant, actor, run_id, "result", review_id,
+                        {"type": "editorial_review", "run_id": str(run_id), "step": step,
+                         "revision": revision, "action": decision.action, "comment": decision.comment,
+                         "actor_id": str(actor), "created_at": run["updated_at"],
+                         "effective_output": run[step], "source_result_id": next(s["result_id"] for s in run["steps"] if s["name"] == step),
+                         "scenario_id": run.get("scenario_id") if step == "storyboard" else None})
+            self._write(conn, tenant, actor, run_id, "treatment", run_id, run, version)
+            return run
+
+    def review_history(self, tenant, run_id, limit=20, before_revision=None):
+        self.get(tenant, run_id)
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='result' AND content->>'run_id'=%s "
+                "AND content->>'type'='editorial_review' AND NOT deleted "
+                "AND (%s::integer IS NULL OR (content->>'revision')::integer < %s) "
+                "ORDER BY (content->>'revision')::integer DESC LIMIT %s",
+                (tenant, str(run_id), before_revision, before_revision, limit+1)).fetchall()
+            return [row[0] for row in rows]

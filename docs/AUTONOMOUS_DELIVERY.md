@@ -170,3 +170,7 @@ Sur incident, consulter les journaux sans secrets ni contenu métier, préserver
 ## Economie de contexte Codex
 
 Voir docs/TOKEN_ECONOMY.md : profils .codex/agents, deux sous-agents maximum, contexte minimal et mesures comparables. Aucune modification du runner ni des controles de livraison.
+
+## Installation des routes de décision humaine
+
+L'incrément EDIT-001 ajoute les routes review/reviews au code API; aucune nouvelle variable privée, dépendance ou migration. Le workflow et deploy_local appliquent les mêmes contrôles. Les nouveaux tests utilisent seulement PostgreSQL jetable; les traitements de preuve de livraison restent waiting_validation, sans acceptation humaine automatique. Contrat : docs/EDITORIAL_WORKFLOW.md. Une vérification HTTP déployée vérifie401/404/422 sans modifier de résultat métier.

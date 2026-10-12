@@ -1,0 +1,3 @@
+# EDIT-001 — validation humaine par API
+Ajouter accept/reject/revise par étape, compteur global expected_revision, identité serveur et historique paginé. Les snapshots Qwen restent immuables. Réviser l'analyse impose une révision explicite du storyboard. Une révision n'est pas une acceptation. Créer de nouvelles entités scénario/scènes pour un storyboard révisé; marquer le scénario courant validé seulement après deux acceptations. Transaction unique décisions/run/audit/outbox, verrouillage et rollback. Aucun nouvel appel LLM, migration métier ni UI.
+Validation : tests API avec PostgreSQL jetable (RED puis GREEN), concurrence, isolation, contrat, pagination et rollback; full regression, revue, CI puis livraison PC et contrôle HTTP sans décision métier automatique.
