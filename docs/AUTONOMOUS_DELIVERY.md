@@ -27,7 +27,7 @@ La livraison PC se déclenche après CI réussie d'un push main, jamais à parti
 d'une PR non fusionnée. L'automatisation ChatGPT événementielle assure revue,
 correction et suivi ; sa création ne prouve pas son premier déclenchement.
 
-## Raccordement unique du PC (pas encore exécuté)
+## Raccordement unique du PC
 
 Depuis un accès autorisé au PC, utiliser WSL/Linux et un utilisateur dédié au
 projet, Docker accessible, Python 3.12+ avec venv, systemd utilisateur actif.
@@ -104,5 +104,31 @@ le PID systemd et son répertoire de release avant de qualifier les tests HTTP,
 refuser un checkout suivi modifié, éviter une réinstallation sur événement doublon.
 Un reçu de même SHA ne suffit pas : le lien current doit correspondre et les
 contrôles du processus et HTTP sont rejoués. Une autre release bloque le succès.
-L'API de main ne transmet pas encore finish_reason ; intégrer et revoir la PR #59
-avant toute livraison réelle. Aucun succès Qwen n'est déduit de son absence.
+Le contrôle réel de main 3313e82c, le 12 octobre 2026, a confirmé finish_reason=stop
+et le parcours éditorial complet. Une réponse sans ce champ reste bloquante.
+
+## Provenance de la release privée
+
+Les nouveaux traitements exécutés depuis une release immutable utilisent le SHA
+du répertoire de release vérifié par deploy_local et le PID systemd, même si
+EDITORIAL_CODE_VERSION dans la configuration privée est périmé. En checkout de
+développement, la variable reste utilisée. Aucune trace existante n'est réécrite.
+
+## État du raccordement — 12 octobre 2026
+
+Ubuntu 26.04 exclusivement. Runner officiel 2.338.0, archive vérifiée par
+SHA-256, enregistré editorial-pc-ubuntu2604 et observé online. Service utilisateur
+editorial-actions-runner.service avec redémarrage automatique et linger actif.
+Tâche Windows « Codex - Editorial Ubuntu 26.04 » au logon, exécutée sans fenêtre,
+maintenant WSL actif. Le PC doit rester allumé et éveillé; la tâche ne modifie
+pas les réglages de veille et ne démarre pas Qwen à sa place.
+
+LOCAL_RELEASE_ROOT=/home/yoann_admin/editorial-runtime;
+LOCAL_CONFIG_PATH=/home/yoann_admin/editorial-runtime/private/runtime.env.
+Fichier privé existant conservé en 0600. Aucun secret dans les variables GitHub.
+Activation LOCAL_PC_ENABLED réservée après contrôles. Job privé uniquement après
+Full regression réussie sur push main; les PR non fusionnées ne sont pas déployées.
+Release 3313e82c installée via la procédure le 12 octobre: 106 tests sans skip,
+API/Qwen/éditorial/persistance/historique/idempotence réels validés, service actif,
+reçu last_delivery.json. Aucune migration métier. Le premier job GitHub sur ce
+runner doit encore être vérifié avant qualification de la chaîne automatique.

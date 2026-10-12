@@ -2,6 +2,8 @@
 import hashlib
 import json
 import os
+from pathlib import Path
+import re
 from datetime import datetime, timezone
 from uuid import UUID, uuid4, uuid5
 
@@ -18,6 +20,13 @@ def now():
 def fingerprint(brief, actor_id):
     payload = {"brief": brief, "actor_id": str(actor_id), "workflow_version": WORKFLOW_VERSION}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def runtime_code_version():
+    # deploy_local binds immutable release directories and the service process.
+    release = Path(__file__).resolve().parents[1].name
+    match = re.fullmatch(r"([0-9a-f]{40})-[0-9]+", release)
+    return match.group(1) if match else os.getenv("EDITORIAL_CODE_VERSION", "unidentified")
 
 
 class RunConflict(Exception):
@@ -53,7 +62,7 @@ class PostgresStore:
                 return row[0], False
             run = {"id": str(run_id), "type": "editorial_run", "workflow_version": WORKFLOW_VERSION,
                    "request_hash": digest, "brief": brief, "status": "running", "steps": [],
-                   "code_version": os.getenv("EDITORIAL_CODE_VERSION", "unidentified"),
+                   "code_version": runtime_code_version(),
                    "created_at": now(), "updated_at": now(), "requires_human_validation": True}
             self._write(conn, tenant, actor, run_id, "treatment", run_id, run)
             return run, True
