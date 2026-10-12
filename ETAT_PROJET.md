@@ -1,5 +1,21 @@
 # État du projet
 
+## PO-001 — État vérifié le 12 octobre 2026 à 17:02 UTC
+
+Cette section actualise les constats historiques conservés ci-dessous.
+
+- Dépôt exclusif privé : richardyoann/saas-directeur-editorial, ID 1411435489. Main inspecté : a032a37f770b5f8da32d9ec24954e6f247840a90. Le clone de livraison Ubuntu-26.04 a un HEAD documentaire distinct d7690d29181471cb5791d08e591ac71dd5664815 ; aucun reset ni écrasement effectué.
+- Régression main : run 38273598848 success. Livraison PC de a032a37 : run 38273667884, job install-and-live et étape candidate/régression/HTTP réel success vérifiés. Un run ultérieur 38276212946 skipped ne retire pas cette preuve historique et ne prouve aucune nouvelle activation.
+- Preuves : https://github.com/richardyoann/saas-directeur-editorial/actions/runs/38273598848 et https://github.com/richardyoann/saas-directeur-editorial/actions/runs/38273667884. Les résultats de ces runs ne couvrent pas le futur commit de cette documentation. Aucune nouvelle sonde du processus actif exécutée pendant ce contrôle.
+- WSL Ubuntu-26.04 accessible ; les constats de disque manquant et de runner absent sont historiques. Ubuntu-24.04 exclue. Le POC PR #1 reste distinct et doit être préservé.
+- Le PO périodique a exécuté ses contrôles depuis le 11 octobre ; une exécution de heartbeat ne prouve pas le worker Slack métier. Aucun envoi Slack/Gmail autorisé pour ce passage.
+- Le registre d'acceptations reste à qualifier par critères, SHA, date, type et revue. Une CI verte, une fusion ou un test technique réel ne constituent pas seuls une acceptation éditoriale humaine. Les historiques ne sont pas réécrits.
+- Autorisation permanente : développement, diagnostic, tests, documentation, PR et fusion après revue/contrôles. Toute MEP, y compris activation PC, exige validation humaine du SHA exact. Ne pas activer une release, réactiver LOCAL_PC_ENABLED, déclencher une livraison ni migrer la production sans cette validation ; un nouveau SHA annule la validation précédente.
+- Reprise : docs/AUTONOMOUS_DELIVERY.md et AGENTS.md. Pour une nouvelle version, vérifier CI et préparer dossier SHA/changements/tests/risques/retour arrière, puis attendre validation MEP. Aucun comportement d'installation ou de déploiement modifié par cette mise à jour documentaire.
+
+## Historique conservé — constats à leur date
+
+
 ## EDIT-001 — Renforcement Qwen, 11 octobre 2026
 
 - Analyse : échec réel signalé dans le suivi, cause exacte non démontrée faute de run ID/journal; livraison PC ignorée distincte d'un échec Qwen.
