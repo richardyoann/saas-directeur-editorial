@@ -101,3 +101,7 @@ Documentation officielle :
 - https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/adding-sub-issues
 - https://docs.github.com/en/actions/reference/security/secure-use
 - https://developers.openai.com/blog/automating-repetitive-work-at-openai-with-codex
+
+## État actualisé au 12 octobre 2026
+
+Les constats de disque WSL inaccessible et de runner privé absent ci-dessus sont historiques. Ubuntu 26.04 est accessible; un runner privé a livré main avec succès. Voir docs/AUTONOMOUS_DELIVERY.md pour les preuves, prérequis, reprise et consigne de documentation continue. Ubuntu 24.04 est exclue.

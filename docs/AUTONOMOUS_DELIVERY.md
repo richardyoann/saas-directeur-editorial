@@ -130,5 +130,39 @@ Activation LOCAL_PC_ENABLED réservée après contrôles. Job privé uniquement 
 Full regression réussie sur push main; les PR non fusionnées ne sont pas déployées.
 Release 3313e82c installée via la procédure le 12 octobre: 106 tests sans skip,
 API/Qwen/éditorial/persistance/historique/idempotence réels validés, service actif,
-reçu last_delivery.json. Aucune migration métier. Le premier job GitHub sur ce
-runner doit encore être vérifié avant qualification de la chaîne automatique.
+reçu last_delivery.json. Aucune migration métier. Le premier job automatique a depuis été vérifié avec succès; voir la preuve datée ci-dessous.
+
+## Mise à jour continue
+
+Consigne utilisateur : à chaque changement, compléter dans la même PR la documentation concernée et les fichiers d’installation/déploiement dont le comportement change (scripts, workflows, modèles de configuration). Garder prérequis, commandes, configuration et reprise cohérents avec le projet réel. Consigner date, SHA vérifié, résultats, limites et blocages; distinguer préparation, CI, installation active et acceptation métier. Ne jamais versionner les secrets. Ubuntu 26.04 exclusivement; Ubuntu 24.04 est exclue.
+
+## Livraison automatique vérifiée — 12 octobre 2026
+
+LOCAL_PC_ENABLED=true depuis 08:47:05 UTC. La première tentative ignorée à 08:00:00 UTC précédait cette activation. La relance s’est terminée avec succès à 09:17:22 UTC :
+https://github.com/richardyoann/saas-directeur-editorial/actions/runs/38220920773
+
+SHA installé : cf273496324e6cf971d53b76dadc2c34f7ce5c01 (PR #65 fusionnée). 108 tests réussis sans skip, contrôles API candidate et installée réussis, parcours éditorial réel validé. Analyse et storyboard : finish_reason=stop, schémas valides, aucune erreur. Répertoire du PID systemd et provenance du traitement conformes au SHA. Reçu last_delivery.json : regression/candidate_live/installed_live/real_editorial_workflow=passed, database_migration=none. Le traitement reste waiting_validation : acceptation éditoriale humaine distincte.
+
+## Contrôles et reprise
+
+Le service ~/.config/systemd/user/editorial-actions-runner.service lance ~/.local/share/editorial-actions-runner/run.sh avec Restart=always, RestartSec=10, TimeoutStopSec=300, KillSignal=SIGTERM. Linger est activé pour yoann_admin. Dépendances système ajoutées : libicu78 et liblttng-ust1t64.
+
+Dans Ubuntu 26.04 :
+
+~~~bash
+systemctl --user is-active editorial-actions-runner.service editorial-api.service
+loginctl show-user yoann_admin --property=Linger
+readlink -f /home/yoann_admin/editorial-runtime/current
+cat /home/yoann_admin/editorial-runtime/last_delivery.json
+gh run view 38220920773 --repo richardyoann/saas-directeur-editorial
+~~~
+
+Comparer le SHA du reçu, current et le répertoire réel du PID de l’API. Remplacer l’ID du run pour toute nouvelle livraison; une preuve historique ne certifie pas le nouveau SHA. La tâche Windows maintient WSL après ouverture de session; elle ne démarre pas Qwen et ne maintient pas le PC éveillé. Vérifier la disponibilité du modèle avant les contrôles réels.
+
+Pour un job ignoré avant activation, vérifier ses conditions et le SHA courant de main avant de relancer :
+
+~~~bash
+gh run rerun <ID> --repo richardyoann/saas-directeur-editorial
+~~~
+
+Sur incident, consulter les journaux sans secrets ni contenu métier, préserver releases et base métier. deploy_local gère le retour au code précédent après échec de la bascule, selon les limites ci-dessus. Tenir scripts/deploy_local.py, scripts/live_api_check.py et .github/workflows/local-delivery.yml cohérents avec les instructions lorsque leur comportement change.
