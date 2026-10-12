@@ -57,3 +57,17 @@ class Storyboard(StrictModel):
             raise ValueError("scene_count_mismatch")
         if sum(scene.duration_seconds for scene in self.scenes) != brief.duration_seconds:
             raise ValueError("duration_mismatch")
+
+class ReviewDecision(StrictModel):
+    action: Literal["accept", "reject", "revise"]
+    expected_revision: int = Field(strict=True, ge=0)
+    comment: Annotated[str, StringConstraints(strict=True, strip_whitespace=True, max_length=2000)] = ""
+    revised_output: dict | None = None
+
+    @model_validator(mode="after")
+    def decision_contract(self):
+        if self.action in {"reject", "revise"} and not self.comment:
+            raise ValueError("Commentaire requis.")
+        if (self.action == "revise") != (self.revised_output is not None):
+            raise ValueError("Résultat révisé requis uniquement pour revise.")
+        return self

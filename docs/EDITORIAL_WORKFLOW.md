@@ -88,3 +88,13 @@ Le compte rendu utilisateur du 11 octobre confirme sa base et son LLM connectés
 la session de développement n'a pas accès au PC ni à ces connexions. Validation
 Qwen réel, raccordement de l'interface Arvor, revue humaine/édition et reprise
 asynchrone restent ouverts. Aucun merge ou déploiement local automatique.
+
+## EDIT-001 — décisions humaines par API (12 octobre 2026)
+
+POST /editorial/runs/{run_id}/steps/{analysis|storyboard}/review :
+action accept|reject|revise, expected_revision entier strict >=0 (compteur global du run, initialement0), comment au plus2000 caractères (requis reject/revise), revised_output uniquement pour revise. Le résultat révisé doit respecter Analysis ou Storyboard et le brief (nombre/durée des scènes). Aucun appel au modèle.
+Deux acceptations valides conduisent à approved et retirent requires_human_validation du run/scénario courant. Reject/revise conduisent à changes_requested jusqu'à acceptation explicite. Après révision de l'analyse, le storyboard est obsolète : révision explicite requise avant acceptation. Un run approuvé est figé; une nouvelle génération demande une nouvelle clé d'idempotence. Running/failed et compteur périmé renvoient409.
+Identité issue de l'authentification serveur, aucune identité fournie par le body. Absence d'identité401, run absent/autre tenant404, entrée incompatible422, PostgreSQL indisponible503.
+GET /editorial/runs/{run_id}/reviews : limit1..50 (défaut20), before_revision1..2147483647; ordre décroissant et next_before_revision pour la page suivante.
+Les snapshots Qwen et anciennes décisions restent conservés. Réviser le storyboard crée un nouveau scénario et de nouvelles scènes, référencés par le run; les entités initiales ne sont pas effacées. Décision, run, audit et outbox sont atomiques, avec verrouillage du run et vérification de révision. Aucun changement de schéma.
+Limites : API privée au token/tenant/acteur configurés; pas encore de comptes SaaS multiples, interface de revue, quotas complets ou évaluation qualité Qwen. Cet incrément couvre un contrat technique d'EDIT-001:AC2; il n'accepte pas la story complète.

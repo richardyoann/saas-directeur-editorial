@@ -323,3 +323,7 @@ GitHub disponible, mais non installée/non connectée lors de la vérification.
 Prochaine étape : installation/connexion GitHub, vérification des droits et
 de l’existence du dépôt, puis création si les outils la permettent.
 Voir `docs/REPOSITORY_SETUP.md` ; provenance et blocage consignés dans le journal.
+
+## EDIT-001 — incrément validation humaine, 12 octobre 2026
+
+API accept/reject/revise et historique paginé développés sur branche isolée; contrôle concurrent, décisions immuables, snapshots Qwen préservés et scénario/scènes courants cohérents. Aucun nouvel appel modèle ni migration métier. Tests sur base jetable : RED routes absentes, borne excessive et résultat périmé confirmés; 121 tests sans skip après correction. Revue textuelle indépendante réalisée, contrôle final des schémas ajouté; CI, livraison de ce SHA et revue à consigner après vérification. L'interface, les comptes SaaS et l'évaluation éditoriale réelle restent ouverts. Aucun critère produit accepté automatiquement.
