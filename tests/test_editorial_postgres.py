@@ -89,3 +89,24 @@ class EditorialPostgresTests(unittest.TestCase):
         self.assertEqual(self.store.history(self.tenant, run_id), [])
         with self.store.connect() as conn:
             self.assertEqual(conn.execute("SELECT count(*) FROM po_audit WHERE correlation_id=%s", (run_id,)).fetchone()[0], 4)
+
+    def test_release_directory_sha_overrides_stale_config_in_persisted_run(self):
+        import tempfile
+        sha = "a" * 40
+        with tempfile.TemporaryDirectory() as directory:
+            release = Path(directory) / (sha + "-123")
+            (release / "editorial").mkdir(parents=True)
+            with patch("editorial.store.__file__", str(release / "editorial/store.py")), patch.dict(
+                    os.environ, {"EDITORIAL_CODE_VERSION": "b" * 40}):
+                run_id = self.run_start()
+            self.assertEqual(self.store.get(self.tenant, run_id)["code_version"], sha)
+
+    def test_development_checkout_keeps_configured_code_version(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = Path(directory) / "source"
+            (checkout / "editorial").mkdir(parents=True)
+            with patch("editorial.store.__file__", str(checkout / "editorial/store.py")), patch.dict(
+                    os.environ, {"EDITORIAL_CODE_VERSION": "configured-development"}):
+                run_id = self.run_start()
+            self.assertEqual(self.store.get(self.tenant, run_id)["code_version"], "configured-development")
