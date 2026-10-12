@@ -160,3 +160,7 @@ modification d’infrastructure ou remplacement de configuration existante.
 Préserver `.env`, Compose, modifications Git et composants opérationnels.
 Git inaccessible : produire un manifeste local et signaler le blocage ; ne pas
 initialiser ou remplacer `.git`, ni créer un commit supposé.
+
+## Economie de contexte Codex
+
+Voir docs/TOKEN_ECONOMY.md : profils .codex/agents, deux sous-agents maximum, contexte minimal et mesures comparables. Aucune modification du runner ni des controles de livraison.
