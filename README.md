@@ -93,4 +93,4 @@ Les générations suivent une règle de **non-relance automatique** de Qwen. Apr
 
 La première erreur réseau **incertaine** conserve sa clé d'idempotence afin de ne pas lancer une génération en doublon. Après un échec terminal **confirmé**, une nouvelle tentative du même brief utilise une nouvelle clé. Il faut ouvrir explicitement une nouvelle tentative ; les versions anciennes restent consultables. La route de contrôle ne redémarre jamais le modèle. Tests PostgreSQL dédiés et parcours navigateur documentés dans [la note de prise en compte](docs/REVUE_COMPLEMENTAIRE_2026-10-14.md).
 
-Attention : l'API ancienne `/ai/generate` est anonyme seulement si l'identité privée n'est pas configurée **et** la requête vient de la boucle locale. Dans un environnement partagé, configurer obligatoirement `EDITORIAL_API_TOKEN`, `EDITORIAL_TENANT_ID` et `EDITORIAL_ACTOR_ID`.
+La route `/ai/generate` exige désormais une identité et un jeton API **même sur `localhost`**. Configurer `EDITORIAL_API_TOKEN`, `EDITORIAL_TENANT_ID` et `EDITORIAL_ACTOR_ID` avant tout diagnostic. Le script `scripts/check_llm_integration.py` utilise également ce jeton et n'affiche pas sa valeur.
