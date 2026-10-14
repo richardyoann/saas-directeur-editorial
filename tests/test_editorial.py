@@ -12,6 +12,7 @@ from editorial.api import Identity, get_identity, get_store
 from editorial.models import Brief
 from editorial.service import parse_output
 from editorial.store import RunConflict, RunMissing, fingerprint
+from editorial.worker_guard import WorkerOffline
 
 
 def outputs():
@@ -30,6 +31,7 @@ class MemoryStore:
         self.runs = {}
         self.snapshots = {}
         self.mutation_actors = []
+        self.worker_present = True
 
     def start(self, tenant, actor, key, brief):
         run_id = uuid5(tenant, "editorial-run:" + str(key))
@@ -46,6 +48,9 @@ class MemoryStore:
         return copy.deepcopy(run), True
 
     def enqueue(self, tenant, actor, key, brief):
+        run_id = uuid5(tenant, "editorial-run:" + str(key))
+        if run_id not in self.runs and not self.worker_present:
+            raise WorkerOffline()
         run, created = self.start(tenant, actor, key, brief)
         if created:
             self.runs[UUID(run["id"])]["status"] = "queued"
@@ -147,6 +152,22 @@ class EditorialApiTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(replay.status_code, 200)
             self.assertEqual(len(self.calls), 2)
             self.assertEqual((await self.post(topic="Autre sujet")).status_code, 409)
+
+    async def test_async_offline_returns_503_without_creating_any_run(self):
+        with patch.dict(os.environ, {"EDITORIAL_ASYNC_ENABLED": "true"}):
+            self.store.worker_present = False
+            response = await self.post()
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(self.store.runs, {})
+            self.assertEqual(self.calls, [])
+            self.store.worker_present = True
+            queued = await self.post()
+            self.assertEqual(queued.status_code, 202)
+            self.store.worker_present = False
+            replay = await self.post()
+            self.assertEqual(replay.status_code, 202)
+            self.assertEqual(replay.json()["id"], queued.json()["id"])
+            self.assertEqual(self.calls, [])
 
     async def test_sync_mode_default_unchanged_when_flag_disabled(self):
         with patch.dict(os.environ, {"EDITORIAL_ASYNC_ENABLED": "false"}):

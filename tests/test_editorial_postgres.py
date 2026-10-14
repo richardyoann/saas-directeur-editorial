@@ -4,10 +4,11 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 from editorial.models import Brief
 from editorial.store import PostgresStore, RunConflict, RunMissing
+from editorial.worker_guard import WorkerOffline, WorkerAlreadyRunning, registered_worker, worker_online
 from test_editorial import outputs
 
 
@@ -59,7 +60,34 @@ class EditorialPostgresTests(unittest.TestCase):
         with self.assertRaises(RunConflict):
             self.store.start(self.tenant, self.actor, self.key, self.brief | {"topic": "Autre"})
 
+    def test_queued_generation_requires_a_live_registered_worker(self):
+        self.assertFalse(worker_online(self.store.database_url, self.tenant))
+        with self.assertRaises(WorkerOffline):
+            self.store.enqueue(self.tenant, self.actor, self.key, self.brief)
+        with self.assertRaises(RunMissing):
+            self.store.get(self.tenant, uuid5(self.tenant, "editorial-run:" + str(self.key)))
+        with registered_worker(self.store.database_url, self.tenant):
+            self.assertTrue(worker_online(self.store.database_url, self.tenant))
+            with self.assertRaises(WorkerAlreadyRunning):
+                with registered_worker(self.store.database_url, self.tenant):
+                    pass
+            queued, created = self.store.enqueue(self.tenant, self.actor, self.key, self.brief)
+            self.assertTrue(created)
+            self.assertEqual(queued["status"], "queued")
+        self.assertFalse(worker_online(self.store.database_url, self.tenant))
+        # The original idempotency key remains valid even during an outage.
+        replay, created = self.store.enqueue(self.tenant, self.actor, self.key, self.brief)
+        self.assertFalse(created)
+        self.assertEqual(replay["id"], queued["id"])
+        # But brand-new requests must not create unconsumable queue entries.
+        with self.assertRaises(WorkerOffline):
+            self.store.enqueue(self.tenant, self.actor, uuid4(), self.brief)
+
     def test_durable_queue_claims_are_idempotent_and_tenant_isolated(self):
+        registration = registered_worker(self.store.database_url, self.tenant)
+        registration.__enter__()
+        self.addCleanup(registration.__exit__, None, None, None)
+
         queued, created = self.store.enqueue(self.tenant, self.actor, self.key, self.brief)
         self.assertTrue(created)
         self.assertEqual(queued["status"], "queued")

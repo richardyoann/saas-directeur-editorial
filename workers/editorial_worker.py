@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 
 from editorial.service import run_steps
 from editorial.store import PostgresStore
+from editorial.worker_guard import WorkerAlreadyRunning, registered_worker
+import psycopg
 
 LOG = logging.getLogger("editorial.worker")
 
@@ -78,7 +80,16 @@ def main():
         parser.error(str(exc))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     store = PostgresStore(url)
-    asyncio.run(serve(store, tenant, actor, base_url, single=options.once))
+    try:
+        # Registration starts BEFORE consuming any queue entries.
+        # If the process dies, PostgreSQL drops this session and new POSTs
+        # fail closed until a replacement worker registers.
+        with registered_worker(url, tenant):
+            asyncio.run(serve(store, tenant, actor, base_url, single=options.once))
+    except WorkerAlreadyRunning:
+        parser.error("Worker déjà actif pour ce tenant (pas de deuxième consommateur GPU).")
+    except psycopg.Error:
+        parser.error("Connexion PostgreSQL du worker interrompue.")
 
 
 if __name__ == "__main__":

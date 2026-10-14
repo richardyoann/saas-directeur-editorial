@@ -10,6 +10,7 @@ from uuid import UUID, uuid4, uuid5
 import psycopg
 from pilotage.audit import mutate
 from editorial.models import Brief, Analysis, Storyboard, ReviewDecision
+from editorial.worker_guard import WorkerOffline, worker_lock_id
 
 WORKFLOW_VERSION = "editorial-v1.1"
 # Conservative threshold: both provider calls have a 120s wall limit.
@@ -95,6 +96,15 @@ class PostgresStore:
                 if row[0].get("request_hash") != digest:
                     raise RunConflict()
                 return row[0], False
+            if queued:
+                # Fail closed for *new* jobs when no consumer holds its
+                # session-level lock. Existing idempotency replays remain
+                # readable when the worker is temporarily unavailable.
+                available = conn.execute(
+                    "SELECT pg_try_advisory_xact_lock(%s)", (worker_lock_id(tenant),)
+                ).fetchone()[0]
+                if available:
+                    raise WorkerOffline()
             run = {"id": str(run_id), "type": "editorial_run", "workflow_version": WORKFLOW_VERSION,
                    "request_hash": digest, "brief": brief, "status": "queued" if queued else "running", "steps": [],
                    "code_version": runtime_code_version(),
