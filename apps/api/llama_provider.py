@@ -2,10 +2,16 @@
 import asyncio
 import json
 import time
+from threading import BoundedSemaphore
 from urllib.parse import urlsplit
 
 import httpx
 from pydantic import BaseModel, Field, field_validator
+
+
+# Protect the local model and the single-process API from uncontrolled parallel generations.
+# A persistent, tenant-aware quota is still required before public SaaS access.
+generation_gate = BoundedSemaphore(value=2)
 
 
 class ProviderError(Exception):
