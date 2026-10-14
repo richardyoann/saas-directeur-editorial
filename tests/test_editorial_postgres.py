@@ -59,6 +59,36 @@ class EditorialPostgresTests(unittest.TestCase):
         with self.assertRaises(RunConflict):
             self.store.start(self.tenant, self.actor, self.key, self.brief | {"topic": "Autre"})
 
+    def test_durable_queue_claims_are_idempotent_and_tenant_isolated(self):
+        queued, created = self.store.enqueue(self.tenant, self.actor, self.key, self.brief)
+        self.assertTrue(created)
+        self.assertEqual(queued["status"], "queued")
+        duplicate, created = self.store.enqueue(self.tenant, self.actor, self.key, self.brief)
+        self.assertFalse(created)
+        self.assertEqual(queued, duplicate)
+        self.assertIsNone(self.store.claim_queued(uuid4(), self.actor))
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            claims = list(pool.map(
+                lambda _: self.store.claim_queued(self.tenant, self.actor), range(2)
+            ))
+        claimed = [r for r in claims if r is not None]
+        self.assertEqual(len(claimed), 1)
+        self.assertEqual(claimed[0]["id"], queued["id"])
+        self.assertEqual(claimed[0]["status"], "running")
+        self.assertIsNone(self.store.claim_queued(self.tenant, self.actor))
+        self.assertEqual(self.store.get(self.tenant, UUID(queued["id"]))["status"], "running")
+        with self.store.connect() as conn:
+            audit = conn.execute(
+                "SELECT count(*) FROM po_audit WHERE correlation_id=%s",
+                (UUID(queued["id"]),),
+            ).fetchone()[0]
+            outbox = conn.execute(
+                "SELECT count(*) FROM po_outbox o JOIN po_audit a USING(event_id) "
+                "WHERE a.correlation_id=%s", (UUID(queued["id"]),)
+            ).fetchone()[0]
+            self.assertEqual(audit, outbox)
+            self.assertEqual(audit, 2)
+
     def test_concurrent_start_makes_one_run(self):
         with ThreadPoolExecutor(max_workers=2) as pool:
             results = list(pool.map(lambda _: self.store.start(self.tenant, self.actor, self.key, self.brief), range(2)))
