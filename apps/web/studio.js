@@ -111,7 +111,7 @@ async function reviews(reset=true){
 }
 async function refresh(){if(!s.run)return;try{s.run=await api("/studio/api/runs/"+s.run.id);render();await list(true);alertUser("Histoire actualisée.");}catch(e){alertUser(message(e),true);}}
 function openReview(step,action="accept"){
- s.step=step;$("reviewTitle").textContent=names[step];$("reviewAction").value=action;$("reviewComment").value="";
+ s.step=step;$("reviewError").hidden=true;$("reviewError").textContent="";$("reviewTitle").textContent=names[step];$("reviewAction").value=action;$("reviewComment").value="";
  $("reviewHelp").textContent=step==="analysis"?"Une révision de l’analyse invalide le storyboard.":"Une révision crée un nouveau scénario sans effacer le précédent.";
  $("revisionJson").value=JSON.stringify(s.run[step]||{},null,2);$("confirmReview").checked=false;toggleReview();$("reviewDialog").showModal();
 }
@@ -119,9 +119,9 @@ function toggleReview(){const a=$("reviewAction").value;$("jsonBox").hidden=a!==
 async function sendReview(ev){
  ev.preventDefault();const r=s.run;if(!r)return;const b=$("submitReview");b.disabled=true;
  const payload={action:$("reviewAction").value,expected_revision:r.review_revision||0,comment:$("reviewComment").value.trim()};
- if(payload.action==="revise"){try{payload.revised_output=JSON.parse($("revisionJson").value);}catch{alertUser("Le JSON de révision est invalide.",true);b.disabled=false;return;}}
+ if(payload.action==="revise"){try{payload.revised_output=JSON.parse($("revisionJson").value);}catch{$("reviewError").hidden=false;$("reviewError").textContent="Le JSON de révision est invalide.";b.disabled=false;return;}}
  try{s.run=await api("/studio/api/runs/"+r.id+"/steps/"+s.step+"/review","POST",payload);$("reviewDialog").close();render();await list(true);alertUser("Décision enregistrée et historisée.");}
- catch(e){$("reviewDialog").close();alertUser(message(e),true);if(e.status===409)await refresh();}
+ catch(e){if(e.status===409){$("reviewDialog").close();await refresh();alertUser(message(e),true);}else{$("reviewError").hidden=false;$("reviewError").textContent=message(e);}}
  finally{b.disabled=false;}
 }
 async function create(ev){
