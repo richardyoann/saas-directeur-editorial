@@ -1,5 +1,6 @@
+import json
 from typing import Annotated, Literal
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 Text = Annotated[str, StringConstraints(strict=True, strip_whitespace=True, min_length=1, max_length=4000)]
 ShortText = Annotated[str, StringConstraints(strict=True, strip_whitespace=True, min_length=1, max_length=200)]
@@ -63,6 +64,18 @@ class ReviewDecision(StrictModel):
     expected_revision: int = Field(strict=True, ge=0)
     comment: Annotated[str, StringConstraints(strict=True, strip_whitespace=True, max_length=2000)] = ""
     revised_output: dict | None = None
+
+    @field_validator("revised_output")
+    @classmethod
+    def bound_revision(cls, data):
+        if data is not None:
+            try:
+                payload = json.dumps(data, ensure_ascii=False, allow_nan=False)
+            except (TypeError, ValueError, OverflowError):
+                raise ValueError("Révision JSON invalide.") from None
+            if len(payload.encode("utf-8")) > 64000:
+                raise ValueError("Révision trop volumineuse (64 Ko maximum).")
+        return data
 
     @model_validator(mode="after")
     def decision_contract(self):

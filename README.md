@@ -12,7 +12,7 @@ dépôt alternatif lorsque `.git` est protégé. Voir `docs/BLOCKERS.md` pour le
 corrections locales, restrictions restantes et commandes de reprise WSL2.
 
 API FastAPI relayant les demandes éditoriales à un serveur llama.cpp compatible
-avec `/v1/chat/completions`. Python vérifié : 3.14.4. Les dépendances applicatives
+avec `/v1/chat/completions`. Python relevé sur le PC lors d'un ancien diagnostic : 3.14.4 ; CI GitHub : Python 3.12. Les dépendances applicatives
 observées sont consignées dans `requirements.txt`; `.venv` est déjà opérationnel.
 
 ## Développement
@@ -35,6 +35,7 @@ textuel non blanc et accepte `max_tokens` entre 1 et 2048 (250 par défaut).
 
 ```bash
 curl -sS http://127.0.0.1:8000/ai/generate \
+  -H "Authorization: Bearer $EDITORIAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"prompt":"Propose un titre sur les jardins urbains.","max_tokens":64}'
 ```
@@ -84,3 +85,12 @@ Le fournisseur HTTP est isolé dans `apps/api/llama_provider.py`.
 ## Arvor Studio — interface privée WEB-001
 
 La première interface navigateur se trouve sur `/studio` (par défaut `http://localhost:8000/studio`). Elle comprend bibliothèque paginée, création de brief, analyse, storyboard, historique et validation éditoriale. Définir `EDITORIAL_WEB_PASSWORD` (secret distinct, 32 caractères minimum), en plus de la configuration éditoriale existante. Un seul worker et une exposition HTTP limitée à la boucle locale sont requis; pour un téléphone, configurer et vérifier HTTPS via un reverse proxy. Voir [guide de sécurité, démarrage et recette](docs/STUDIO_PRIVATE.md). Aucune image ni production vidéo intégrées à cette étape.
+
+
+## Diagnostic d'une génération interrompue (F1/F2)
+
+Les générations suivent une règle de **non-relance automatique** de Qwen. Après arrêt brutal, une exécution peut rester en état `running`. Depuis la fiche Studio, **Vérifier un blocage** lance `POST /studio/api/runs/{uuid}/reconcile` sous session privée/CSRF. Si le dernier début d'étape date de plus de 10 minutes, le backend enregistre un échec `run_interrupted` et conserve le prompt, le résultat interrompu (vide), l'audit et l'outbox en une transaction. Une génération récente n'est pas modifiée.
+
+La première erreur réseau **incertaine** conserve sa clé d'idempotence afin de ne pas lancer une génération en doublon. Après un échec terminal **confirmé**, une nouvelle tentative du même brief utilise une nouvelle clé. Il faut ouvrir explicitement une nouvelle tentative ; les versions anciennes restent consultables. La route de contrôle ne redémarre jamais le modèle. Tests PostgreSQL dédiés et parcours navigateur documentés dans [la note de prise en compte](docs/REVUE_COMPLEMENTAIRE_2026-10-14.md).
+
+La route `/ai/generate` exige désormais une identité et un jeton API **même sur `localhost`**. Configurer `EDITORIAL_API_TOKEN`, `EDITORIAL_TENANT_ID` et `EDITORIAL_ACTOR_ID` avant tout diagnostic. Le script `scripts/check_llm_integration.py` utilise également ce jeton et n'affiche pas sa valeur.

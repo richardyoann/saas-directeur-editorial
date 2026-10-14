@@ -92,6 +92,19 @@ def create_router(get_llm_client):
         except psycopg.Error:
             raise HTTPException(503, "Persistance éditoriale indisponible.") from None
 
+    @router.post("/runs/{run_id}/reconcile")
+    async def reconcile_run(run_id: UUID, identity: Identity = Depends(get_identity),
+                            store: PostgresStore = Depends(get_store)):
+        """Manual recovery only; never retry the LLM and never touch active runs."""
+        try:
+            return await run_in_threadpool(store.reconcile_interrupted, identity.tenant, identity.actor, run_id)
+        except RunMissing:
+            raise HTTPException(404, "Exécution introuvable.") from None
+        except RunConflict:
+            raise HTTPException(409, "État modifié pendant la vérification.") from None
+        except psycopg.Error:
+            raise HTTPException(503, "Persistance éditoriale indisponible.") from None
+
     @router.get("/runs/{run_id}/history")
     async def get_history(run_id: UUID, identity: Identity = Depends(get_identity),
                           store: PostgresStore = Depends(get_store)):

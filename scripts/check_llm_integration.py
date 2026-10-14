@@ -1,6 +1,7 @@
 """Exercise the actual API handler and real upstream without exposing configuration."""
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -11,10 +12,14 @@ from apps.api.main import app
 
 
 async def main():
+    authorization = os.getenv("EDITORIAL_API_TOKEN", "")
+    if len(authorization) < 32:
+        print("Authentification API éditoriale non configurée.", file=sys.stderr)
+        return 1
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://api.local"
     ) as client:
-        response = await client.post("/ai/generate", json={
+        response = await client.post("/ai/generate", headers={"Authorization": "Bearer " + authorization}, json={
             "prompt": "Réponds en français : propose un titre court pour un article sur les jardins urbains.",
             "max_tokens": 64,
         })

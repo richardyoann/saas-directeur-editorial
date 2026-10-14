@@ -90,6 +90,76 @@ class EditorialPostgresTests(unittest.TestCase):
         with self.store.connect() as conn:
             self.assertEqual(conn.execute("SELECT count(*) FROM po_audit WHERE correlation_id=%s", (run_id,)).fetchone()[0], 4)
 
+    def test_explicit_interruption_is_atomic_idempotent_and_preserves_history(self):
+        from datetime import datetime, timedelta, timezone
+
+        run_id = self.run_start()
+        self.store.begin_step(self.tenant, self.actor, run_id, "analysis", "prompt original")
+        recent = self.store.reconcile_interrupted(self.tenant, self.actor, run_id)
+        self.assertEqual(recent["status"], "running")
+
+        old = (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat()
+        with self.store.connect() as conn:
+            conn.execute(
+                "UPDATE po_entity SET content=jsonb_set(content,'{current_step,started_at}',"
+                "to_jsonb(%s::text)) WHERE tenant_id=%s AND kind='treatment' AND entity_id=%s",
+                (old, self.tenant, run_id),
+            )
+        with self.store.connect() as conn:
+            before = conn.execute(
+                "SELECT count(*) FROM po_audit WHERE correlation_id=%s", (run_id,)
+            ).fetchone()[0]
+        failed = self.store.reconcile_interrupted(self.tenant, self.actor, run_id)
+        self.assertEqual(failed["status"], "failed")
+        self.assertEqual(failed["error_code"], "run_interrupted")
+        self.assertNotIn("current_step", failed)
+        self.assertEqual(failed["steps"][-1]["status"], "failed")
+        snapshot = self.store.history(self.tenant, run_id)
+        self.assertEqual(len(snapshot), 1)
+        self.assertEqual(snapshot[0]["prompt"], "prompt original")
+        self.assertIsNone(snapshot[0]["raw_response"])
+        self.assertEqual(snapshot[0]["error_code"], "run_interrupted")
+        with self.store.connect() as conn:
+            treatment = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
+                "AND entity_id=%s", (self.tenant, UUID(failed["steps"][-1]["treatment_id"]))
+            ).fetchone()[0]
+            self.assertEqual(treatment["status"], "failed")
+            after = conn.execute("SELECT count(*) FROM po_audit WHERE correlation_id=%s", (run_id,)).fetchone()[0]
+            self.assertGreater(after, before)
+            self.assertEqual(conn.execute(
+                "SELECT count(*) FROM po_outbox o JOIN po_audit a USING(event_id) "
+                "WHERE a.correlation_id=%s", (run_id,)
+            ).fetchone()[0], after)
+        self.assertEqual(self.store.reconcile_interrupted(self.tenant, self.actor, run_id), failed)
+        with self.store.connect() as conn:
+            self.assertEqual(conn.execute("SELECT count(*) FROM po_audit WHERE correlation_id=%s",
+                                         (run_id,)).fetchone()[0], after)
+        with self.assertRaises(RunConflict):
+            self.store.save_step(self.tenant, self.actor, run_id, "analysis", "prompt original",
+                                 {"response": "late"}, outputs()[0])
+
+    def test_interruption_between_steps_and_isolation(self):
+        from datetime import datetime, timedelta, timezone
+
+        run_id = self.run_start()
+        self.store.begin_step(self.tenant, self.actor, run_id, "analysis", "prompt")
+        self.store.save_step(self.tenant, self.actor, run_id, "analysis", "prompt",
+                             {"response": json.dumps(outputs()[0])}, outputs()[0])
+        with self.assertRaises(RunMissing):
+            self.store.reconcile_interrupted(uuid4(), self.actor, run_id)
+        old = (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat()
+        with self.store.connect() as conn:
+            conn.execute(
+                "UPDATE po_entity SET content=jsonb_set(content,'{updated_at}',"
+                "to_jsonb(%s::text)) WHERE tenant_id=%s AND kind='treatment' AND entity_id=%s",
+                (old, self.tenant, run_id),
+            )
+        run = self.store.reconcile_interrupted(self.tenant, self.actor, run_id)
+        self.assertEqual(run["status"], "failed")
+        self.assertEqual(len(run["steps"]), 1)
+        self.assertEqual(len(self.store.history(self.tenant, run_id)), 1)
+
     def test_release_directory_sha_overrides_stale_config_in_persisted_run(self):
         import tempfile
         sha = "a" * 40

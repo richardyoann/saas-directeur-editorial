@@ -12,6 +12,24 @@ from pilotage.audit import mutate
 from editorial.models import Brief, Analysis, Storyboard, ReviewDecision
 
 WORKFLOW_VERSION = "editorial-v1.1"
+# Conservative threshold: both provider calls have a 120s wall limit.
+# This does not run automatically on reads; a user must request reconciliation.
+INTERRUPTED_AFTER_SECONDS = 600
+
+
+def interrupted(run, reference_time=None):
+    if run.get("status") != "running":
+        return False
+    stamp = (run.get("current_step") or {}).get("started_at") or run.get("updated_at") or run.get("created_at")
+    try:
+        started = datetime.fromisoformat(stamp)
+        if started.tzinfo is None:
+            return False
+        elapsed = ((reference_time or datetime.now(timezone.utc)) - started).total_seconds()
+        return elapsed > INTERRUPTED_AFTER_SECONDS
+    except (TypeError, ValueError, OverflowError):
+        return False
+
 
 
 def now():
@@ -83,6 +101,61 @@ class PostgresStore:
                    "created_at": now(), "updated_at": now(), "requires_human_validation": True}
             self._write(conn, tenant, actor, run_id, "treatment", run_id, run)
             return run, True
+
+    def reconcile_interrupted(self, tenant, actor, run_id):
+        """Operator-triggered recovery; never restart an ambiguous Qwen request.
+
+        Row locking serializes the transition with save_step. Preserve an
+        interruption snapshot and audit/outbox in the same DB transaction.
+        """
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT version, content FROM po_entity WHERE tenant_id=%s "
+                "AND kind='treatment' AND entity_id=%s AND NOT deleted FOR UPDATE",
+                (tenant, run_id),
+            ).fetchone()
+            if not row or row[1].get("type") != "editorial_run":
+                raise RunMissing()
+            version, run = row
+            if not interrupted(run):
+                return run
+            step = run.get("current_step")
+            if step:
+                treatment_id = UUID(step["treatment_id"])
+                current = conn.execute(
+                    "SELECT version, content FROM po_entity WHERE tenant_id=%s "
+                    "AND kind='treatment' AND entity_id=%s AND NOT deleted FOR UPDATE",
+                    (tenant, treatment_id),
+                ).fetchone()
+                if not current or current[1].get("status") != "running":
+                    raise RunConflict()
+                treatment_version, treatment = current
+                finished = now()
+                treatment.update(status="failed", error_code="run_interrupted", finished_at=finished)
+                self._write(conn, tenant, actor, run_id, "treatment", treatment_id, treatment, treatment_version)
+                # The prompt was saved at begin_step; retain the same diagnostic
+                # shape as normal failed LLM calls without inventing an AI output.
+                prompt = conn.execute(
+                    "SELECT content->>'text' FROM po_entity WHERE tenant_id=%s "
+                    "AND kind='prompt' AND entity_id=%s AND NOT deleted",
+                    (tenant, UUID(step["prompt_id"])),
+                ).fetchone()
+                result_id = uuid5(run_id, step["name"] + ":result")
+                self._write(conn, tenant, actor, run_id, "result", result_id,
+                            {"run_id": str(run_id), "type": "editorial_step_snapshot",
+                             "order": len(run["steps"]), "prompt_id": step["prompt_id"],
+                             "treatment_id": str(treatment_id),
+                             "prompt": prompt[0] if prompt else None, "prompt_version": "1.1.0",
+                             "response_metadata": {}, "raw_response": None, "parsed": None,
+                             "error_code": "run_interrupted"})
+                run["steps"].append({"name": step["name"], "status": "failed",
+                                     "treatment_id": str(treatment_id), "result_id": str(result_id)})
+                run.pop("current_step", None)
+            run.update(status="failed", error_code="run_interrupted",
+                       updated_at=now(), requires_human_validation=True)
+            self._write(conn, tenant, actor, run_id, "treatment", run_id, run, version)
+            return run
+
 
     def get(self, tenant, run_id):
         with self.connect() as conn:

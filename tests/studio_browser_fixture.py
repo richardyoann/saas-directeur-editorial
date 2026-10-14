@@ -4,10 +4,11 @@ This module is used only by the browser CI tests, never by the runtime.
 No real PostgreSQL, Qwen, or persistent user data.
 """
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi.responses import JSONResponse
 from editorial.models import Analysis, Brief, ReviewDecision, Storyboard
 from apps.api.studio import router, sessions, failures
 
@@ -56,6 +57,14 @@ def reset():
     return {"reset": True}
 
 
+@app.post("/__fixture__/stale/{run_id}")
+def stale(run_id: UUID):
+    run = get_record(run_id)
+    run["status"] = "running"
+    run["updated_at"] = (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat()
+    return {"status": run["status"]}
+
+
 @app.get("/__fixture__/counts")
 def counts():
     return call_count.copy()
@@ -88,6 +97,8 @@ def generate(brief: Brief, authorization: str = Header(""),
         stored = runs[keys[key]]
         if stored["brief"] != brief.model_dump():
             raise HTTPException(409)
+        if stored["status"] == "failed":
+            return JSONResponse(stored, status_code=422)
         return stored
     run_id = str(uuid4())
     count = brief.scene_count
@@ -109,6 +120,9 @@ def generate(brief: Brief, authorization: str = Header(""),
     keys[key] = run_id
     events[run_id] = []
     call_count["generate"] += 1
+    if brief.topic == "Erreur IA simulée":
+        record.update(status="failed", error_code="invalid_structured_output")
+        return JSONResponse(record, status_code=422)
     return record
 
 
@@ -123,6 +137,16 @@ def get_record(run_id):
 def detail(run_id: UUID, authorization: str = Header("")):
     require_token(authorization)
     return get_record(run_id)
+
+
+@app.post("/editorial/runs/{run_id}/reconcile")
+def reconcile(run_id: UUID, authorization: str = Header("")):
+    require_token(authorization)
+    run = get_record(run_id)
+    if (run["status"] == "running"
+            and (datetime.now(timezone.utc) - datetime.fromisoformat(run["updated_at"])).total_seconds() > 600):
+        run.update(status="failed", error_code="run_interrupted", updated_at=clock())
+    return run
 
 
 @app.get("/editorial/runs/{run_id}/history")

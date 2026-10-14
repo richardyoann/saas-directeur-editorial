@@ -32,6 +32,13 @@ class FakeStore:
                 "review_revision": 0, "analysis": {"angle": "La mer",
                 "message": "Une légende", "historical_checks": []}}
 
+    def reconcile_interrupted(self, tenant, actor, run_id):
+        self.tenant = tenant
+        self.actor = actor
+        if run_id != self.run_id:
+            raise RunMissing()
+        return {"id": str(run_id), "status": "failed", "error_code": "run_interrupted"}
+
     def review(self, tenant, actor, run_id, step, decision):
         if run_id != self.run_id:
             raise RunMissing()
@@ -104,6 +111,22 @@ class StudioTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.json()["actor"], str(self.actor))
         self.assertEqual((await self.client.post(url.replace("/analysis/", "/invalid/"),
             json=payload, headers=self.origin | {"X-CSRF-Token": csrf})).status_code, 422)
+
+    async def test_reconcile_requires_session_csrf_and_tenant_identity(self):
+        url = f"/studio/api/runs/{self.store.run_id}/reconcile"
+        self.assertEqual((await self.client.post(url, headers=self.origin)).status_code, 401)
+        csrf = await self.sign_in()
+        self.assertEqual((await self.client.post(url, headers=self.origin)).status_code, 403)
+        self.assertEqual((await self.client.post(
+            url, headers={"X-CSRF-Token": csrf})).status_code, 403)
+        response = await self.client.post(url, headers=self.origin | {"X-CSRF-Token": csrf})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["error_code"], "run_interrupted")
+        self.assertEqual(self.store.tenant, self.tenant)
+        self.assertEqual(self.store.actor, self.actor)
+        other = f"/studio/api/runs/{uuid4()}/reconcile"
+        self.assertEqual((await self.client.post(
+            other, headers=self.origin | {"X-CSRF-Token": csrf})).status_code, 404)
 
     async def test_input_validation_and_assets_do_not_expose_secret(self):
         csrf = await self.sign_in()

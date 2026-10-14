@@ -1,5 +1,6 @@
 import os
 import unittest
+from uuid import uuid4
 from unittest.mock import patch
 
 import httpx
@@ -10,7 +11,10 @@ from apps.api.llama_provider import generation_gate
 
 class GenerateTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.env = patch.dict(os.environ, {"LLM_BASE_URL": "http://llm.test:8081/"})
+        self.env = patch.dict(os.environ, {"LLM_BASE_URL": "http://llm.test:8081/",
+                                        "EDITORIAL_API_TOKEN": "t" * 48,
+                                        "EDITORIAL_TENANT_ID": str(uuid4()),
+                                        "EDITORIAL_ACTOR_ID": str(uuid4())})
         self.env.start()
         self.addCleanup(self.env.stop)
         self.addCleanup(app.dependency_overrides.clear)
@@ -30,7 +34,7 @@ class GenerateTests(unittest.IsolatedAsyncioTestCase):
                 yield client
 
         app.dependency_overrides[get_llm_client] = mock_client
-        self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost")
+        self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost", headers={"Authorization": "Bearer " + "t" * 48})
         self.addAsyncCleanup(self.client.aclose)
 
     async def generate(self, **kwargs):
@@ -113,16 +117,18 @@ class GenerateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.generate()).status_code, 502)
 
 
-    async def test_anonymous_generation_rejected_outside_loopback(self):
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
-                                     base_url="http://example.test") as remote:
-            result = await remote.post("/ai/generate", json={"prompt": "bonjour"})
-            self.assertEqual(result.status_code, 403)
-        async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=app, client=("192.0.2.12", 12345)),
-                base_url="http://localhost") as remote_peer:
-            result = await remote_peer.post("/ai/generate", json={"prompt": "bonjour"})
-            self.assertEqual(result.status_code, 403)
+    async def test_authentication_fails_closed_on_loopback_and_remotely(self):
+        for base,peer in (("http://localhost", ("127.0.0.1", 1234)),
+                          ("http://example.test", ("192.0.2.12", 12345))):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app, client=peer),
+                base_url=base) as anonymous:
+                self.assertEqual(
+                    (await anonymous.post("/ai/generate", json={"prompt": "bonjour"})).status_code, 401)
+        with patch.dict(os.environ, {"EDITORIAL_API_TOKEN": ""}):
+            self.assertEqual((await self.generate()).status_code, 503)
+        with patch.dict(os.environ, {"EDITORIAL_API_TOKEN": "short"}):
+            self.assertEqual((await self.generate()).status_code, 503)
         self.assertEqual(self.requests, [])
 
     async def test_generation_capacity_limit_and_release(self):

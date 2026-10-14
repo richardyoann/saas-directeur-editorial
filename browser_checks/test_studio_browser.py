@@ -268,6 +268,40 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.review("storyboard")
         self.assertEqual(self.page.locator("#status").inner_text(), "À valider")
 
+    def test_terminal_failure_allows_fresh_idempotency_key(self):
+        self.sign_in()
+        self.page.locator("#heroCreate").click()
+        self.page.locator("#topic").fill("Erreur IA simulée")
+        self.page.locator("#submitNew").click()
+        self.page.locator("#newDialog").wait_for(state="hidden")
+        expect(self.page.locator("#notice")).to_contain_text("nouvelle clé")
+        self.assertEqual(self.page.locator("#status").inner_text(), "Échec")
+        first = self.page.evaluate("location.hash.slice(5)")
+        self.page.locator("#heroCreate").click()
+        self.assertEqual(self.page.locator("#topic").input_value(), "Erreur IA simulée")
+        self.page.locator("#submitNew").click()
+        self.page.locator("#newDialog").wait_for(state="hidden")
+        expect(self.page.locator("#status")).to_have_text("Échec")
+        second = self.page.evaluate("location.hash.slice(5)")
+        self.assertNotEqual(first, second)
+        with httpx.Client(base_url=self.base) as client:
+            self.assertEqual(client.get("/__fixture__/counts").json()["generate"], 2)
+
+    def test_stale_run_reconciliation_is_explicit_and_not_retried(self):
+        self.sign_in()
+        run_id = self.create("Légende interrompue")
+        with httpx.Client(base_url=self.base) as client:
+            self.assertEqual(client.post("/__fixture__/stale/" + run_id).status_code, 200)
+        self.page.locator("#refresh").click()
+        expect(self.page.locator("#status")).to_have_text("En cours")
+        expect(self.page.locator("#reconcile")).to_be_visible()
+        self.page.locator("#reconcile").click()
+        expect(self.page.locator("#status")).to_have_text("Échec")
+        expect(self.page.locator("#notice")).to_contain_text("interrompue")
+        self.assertTrue(self.page.locator("#reconcile").is_hidden())
+        with httpx.Client(base_url=self.base) as client:
+            self.assertEqual(client.get("/__fixture__/counts").json()["generate"], 1)
+
     def test_generation_network_requires_explicit_retry(self):
         self.sign_in()
         requests = []
