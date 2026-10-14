@@ -2,9 +2,9 @@
 (() => {
 "use strict";
 const $ = id => document.getElementById(id);
-const s = {csrf:null,runs:[],next:null,run:null,tab:"storyboard",pending:null,step:"storyboard",reviews:[],nextReview:null,openRequest:0};
+const s = {csrf:null,runs:[],next:null,run:null,tab:"storyboard",pending:null,step:"storyboard",reviews:[],nextReview:null,openRequest:0,pollBusy:false};
 const uuid=/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
-const states={waiting_validation:"À valider",changes_requested:"À retravailler",approved:"Approuvé",running:"En cours",failed:"Échec"};
+const states={queued:"En attente",waiting_validation:"À valider",changes_requested:"À retravailler",approved:"Approuvé",running:"En cours",failed:"Échec"};
 const names={analysis:"Analyse",storyboard:"Storyboard"};
 const verbs={accept:"Accepté",reject:"Changements demandés",revise:"Révision"};
 function elem(tag,cls,value){const x=document.createElement(tag);if(cls)x.className=cls;if(value!==undefined&&value!==null)x.textContent=String(value);return x;}
@@ -41,6 +41,31 @@ function renderList(){
  $("count").textContent=s.runs.length+(s.next?"+":"");$("total").textContent=$("count").textContent;
  $("pending").textContent=s.runs.filter(r=>["waiting_validation","changes_requested"].includes(r.status)).length;
  $("approved").textContent=s.runs.filter(r=>r.status==="approved").length;$("more").hidden=!s.next;
+}
+async function pollRun(){
+ if(s.pollBusy||!s.csrf||!s.run||!["queued","running"].includes(s.run.status)||
+    document.visibilityState!=="visible")return;
+ s.pollBusy=true;
+ const id=s.run.id;
+ try{
+  const latest=await api("/studio/api/runs/"+id);
+  if(!s.run||s.run.id!==id||!s.csrf)return;
+  const changed=latest.status!==s.run.status||
+    (latest.current_step?.name||"")!==(s.run.current_step?.name||"")||
+    (latest.steps||[]).length!==(s.run.steps||[]).length;
+  s.run=latest;
+  if(changed){
+   render();
+   const listed=s.runs.find(x=>x.id===id);
+   if(listed){listed.status=latest.status;listed.title=latest.storyboard?.title||listed.title;}
+   renderList();
+   if(!["queued","running"].includes(latest.status)){
+    if(s.pending?.runId===id)s.pending=null;
+    alertUser(latest.status==="failed"?"La génération a échoué. Consultez l'historique avant de relancer.":"Génération terminée : la validation humaine est maintenant disponible.",latest.status==="failed");
+   }
+  }
+ }catch(e){if(e.status!==401)alertUser(message(e),true);}
+ finally{s.pollBusy=false;}
 }
 function closeNav(){$("sidebar").classList.remove("open");$("menu").setAttribute("aria-expanded","false");}
 async function openRun(id){
@@ -235,9 +260,10 @@ async function create(ev){
  scene_count:Number($("scenes").value),audience:$("audience").value.trim(),tone:$("tone").value.trim(),sources:[]};
  const fp=JSON.stringify(brief);if(!s.pending||s.pending.fp!==fp)s.pending={fp,key:crypto.randomUUID()};
  try{const r=await api("/studio/api/runs","POST",brief,{"Idempotency-Key":s.pending.key});
-  if(r.status==="running")s.pending.runId=r.id;else s.pending=null;
-  $("newDialog").close();if(r.status!=="running")$("newForm").reset();await list(true);await openRun(r.id);
-  if(r.status==="running")alertUser("Génération enregistrée et en cours. Utilisez Actualiser ou Vérifier un blocage si elle reste bloquée.");
+  if(["queued","running"].includes(r.status))s.pending.runId=r.id;else s.pending=null;
+  $("newDialog").close();if(!["queued","running"].includes(r.status))$("newForm").reset();await list(true);await openRun(r.id);
+  if(r.status==="queued")alertUser("Histoire en attente de traitement. Son état s’actualise automatiquement.");
+  else if(r.status==="running")alertUser("Génération en cours. Son état s’actualise automatiquement.");
   else alertUser("Histoire générée. Vérifiez toutes les scènes avant validation.");
  }catch(e){$("newDialog").close();
   const failed=e.data?.status==="failed"&&uuid.test(e.data?.id||"");
@@ -263,4 +289,5 @@ function bind(){
  tabs.forEach((b,i)=>{b.addEventListener("click",()=>tab(b.dataset.tab));b.addEventListener("keydown",e=>{if(!["ArrowRight","ArrowLeft","Home","End"].includes(e.key))return;e.preventDefault();const position=e.key==="Home"?0:e.key==="End"?tabs.length-1:(i+(e.key==="ArrowRight"?1:tabs.length-1))%tabs.length;const next=tabs[position];next.focus();tab(next.dataset.tab);});});
 }
 bind();boot();
+window.setInterval(pollRun,4000);
 })();
