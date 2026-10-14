@@ -38,6 +38,20 @@ class ReadinessTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response.status_code, 503)
                 self.assertEqual(response.json(), {"ready": False})
 
+    async def test_async_readiness_checks_worker_registration(self):
+        with patch.dict(os.environ, {"EDITORIAL_ASYNC_ENABLED": "true"}), patch(
+            "apps.api.main._worker_ready", return_value=False
+        ):
+            offline = await self.probe(True, 200)
+            self.assertEqual(offline.status_code, 503)
+            self.assertEqual(offline.json(), {"ready": False})
+        with patch.dict(os.environ, {"EDITORIAL_ASYNC_ENABLED": "true"}), patch(
+            "apps.api.main._worker_ready", return_value=True
+        ):
+            online = await self.probe(True, 200)
+            self.assertEqual(online.status_code, 200)
+            self.assertEqual(online.json(), {"ready": True})
+
     async def test_missing_provider_configuration_is_not_ready(self):
         with patch.dict(os.environ, {"LLM_BASE_URL": ""}), patch(
             "apps.api.main._database_ready", return_value=True
