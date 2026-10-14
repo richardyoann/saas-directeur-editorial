@@ -45,7 +45,8 @@ async def once(store, tenant, actor, client, base_url):
     # The worker only processes its own configured private tenant.
     LOG.info("Claimed editorial job id=%s", run["id"])
     try:
-        await run_steps(store, tenant, actor, run, client, base_url)
+        owner_actor = UUID(run["run_owner_actor"])
+        await run_steps(store, tenant, owner_actor, run, client, base_url)
     except Exception:
         # Do not emit exception text: provider errors can contain raw prompts.
         # Reconciliation (existing /reconcile route) records the failure
