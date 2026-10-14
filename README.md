@@ -94,3 +94,10 @@ Les générations suivent une règle de **non-relance automatique** de Qwen. Apr
 La première erreur réseau **incertaine** conserve sa clé d'idempotence afin de ne pas lancer une génération en doublon. Après un échec terminal **confirmé**, une nouvelle tentative du même brief utilise une nouvelle clé. Il faut ouvrir explicitement une nouvelle tentative ; les versions anciennes restent consultables. La route de contrôle ne redémarre jamais le modèle. Tests PostgreSQL dédiés et parcours navigateur documentés dans [la note de prise en compte](docs/REVUE_COMPLEMENTAIRE_2026-10-14.md).
 
 La route `/ai/generate` exige désormais une identité et un jeton API **même sur `localhost`**. Configurer `EDITORIAL_API_TOKEN`, `EDITORIAL_TENANT_ID` et `EDITORIAL_ACTOR_ID` avant tout diagnostic. Le script `scripts/check_llm_integration.py` utilise également ce jeton et n'affiche pas sa valeur.
+
+
+## Priorités MVP privé : téléphone, performances et édition guidée
+
+- **Téléphone** : pas d'accès public ouvert. Préparer un reverse proxy HTTPS privé via Tailscale Serve, avec Uvicorn `--proxy-headers --forwarded-allow-ips 127.0.0.1` (proxy local exclusivement), cookie `Secure`, contrôle CSRF et validation du `X-Forwarded-For`. Aucun tunnel n'est activé automatiquement. Procédure : [MOBILE_PRIVATE_ACCESS.md](docs/MOBILE_PRIVATE_ACCESS.md).
+- **PostgreSQL** : mesurer `EXPLAIN (ANALYZE, BUFFERS)` avant/après index sur **tables temporaires dans une base jetable**. Les index proposés et l'étude d'un pool n'affectent pas la base réelle sans une migration validée. [SQL_BENCHMARK.md](docs/SQL_BENCHMARK.md).
+- **Édition** : sélectionner « Réviser » pour obtenir des champs guidés pour l'analyse et chaque scène (titre, synopsis, narration, personnages, plans, images, sons). La durée totale est validée, les données restent conformes au schéma Pydantic et toute révision conserve audit/versions. L'éditeur JSON brut n'est plus requis.
