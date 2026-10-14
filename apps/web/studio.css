@@ -16,7 +16,7 @@
 .pill.running { color:#355e82; }
 .pill.failed { color:#873c32; }
 .pill.approved { color:#255c3d; }
-button,input,textarea,select,a,summary):focus-visible {
+button,input,textarea,select,a,summary:focus-visible {
   outline:3px solid #146a61;
   outline-offset:3px;
 }
