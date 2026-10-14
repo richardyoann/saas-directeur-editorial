@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field, field_validator
 from apps.api.llama_provider import ProviderError, generate_text, generation_gate
 from editorial.api import create_router, get_identity
 from apps.api.studio import router as studio_router
+from editorial.worker_guard import worker_online
+from uuid import UUID
 
 # Existing process variables take precedence; never rewrite the environment file.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
@@ -79,6 +81,20 @@ def _database_ready():
         return False
 
 
+def _worker_ready():
+    """Probe only the configured private tenant, no secrets in response."""
+    url, tenant_id = os.getenv("PO_DATABASE_URL", ""), os.getenv("EDITORIAL_TENANT_ID", "")
+    if not url:
+        return False
+    try:
+        return worker_online(url, UUID(tenant_id))
+    except (ValueError, OSError):
+        return False
+    except Exception:
+        # A readiness check must never expose raw database errors.
+        return False
+
+
 @app.get("/ready")
 async def ready(client: httpx.AsyncClient = Depends(get_llm_client)):
     """Readiness of DB and configured LLM, not proof of a running worker."""
@@ -91,7 +107,10 @@ async def ready(client: httpx.AsyncClient = Depends(get_llm_client)):
             model_ok = response.status_code == 200
         except (httpx.HTTPError, ValueError):
             pass
-    ok = database_ok and model_ok
+    worker_ok = True
+    if os.getenv("EDITORIAL_ASYNC_ENABLED", "").lower() == "true":
+        worker_ok = database_ok and await asyncio.to_thread(_worker_ready)
+    ok = database_ok and model_ok and worker_ok
     from fastapi.responses import JSONResponse
     return JSONResponse({"ready": ok}, status_code=200 if ok else 503)
 
