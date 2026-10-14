@@ -29,6 +29,7 @@ class MemoryStore:
     def __init__(self):
         self.runs = {}
         self.snapshots = {}
+        self.mutation_actors = []
 
     def start(self, tenant, actor, key, brief):
         run_id = uuid5(tenant, "editorial-run:" + str(key))
@@ -39,7 +40,8 @@ class MemoryStore:
                 raise RunConflict()
             return copy.deepcopy(run), False
         run = {"id": str(run_id), "status": "running", "steps": [], "brief": brief,
-               "request_hash": digest, "requires_human_validation": True}
+               "request_hash": digest, "requires_human_validation": True,
+               "run_owner_actor": str(actor)}
         self.runs[run_id] = run
         return copy.deepcopy(run), True
 
@@ -58,9 +60,11 @@ class MemoryStore:
         return None
 
     def begin_step(self, tenant, actor, run_id, step, prompt):
+        self.mutation_actors.append(actor)
         self.runs[run_id]["current_step"] = {"name": step}
 
     def save_step(self, tenant, actor, run_id, step, prompt, response, parsed, error):
+        self.mutation_actors.append(actor)
         run = self.runs[run_id]
         run["steps"].append({"name": step, "status": "failed" if error else "success"})
         self.snapshots.setdefault(run_id, []).append({"prompt": prompt, "raw_response": response.get("response"), "error_code": error})
@@ -132,9 +136,12 @@ class EditorialApiTests(unittest.IsolatedAsyncioTestCase):
                     "message": {"content": json.dumps(answer)}, "finish_reason": "stop"
                 }], "usage": {"total_tokens": 50}})
             async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as llm:
-                self.assertTrue(await once(self.store, self.tenant, self.actor, llm, "http://model.test"))
-                self.assertFalse(await once(self.store, self.tenant, self.actor, llm, "http://model.test"))
+                worker_actor = uuid4()
+                self.assertNotEqual(worker_actor, self.actor)
+                self.assertTrue(await once(self.store, self.tenant, worker_actor, llm, "http://model.test"))
+                self.assertFalse(await once(self.store, self.tenant, worker_actor, llm, "http://model.test"))
             self.assertEqual(len(self.calls), 2)
+            self.assertEqual(set(self.store.mutation_actors), {self.actor})
             self.assertEqual(self.store.get(self.tenant, UUID(first.json()["id"]))["status"], "waiting_validation")
             replay = await self.post()
             self.assertEqual(replay.status_code, 200)
