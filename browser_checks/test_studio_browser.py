@@ -278,6 +278,17 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.review("storyboard")
         self.assertEqual(self.page.locator("#status").inner_text(), "À valider")
 
+    def test_async_202_polling_reaches_human_validation_without_replay(self):
+        self.sign_in()
+        run_id = self.create("Asynchrone simulée")
+        expect(self.page.locator("#status")).to_have_text("En attente")
+        expect(self.page.locator("#status")).to_have_text("À valider", timeout=15000)
+        self.assertTrue(self.page.locator("#decisionFoot").is_visible())
+        self.assertTrue(self.page.locator("#reconcile").is_hidden())
+        with httpx.Client(base_url=self.base) as client:
+            self.assertEqual(client.get("/__fixture__/counts").json()["generate"], 1)
+        self.assertEqual(self.page.evaluate("location.hash.slice(5)"), run_id)
+
     def test_terminal_failure_allows_fresh_idempotency_key(self):
         self.sign_in()
         self.page.locator("#heroCreate").click()

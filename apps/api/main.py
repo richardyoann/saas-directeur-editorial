@@ -1,10 +1,12 @@
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
 from apps.api.llama_provider import ProviderError, generate_text, generation_gate
@@ -14,7 +16,26 @@ from apps.api.studio import router as studio_router
 # Existing process variables take precedence; never rewrite the environment file.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
-app = FastAPI(title="Directeur éditorial IA", version="0.1.0")
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    # One reusable provider client and one same-process API client per worker.
+    async with (
+        httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=5.0),
+                          limits=httpx.Limits(max_connections=4, max_keepalive_connections=2),
+                          trust_env=False) as llm_client,
+        httpx.AsyncClient(transport=httpx.ASGITransport(app=application),
+                          base_url="http://internal", timeout=275, trust_env=False) as internal_client,
+    ):
+        application.state.llm_client = llm_client
+        application.state.internal_client = internal_client
+        try:
+            yield
+        finally:
+            del application.state.llm_client
+            del application.state.internal_client
+
+
+app = FastAPI(title="Directeur éditorial IA", version="0.1.0", lifespan=lifespan)
 
 
 class GenerateRequest(BaseModel):
@@ -29,16 +50,50 @@ class GenerateRequest(BaseModel):
         return value
 
 
-async def get_llm_client() -> AsyncIterator[httpx.AsyncClient]:
-    async with httpx.AsyncClient(
-        timeout=httpx.Timeout(120.0, connect=5.0), trust_env=False
-    ) as client:
-        yield client
+async def get_llm_client(request: Request) -> AsyncIterator[httpx.AsyncClient]:
+    shared = getattr(request.app.state, "llm_client", None)
+    if shared is not None:
+        yield shared
+    else:
+        # ASGITransport unit tests don't automatically start lifespan.
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(120.0, connect=5.0), trust_env=False
+        ) as client:
+            yield client
 
 
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "editorial-api"}
+
+
+def _database_ready():
+    import psycopg
+    url = os.getenv("PO_DATABASE_URL", "")
+    if not url:
+        return False
+    try:
+        with psycopg.connect(url, connect_timeout=2) as connection:
+            return connection.execute("SELECT 1").fetchone() == (1,)
+    except (psycopg.Error, OSError):
+        return False
+
+
+@app.get("/ready")
+async def ready(client: httpx.AsyncClient = Depends(get_llm_client)):
+    """Readiness of DB and configured LLM, not proof of a running worker."""
+    base = os.getenv("LLM_BASE_URL", "").rstrip("/")
+    database_ok = await asyncio.to_thread(_database_ready)
+    model_ok = False
+    if base.startswith(("http://", "https://")):
+        try:
+            response = await client.get(base + "/health", timeout=2.0)
+            model_ok = response.status_code == 200
+        except (httpx.HTTPError, ValueError):
+            pass
+    ok = database_ok and model_ok
+    from fastapi.responses import JSONResponse
+    return JSONResponse({"ready": ok}, status_code=200 if ok else 503)
 
 
 @app.post("/ai/generate")

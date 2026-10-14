@@ -68,10 +68,11 @@ def parse_output(text, step, brief):
     return model.model_dump()
 
 
-async def run_workflow(store, tenant, actor, key, brief, client, base_url):
-    run, created = await asyncio.to_thread(store.start, tenant, actor, key, brief.model_dump())
-    if not created:
-        return run, False
+async def run_steps(store, tenant, actor, run, client, base_url):
+    """Run an already persisted/claimed job; used by HTTP legacy and worker."""
+    if run.get("status") != "running" or run.get("steps") or run.get("current_step"):
+        raise ValueError("Run not claimable for a fresh workflow.")
+    brief = Brief.model_validate(run["brief"])
     run_id = UUID(run["id"])
     for step in ("analysis", "storyboard"):
         prompt = prompt_for(step, brief, run.get("analysis"))
@@ -93,5 +94,12 @@ async def run_workflow(store, tenant, actor, key, brief, client, base_url):
         run = await asyncio.to_thread(store.save_step, tenant, actor, run_id, step, prompt, response, parsed, error)
         if error:
             break
-    return run, True
+    return run
+
+
+async def run_workflow(store, tenant, actor, key, brief, client, base_url):
+    run, created = await asyncio.to_thread(store.start, tenant, actor, key, brief.model_dump())
+    if not created:
+        return run, False
+    return await run_steps(store, tenant, actor, run, client, base_url), True
 
