@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
+from apps.api.llama_provider import generation_gate
 from editorial.models import Brief, ReviewDecision
 from editorial.service import run_workflow
 from editorial.store import PostgresStore, RunConflict, RunMissing, ReviewInvalid
@@ -50,13 +51,19 @@ def create_router(get_llm_client):
     async def create_run(brief: Brief, idempotency_key: UUID = Header(),
                          identity: Identity = Depends(get_identity),
                          store: PostgresStore = Depends(get_store), client=Depends(get_llm_client)):
+        if not generation_gate.acquire(blocking=False):
+            raise HTTPException(429, "Génération déjà en cours : capacité temporairement atteinte.",
+                                headers={"Retry-After": "30"})
         try:
-            run, created = await run_workflow(store, identity.tenant, identity.actor,
-                                             idempotency_key, brief, client, os.getenv("LLM_BASE_URL", ""))
-        except RunConflict:
-            raise HTTPException(409, "Clé d'idempotence déjà utilisée pour une autre demande.") from None
-        except psycopg.Error:
-            raise HTTPException(503, "Persistance éditoriale indisponible.") from None
+            try:
+                run, created = await run_workflow(store, identity.tenant, identity.actor,
+                                                 idempotency_key, brief, client, os.getenv("LLM_BASE_URL", ""))
+            except RunConflict:
+                raise HTTPException(409, "Clé d'idempotence déjà utilisée pour une autre demande.") from None
+            except psycopg.Error:
+                raise HTTPException(503, "Persistance éditoriale indisponible.") from None
+        finally:
+            generation_gate.release()
         code = 201 if created else (202 if run["status"] == "running" else 200)
         if run["status"] == "failed":
             code = {"provider_configuration": 503, "provider_timeout": 504,
