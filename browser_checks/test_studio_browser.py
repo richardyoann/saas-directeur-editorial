@@ -222,6 +222,31 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#home").click()
         self.assertTrue(self.page.locator("#empty").is_visible())
 
+    def test_accessible_tab_navigation_and_small_text_contrast(self):
+        self.sign_in()
+        self.page.locator("#heroCreate").click()
+        self.assertTrue(self.page.get_by_role("dialog", name="Donnez vie à une légende.").is_visible())
+        self.page.locator("#newDialog .close").first.click()
+        self.create("La forêt enchantée")
+        tab = self.page.locator('[data-tab="storyboard"]')
+        tab.focus()
+        self.page.keyboard.press("End")
+        self.assertEqual(self.page.locator('[data-tab="reviews"]').get_attribute("aria-selected"), "true")
+        self.assertEqual(self.page.locator("#panel").get_attribute("aria-labelledby"), "tab-reviews")
+        self.page.keyboard.press("Home")
+        self.assertEqual(tab.get_attribute("aria-selected"), "true")
+        self.assertEqual(tab.get_attribute("tabindex"), "0")
+        self.assertEqual(self.page.locator('[data-tab="reviews"]').get_attribute("tabindex"), "-1")
+        color = self.page.locator(".metric span").first.evaluate(
+            "(element) => getComputedStyle(element).color")
+        from re import findall
+        channel = [int(v) / 255 for v in findall(r"\\d+", color)[:3]]
+        self.assertEqual(len(channel), 3)
+        linear = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+                  for v in channel]
+        luminance = sum(a * b for a, b in zip((0.2126, 0.7152, 0.0722), linear))
+        self.assertGreaterEqual((1.05 / (luminance + 0.05)), 4.5)
+
     def test_conflict_requires_refresh_without_automatic_replay(self):
         self.sign_in()
         self.create("L'Ankou")
