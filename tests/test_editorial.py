@@ -7,6 +7,7 @@ from uuid import UUID, uuid4, uuid5
 
 import httpx
 from apps.api.main import app, get_llm_client
+from apps.api.llama_provider import generation_gate
 from editorial.api import Identity, get_identity, get_store
 from editorial.models import Brief
 from editorial.service import parse_output
@@ -151,6 +152,21 @@ class EditorialApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.client.post("/editorial/runs", json={"topic": "Ys"})).status_code, 422)
         self.assertEqual((await self.client.get(f"/editorial/runs/{uuid4()}")).status_code, 404)
         self.assertEqual(self.calls, [])
+
+    async def test_capacity_rejection_does_not_persist_half_started_run(self):
+        self.assertTrue(generation_gate.acquire(blocking=False))
+        self.assertTrue(generation_gate.acquire(blocking=False))
+        try:
+            response = await self.post()
+            self.assertEqual(response.status_code, 429)
+            self.assertEqual(response.headers["Retry-After"], "30")
+            self.assertEqual(self.store.runs, {})
+            self.assertEqual(self.calls, [])
+        finally:
+            generation_gate.release()
+            generation_gate.release()
+        response = await self.post()
+        self.assertEqual(response.status_code, 201)
 
     async def test_authentication_fails_closed(self):
         app.dependency_overrides.pop(get_identity)
