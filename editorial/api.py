@@ -51,6 +51,25 @@ def create_router(get_llm_client):
     async def create_run(brief: Brief, idempotency_key: UUID = Header(),
                          identity: Identity = Depends(get_identity),
                          store: PostgresStore = Depends(get_store), client=Depends(get_llm_client)):
+        # Explicit opt-in keeps existing installations safe until a worker
+        # service is provisioned; the durable queue lives in PostgreSQL.
+        if os.getenv("EDITORIAL_ASYNC_ENABLED", "").lower() == "true":
+            try:
+                run, created = await run_in_threadpool(
+                    store.enqueue, identity.tenant, identity.actor,
+                    idempotency_key, brief.model_dump()
+                )
+            except RunConflict:
+                raise HTTPException(409, "Clé d'idempotence déjà utilisée pour une autre demande.") from None
+            except psycopg.Error:
+                raise HTTPException(503, "Persistance éditoriale indisponible.") from None
+            if run["status"] in {"queued", "running"}:
+                code = 202
+            elif run["status"] == "failed":
+                code = 422
+            else:
+                code = 200
+            return JSONResponse(run, status_code=code)
         if not generation_gate.acquire(blocking=False):
             raise HTTPException(429, "Génération déjà en cours : capacité temporairement atteinte.",
                                 headers={"Retry-After": "30"})
