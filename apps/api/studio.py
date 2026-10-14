@@ -158,11 +158,16 @@ async def relay(request, method, path, payload=None, headers=None):
     auth = {"Authorization": "Bearer " + os.environ["EDITORIAL_API_TOKEN"]}
     auth.update(headers or {})
     try:
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=request.app), base_url="http://internal",
-            timeout=275, trust_env=False
-        ) as client:
-            result = await client.request(method, path, headers=auth, json=payload)
+        shared = getattr(request.app.state, "internal_client", None)
+        if shared is not None:
+            result = await shared.request(method, path, headers=auth, json=payload)
+        else:
+            # Unit tests without lifespan retain the same ASGI behavior.
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=request.app), base_url="http://internal",
+                timeout=275, trust_env=False
+            ) as client:
+                result = await client.request(method, path, headers=auth, json=payload)
     except (httpx.HTTPError, TimeoutError):
         raise HTTPException(502, "API éditoriale indisponible.") from None
     try:
