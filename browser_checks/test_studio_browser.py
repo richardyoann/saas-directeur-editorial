@@ -240,7 +240,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         color = self.page.locator(".metric span").first.evaluate(
             "(element) => getComputedStyle(element).color")
         from re import findall
-        channel = [int(v) / 255 for v in findall(r"\\d+", color)[:3]]
+        channel = [int(v) / 255 for v in findall(r"\d+", color)[:3]]
         self.assertEqual(len(channel), 3)
         linear = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
                   for v in channel]
