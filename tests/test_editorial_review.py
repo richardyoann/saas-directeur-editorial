@@ -10,9 +10,24 @@ import httpx
 import psycopg
 from apps.api.main import app
 from editorial.api import get_store
-from editorial.models import Brief
+from editorial.models import Brief, ReviewDecision
 from editorial.store import PostgresStore
 from test_editorial import outputs
+
+
+class ReviewSizeTests(unittest.TestCase):
+    def test_large_revised_output_rejected_even_without_studio(self):
+        from pydantic import ValidationError
+        payload = {"action": "revise", "expected_revision": 0, "comment": "Correction",
+                   "revised_output": {"message": "é" * 40000}}
+        with self.assertRaises(ValidationError):
+            ReviewDecision.model_validate(payload)
+        self.assertEqual(
+            ReviewDecision.model_validate(
+                {"action": "revise", "expected_revision": 0, "comment": "Correction",
+                 "revised_output": {"angle": "Mer"}}).revised_output,
+            {"angle": "Mer"},
+        )
 
 
 @unittest.skipUnless(os.getenv("PO_TEST_DATABASE_URL"), "dedicated PostgreSQL required")
