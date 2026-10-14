@@ -46,3 +46,8 @@ jobs:
           PO_ALLOW_TEST_MIGRATION: 'yes'
           TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
         run: python scripts/run_regression.py
+      - name: Measure catalog and history query plans on temporary synthetic data
+        env:
+          PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
+          PO_ALLOW_TEST_MIGRATION: 'yes'
+        run: python scripts/benchmark_editorial_sql.py --rows 1200 --disposable

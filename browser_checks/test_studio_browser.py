@@ -105,7 +105,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.assertEqual(self.page.locator("#storyTitle").inner_text(), topic)
         return self.page.evaluate("location.hash.slice(5)")
 
-    def review(self, step, action="accept", comment="", corrected=None):
+    def review(self, step, action="accept", comment=""):
         self.page.locator('[data-tab="' + step + '"]').click()
         labels = {"accept": "Accepter", "reject": "Demander des changements", "revise": "Réviser"}
         self.page.locator("#panel .review-buttons").get_by_role(
@@ -113,9 +113,6 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#reviewAction").select_option(action)
         if comment:
             self.page.locator("#reviewComment").fill(comment)
-        if corrected is not None:
-            self.page.locator("#revisionJson").fill(
-                json.dumps(corrected, ensure_ascii=False))
         self.page.locator("#confirmReview").check()
         self.page.locator("#submitReview").click()
         self.page.locator("#reviewDialog").wait_for(state="hidden")
@@ -152,45 +149,58 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#storyTitle").wait_for(state="visible")
         self.assertEqual(self.page.locator("#storyTitle").inner_text(), "La ville d'Ys")
 
-    def test_reject_revise_accept_and_invalid_json(self):
+    def test_reject_guided_revision_duration_validation_and_approval(self):
         self.sign_in()
         self.create("La forêt de Brocéliande")
         self.review("storyboard", "reject", "Améliorer la narration")
         self.assertEqual(self.page.locator("#status").inner_text(), "À retravailler")
         self.page.locator('[data-tab="storyboard"]').click()
         self.page.locator("#panel .review-buttons").get_by_role("button", name="Réviser").click()
-        self.page.locator("#reviewComment").fill("Corriger le découpage")
-        self.page.locator("#revisionJson").fill("{JSON invalide")
+        self.page.locator("#reviewComment").fill("Correction du découpage")
+        self.assertEqual(self.page.locator("#editFields fieldset.edit-scene").count(), 3)
+        self.page.locator("#edit-title").fill("Brocéliande — version éditée")
+        self.page.locator("#edit-synopsis").fill("Récit révisé")
+        self.page.locator("#edit-scene-0-narration").fill("Narration humaine de la forêt")
+        self.page.locator("#edit-scene-0-characters").fill("Merlin\nViviane")
+        self.page.locator("#edit-scene-0-colors").fill("vert\nbleu")
+        self.page.locator("#edit-scene-0-duration_seconds").fill("21")
         self.page.locator("#confirmReview").check()
         self.page.locator("#submitReview").click()
         self.page.locator("#reviewError").wait_for(state="visible")
+        self.assertIn("durée totale", self.page.locator("#reviewError").inner_text())
         self.assertTrue(self.page.locator("#reviewDialog").is_visible())
-        self.assertIn("JSON", self.page.locator("#reviewError").inner_text())
-        self.assertNotIn("editorial_studio_session",
-                         self.page.evaluate("document.cookie"))
-        revised = {
-            "title": "Brocéliande — version éditée",
-            "synopsis": "Récit révisé",
-            "scenes": [
-                {"title": "Scène " + str(i), "duration_seconds": 20,
-                 "narration": "Le récit continue", "visual_description": "Forêt",
-                 "characters": ["Merlin"], "landscape": "Brocéliande",
-                 "colors": ["vert"], "shot": "Plan large", "emotion": "Mystère",
-                 "sound": "Vent", "image_prompt": "Forêt enchantée"}
-                for i in (1, 2, 3)
-            ],
-        }
-        self.page.locator("#revisionJson").fill(
-            json.dumps(revised, ensure_ascii=False))
+        self.assertNotIn("editorial_studio_session", self.page.evaluate("document.cookie"))
+        self.page.locator("#edit-scene-0-duration_seconds").fill("20")
         self.page.locator("#submitReview").click()
         self.page.locator("#reviewDialog").wait_for(state="hidden")
-        self.assertEqual(self.page.locator("#storyTitle").inner_text(),
-                         "Brocéliande — version éditée")
+        self.assertEqual(self.page.locator("#storyTitle").inner_text(), "Brocéliande — version éditée")
+        self.assertIn("Narration humaine", self.page.locator("#panel").inner_text())
         self.review("storyboard")
         self.review("analysis")
         self.assertEqual(self.page.locator("#status").inner_text(), "Approuvé")
         self.page.locator('[data-tab="reviews"]').click()
         expect(self.page.locator("#panel .history-entry")).to_have_count(4)
+
+    def test_analysis_guided_revision_invalidates_storyboard(self):
+        self.sign_in()
+        self.create("La cité d'Ys")
+        self.page.locator('[data-tab="analysis"]').click()
+        self.page.locator("#panel .review-buttons").get_by_role("button", name="Réviser").click()
+        self.page.locator("#reviewComment").fill("Reformuler le message")
+        self.page.locator("#edit-angle").fill("Mémoire des cités disparues")
+        self.page.locator("#edit-message").fill("Une leçon tirée de la tradition orale")
+        self.page.locator("#edit-checks").fill("Comparer les sources locales\nVérifier la datation")
+        self.page.locator("#confirmReview").check()
+        self.page.locator("#submitReview").click()
+        self.page.locator("#reviewDialog").wait_for(state="hidden")
+        self.assertIn("Mémoire des cités", self.page.locator("#panel").inner_text())
+        self.page.locator('[data-tab="storyboard"]').click()
+        self.assertIn("obsolète", self.page.locator("#panel").inner_text())
+        self.page.locator("#panel .review-buttons").get_by_role("button", name="Accepter").click()
+        self.page.locator("#confirmReview").check()
+        self.page.locator("#submitReview").click()
+        expect(self.page.locator("#notice")).to_contain_text("Conflit")
+        self.assertNotEqual(self.page.locator("#status").inner_text(), "Approuvé")
 
     def test_pagination_search_navigation_and_mobile(self):
         with httpx.Client(base_url=self.base, headers=AUTH) as client:

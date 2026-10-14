@@ -123,16 +123,108 @@ async function reconcile(){
  }catch(e){alertUser(message(e),true);}
  finally{b.disabled=false;}
 }
-function openReview(step,action="accept"){
- s.step=step;$("reviewError").hidden=true;$("reviewError").textContent="";$("reviewTitle").textContent=names[step];$("reviewAction").value=action;$("reviewComment").value="";
- $("reviewHelp").textContent=step==="analysis"?"Une révision de l’analyse invalide le storyboard.":"Une révision crée un nouveau scénario sans effacer le précédent.";
- $("revisionJson").value=JSON.stringify(s.run[step]||{},null,2);$("confirmReview").checked=false;toggleReview();$("reviewDialog").showModal();
+// Form fields map exactly to the Pydantic Analysis/Storyboard contracts.
+// No generated HTML or JSON editing is necessary: all values are plain text inputs.
+function editField(root,id,label,value,options={}){
+ const block=put(root,"div","edit-field"),caption=put(block,"label","",label);
+ caption.htmlFor=id;
+ const control=put(block,options.multiline?"textarea":"input","");
+ control.id=id;control.name=id;
+ if(!options.multiline)control.type=options.numeric?"number":"text";
+ else control.rows=options.rows||2;
+ if(options.numeric){control.min="1";control.max="180";control.step="1";}
+ else control.maxLength=options.max||4000;
+ control.required=options.required!==false;
+ control.value=String(value??"");
+ return control;
 }
-function toggleReview(){const a=$("reviewAction").value;$("jsonBox").hidden=a!=="revise";$("reviewComment").required=a!=="accept";$("revisionJson").required=a==="revise";$("commentRequired").textContent=a==="accept"?"(facultatif)":"(obligatoire)";}
+function editList(root,id,label,values,required=false){
+ return editField(root,id,label,(values||[]).join("\n"),{multiline:true,required,max:48000});
+}
+function buildEditor(){
+ const root=$("editFields");root.replaceChildren();
+ const result=s.run[s.step]||{};
+ if(s.step==="analysis"){
+  editField(root,"edit-angle","Angle du récit",result.angle,{max:200});
+  editField(root,"edit-message","Message éditorial",result.message,{multiline:true,rows:3});
+  editList(root,"edit-checks","Affirmations historiques à vérifier (une par ligne)",result.historical_checks);
+ }else{
+  editField(root,"edit-title","Titre du storyboard",result.title,{max:200});
+  editField(root,"edit-synopsis","Synopsis",result.synopsis,{multiline:true,rows:3});
+  const plan=put(root,"p","tip","La durée totale doit être exactement de "+s.run.brief.duration_seconds+" secondes. Chaque scène est enregistrée dans l'ordre actuel.");
+  plan.id="edit-duration-help";
+  (result.scenes||[]).forEach((scene,i)=>{
+   const section=put(root,"fieldset","edit-scene");
+   put(section,"legend","","Scène "+(i+1));
+   const base="edit-scene-"+i+"-";
+   editField(section,base+"title","Titre",scene.title,{max:200});
+   editField(section,base+"duration_seconds","Durée (secondes)",scene.duration_seconds,{numeric:true});
+   editField(section,base+"narration","Narration",scene.narration,{multiline:true,rows:3});
+   editField(section,base+"visual_description","Description visuelle",scene.visual_description,{multiline:true,rows:3});
+   editList(section,base+"characters","Personnages (un par ligne)",scene.characters);
+   editField(section,base+"landscape","Paysage",scene.landscape,{max:200});
+   editList(section,base+"colors","Couleurs (une par ligne)",scene.colors,true);
+   editField(section,base+"shot","Plan de caméra",scene.shot,{max:200});
+   editField(section,base+"emotion","Émotion",scene.emotion,{max:200});
+   editField(section,base+"sound","Son",scene.sound,{max:200});
+   editField(section,base+"image_prompt","Prompt image",scene.image_prompt,{multiline:true,rows:3});
+  });
+ }
+}
+function editedList(id){return $(id).value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean);}
+function revisedOutput(){
+ if(s.step==="analysis")return {
+  angle:$("edit-angle").value.trim(),
+  message:$("edit-message").value.trim(),
+  historical_checks:editedList("edit-checks")
+ };
+ const scenes=(s.run.storyboard?.scenes||[]).map((scene,i)=>{
+  const p="edit-scene-"+i+"-";
+  return {
+   title:$(p+"title").value.trim(),
+   duration_seconds:Number($(p+"duration_seconds").value),
+   narration:$(p+"narration").value.trim(),
+   visual_description:$(p+"visual_description").value.trim(),
+   characters:editedList(p+"characters"),
+   landscape:$(p+"landscape").value.trim(),
+   colors:editedList(p+"colors"),
+   shot:$(p+"shot").value.trim(),
+   emotion:$(p+"emotion").value.trim(),
+   sound:$(p+"sound").value.trim(),
+   image_prompt:$(p+"image_prompt").value.trim()
+  };
+ });
+ if(scenes.length!==s.run.brief.scene_count)
+  throw Error("Le nombre de scènes ne correspond pas au brief.");
+ if(scenes.some(x=>!Number.isInteger(x.duration_seconds)||x.duration_seconds<1)||
+    scenes.reduce((sum,x)=>sum+x.duration_seconds,0)!==s.run.brief.duration_seconds)
+  throw Error("La durée totale des scènes doit être de "+s.run.brief.duration_seconds+" secondes.");
+ if(scenes.some(x=>x.colors.length<1||x.colors.length>8||x.characters.length>12))
+  throw Error("Chaque scène accepte de 1 à 8 couleurs et au maximum 12 personnages.");
+ return {title:$("edit-title").value.trim(),synopsis:$("edit-synopsis").value.trim(),scenes};
+}
+function openReview(step,action="accept"){
+ s.step=step;$("reviewError").hidden=true;$("reviewError").textContent="";
+ $("reviewTitle").textContent=names[step];$("reviewAction").value=action;
+ $("reviewComment").value="";$("confirmReview").checked=false;
+ $("reviewHelp").textContent=step==="analysis"?"Une révision de l’analyse invalide le storyboard.":"Une révision crée un nouveau scénario sans effacer le précédent.";
+ buildEditor();toggleReview();$("reviewDialog").showModal();
+}
+function toggleReview(){
+ const revised=$("reviewAction").value==="revise";
+ $("editFields").hidden=!revised;
+ $("editFields").querySelectorAll("input,textarea").forEach(input=>input.disabled=!revised);
+ $("reviewComment").required=$("reviewAction").value!=="accept";
+ $("commentRequired").textContent=$("reviewAction").value==="accept"?"(facultatif)":"(obligatoire)";
+}
 async function sendReview(ev){
  ev.preventDefault();const r=s.run;if(!r)return;const b=$("submitReview");b.disabled=true;
+ $("reviewError").hidden=true;
  const payload={action:$("reviewAction").value,expected_revision:r.review_revision||0,comment:$("reviewComment").value.trim()};
- if(payload.action==="revise"){try{payload.revised_output=JSON.parse($("revisionJson").value);}catch{$("reviewError").hidden=false;$("reviewError").textContent="Le JSON de révision est invalide.";b.disabled=false;return;}}
+ if(payload.action==="revise"){
+  try{payload.revised_output=revisedOutput();}
+  catch(error){$("reviewError").hidden=false;$("reviewError").textContent=error.message;b.disabled=false;return;}
+ }
  try{s.run=await api("/studio/api/runs/"+r.id+"/steps/"+s.step+"/review","POST",payload);$("reviewDialog").close();render();await list(true);alertUser("Décision enregistrée et historisée.");}
  catch(e){if(e.status===409){$("reviewDialog").close();await refresh();alertUser(message(e),true);}else{$("reviewError").hidden=false;$("reviewError").textContent=message(e);}}
  finally{b.disabled=false;}
