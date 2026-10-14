@@ -141,7 +141,7 @@ def get_record(run_id):
 def detail(run_id: UUID, authorization: str = Header("")):
     require_token(authorization)
     record = get_record(run_id)
-    if record.get("status") == "queued" and record.get("_test_polls") is not None:
+    if record.get("status") in {"queued", "running"} and record.get("_test_polls") is not None:
         record["_test_polls"] += 1
         if record["_test_polls"] >= 2:
             record["status"] = "running"
