@@ -85,7 +85,7 @@ class PostgresStore:
                operation="created" if version == 0 else "updated", expected_version=version,
                content=content, source_key=uuid4(), correlation_id=run_id)
 
-    def start(self, tenant, actor, key, brief):
+    def start(self, tenant, actor, key, brief, *, queued=False):
         run_id = uuid5(tenant, "editorial-run:" + str(key))
         digest = fingerprint(brief, actor)
         with self.connect() as conn:
@@ -96,11 +96,44 @@ class PostgresStore:
                     raise RunConflict()
                 return row[0], False
             run = {"id": str(run_id), "type": "editorial_run", "workflow_version": WORKFLOW_VERSION,
-                   "request_hash": digest, "brief": brief, "status": "running", "steps": [],
+                   "request_hash": digest, "brief": brief, "status": "queued" if queued else "running", "steps": [],
                    "code_version": runtime_code_version(),
-                   "created_at": now(), "updated_at": now(), "requires_human_validation": True}
+                   "created_at": now(), "updated_at": now(), "requires_human_validation": True,
+                   "run_owner_actor": str(actor)}
             self._write(conn, tenant, actor, run_id, "treatment", run_id, run)
             return run, True
+
+    def enqueue(self, tenant, actor, key, brief):
+        """Durable, idempotent insertion; queue entry and audit commit atomically."""
+        return self.start(tenant, actor, key, brief, queued=True)
+
+    def claim_queued(self, tenant, actor):
+        """Atomically claim one queued run in the tenant without racing other workers.
+
+        SKIP LOCKED guarantees two workers cannot claim the same run.
+        The actor of the original request is recorded as run_owner_actor and
+        used for all subsequent domain mutations and audits.
+        """
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT entity_id, version, content FROM po_entity "
+                "WHERE tenant_id=%s AND kind='treatment' AND NOT deleted "
+                "AND content->>'type'='editorial_run' AND content->>'status'='queued' "
+                "ORDER BY content->>'created_at' ASC, entity_id ASC "
+                "LIMIT 1 FOR UPDATE SKIP LOCKED",
+                (tenant,),
+            ).fetchone()
+            if not row:
+                return None
+            run_id, version, run = row
+            if run["status"] != "queued":
+                raise RunConflict()
+            run["status"] = "running"
+            run["claimed_at"] = now()
+            run["updated_at"] = run["claimed_at"]
+            run["worker_actor_id"] = str(actor)
+            self._write(conn, tenant, actor, run_id, "treatment", run_id, run, version)
+            return run
 
     def reconcile_interrupted(self, tenant, actor, run_id):
         """Operator-triggered recovery; never restart an ambiguous Qwen request.
@@ -180,7 +213,10 @@ class PostgresStore:
                     raise RunMissing()
                 anchor = row[0]
             query = (
-                "SELECT entity_id, content FROM po_entity "
+                "SELECT entity_id, content->'brief'->>'topic', "
+                "content->'storyboard'->>'title', content->>'status', "
+                "content->>'created_at', content->>'updated_at', "
+                "content->>'review_revision' FROM po_entity "
                 "WHERE tenant_id=%s AND kind='treatment' "
                 "AND content->>'type'='editorial_run' AND NOT deleted "
             )
@@ -192,16 +228,12 @@ class PostgresStore:
             params.append(limit + 1)
             rows = conn.execute(query, params).fetchall()
             summaries = []
-            for run_id, run in rows[:limit]:
-                brief = run.get("brief") or {}
-                storyboard = run.get("storyboard") or {}
+            for run_id, topic, title, status, created_at, updated_at, revision in rows[:limit]:
                 summaries.append({
-                    "id": str(run_id), "topic": brief.get("topic", ""),
-                    "title": storyboard.get("title", ""),
-                    "status": run.get("status", "unknown"),
-                    "created_at": run.get("created_at"),
-                    "updated_at": run.get("updated_at"),
-                    "review_revision": run.get("review_revision", 0),
+                    "id": str(run_id), "topic": topic or "",
+                    "title": title or "", "status": status or "unknown",
+                    "created_at": created_at, "updated_at": updated_at,
+                    "review_revision": int(revision) if revision is not None else 0,
                 })
             return {
                 "runs": summaries,
