@@ -200,6 +200,7 @@ class StudioBrowserJourneys(unittest.TestCase):
                     json={"topic": "Histoire numéro " + str(i)})
                 self.assertEqual(response.status_code, 200)
         self.sign_in()
+        self.page.locator(".run-item").first.wait_for(state="visible")
         self.assertEqual(self.page.locator(".run-item").count(), 20)
         self.page.locator("#more").click()
         self.assertEqual(self.page.locator(".run-item").count(), 23)
