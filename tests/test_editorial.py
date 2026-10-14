@@ -43,6 +43,20 @@ class MemoryStore:
         self.runs[run_id] = run
         return copy.deepcopy(run), True
 
+    def enqueue(self, tenant, actor, key, brief):
+        run, created = self.start(tenant, actor, key, brief)
+        if created:
+            self.runs[UUID(run["id"])]["status"] = "queued"
+            run["status"] = "queued"
+        return run, created
+
+    def claim_queued(self, tenant, actor):
+        for run in self.runs.values():
+            if run["status"] == "queued":
+                run["status"] = "running"
+                return copy.deepcopy(run)
+        return None
+
     def begin_step(self, tenant, actor, run_id, step, prompt):
         self.runs[run_id]["current_step"] = {"name": step}
 
@@ -101,6 +115,36 @@ class EditorialApiTests(unittest.IsolatedAsyncioTestCase):
 
     async def post(self, **brief):
         return await self.client.post("/editorial/runs", headers={"Idempotency-Key": str(self.key)}, json={"topic": "La ville d'Ys", **brief})
+
+    async def test_async_queue_202_no_llm_in_request_worker_completes(self):
+        from workers.editorial_worker import once
+
+        with patch.dict(os.environ, {"EDITORIAL_ASYNC_ENABLED": "true"}):
+            first = await self.post()
+            self.assertEqual(first.status_code, 202)
+            self.assertEqual(first.json()["status"], "queued")
+            self.assertEqual((await self.post()).status_code, 202)
+            self.assertEqual(self.calls, [])
+            def handler(request):
+                self.calls.append(request)
+                answer = self.responses.pop(0)
+                return httpx.Response(200, json={"model": "Qwen-test", "choices": [{
+                    "message": {"content": json.dumps(answer)}, "finish_reason": "stop"
+                }], "usage": {"total_tokens": 50}})
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as llm:
+                self.assertTrue(await once(self.store, self.tenant, self.actor, llm, "http://model.test"))
+                self.assertFalse(await once(self.store, self.tenant, self.actor, llm, "http://model.test"))
+            self.assertEqual(len(self.calls), 2)
+            self.assertEqual(self.store.get(self.tenant, UUID(first.json()["id"]))["status"], "waiting_validation")
+            replay = await self.post()
+            self.assertEqual(replay.status_code, 200)
+            self.assertEqual(len(self.calls), 2)
+            self.assertEqual((await self.post(topic="Autre sujet")).status_code, 409)
+
+    async def test_sync_mode_default_unchanged_when_flag_disabled(self):
+        with patch.dict(os.environ, {"EDITORIAL_ASYNC_ENABLED": "false"}):
+            self.assertEqual((await self.post()).status_code, 201)
+            self.assertEqual(len(self.calls), 2)
 
     async def test_complete_workflow_replay_and_history(self):
         response = await self.post()
