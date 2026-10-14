@@ -14,6 +14,7 @@ from apps.api.llama_provider import generation_gate
 from editorial.models import Brief, ReviewDecision
 from editorial.service import run_workflow
 from editorial.store import PostgresStore, RunConflict, RunMissing, ReviewInvalid
+from editorial.worker_guard import WorkerOffline
 
 security = HTTPBearer(auto_error=False)
 
@@ -61,6 +62,8 @@ def create_router(get_llm_client):
                 )
             except RunConflict:
                 raise HTTPException(409, "Clé d'idempotence déjà utilisée pour une autre demande.") from None
+            except WorkerOffline:
+                raise HTTPException(503, "Worker éditorial indisponible : aucun traitement ajouté à la file.") from None
             except psycopg.Error:
                 raise HTTPException(503, "Persistance éditoriale indisponible.") from None
             if run["status"] in {"queued", "running"}:
