@@ -47,3 +47,31 @@ Le workflow GitHub de livraison PC n'a volontairement pas été modifié pour ac
 - Chromium : statut `En attente` puis `En cours` et `À valider` via polling sans deuxième POST.
 - Liveness/readiness : échec DB ou Qwen rend `/ready` indisponible ; aucune fuite de chaîne de connexion.
 - Tests de régression, sécurité et revue de code obligatoires au **SHA exact** avant fusion ; recette Qwen réelle et approbation de livraison distinctes.
+
+
+## Correctif JOB-001 — Refus explicite si worker absent (14/10/2026)
+
+**Défaut vérifié dans le code précédent :** en plaçant `EDITORIAL_ASYNC_ENABLED=true` dans l'API sans démarrer le worker, toute nouvelle histoire obtenait HTTP 202 et restait `queued` indéfiniment. Le service API pouvait également afficher `/ready` à 200 sans consommateur de file actif.
+
+**Correction proposée :** le worker conserve un **verrou consultatif PostgreSQL de session par tenant** durant sa vie. Aucun schéma, Redis, migration ou secret supplémentaire n'est nécessaire. Lorsqu'une requête de création arrive en mode asynchrone, le backend vérifie dans **la même transaction** qu'un worker détient ce verrou. Si aucun worker n'est enregistré : HTTP **503**, aucune nouvelle histoire enregistrée et aucun événement audit/outbox ajouté. Les demandes déjà enregistrées avec la même clé d'idempotence restent consultables même lorsque le worker s'arrête. Deux processus ne peuvent pas s'enregistrer comme consommateurs pour le même tenant privé.
+
+La route `/ready` vérifie également ce verrou **uniquement lorsque le mode asynchrone est activé**. Liveness `/health` ne change pas.
+
+**Limites** : il s'agit d'un indicateur de session de connexion PostgreSQL, pas d'une preuve de progression effective de Qwen. Une panne du modèle ou un worker bloqué peut laisser le verrou détenu ; vérifier aussi les métriques de file, les alertes et les runs anciens. L'activation doit rester sous contrôle humain après une recette PC réelle.
+
+## Diagnostic local sans modification
+
+Après avoir récupéré la dernière version du code dans un checkout de diagnostic (sans toucher à la release courante), depuis **WSL Ubuntu 26.04** :
+
+```bash
+cd ~/saas-directeur-editorial
+.venv/bin/python scripts/diagnose_runtime.py \
+  --root /home/yoann_admin/editorial-runtime \
+  --expected-sha <SHA-complet-validé>
+```
+
+L'outil lit seulement le lien `current`, le reçu `last_delivery.json`, les états systemd utilisateur, la présence des paramètres de configuration et les GET loopback `/health`, `/ready`, `/studio`, `/studio/session`. Il n'affiche ni mot de passe, ni jeton, ni chaîne de connexion, ni prompts. Le chemin de runtime doit être adapté au chemin **existant** ; le script ne crée pas ce répertoire.
+
+Interprétation : `current_sha != expected_sha` signale une release obsolète ; `/studio=404` signifie que cette release n'inclut probablement pas Studio ; `/ready=503` requiert de diagnostiquer PostgreSQL, Qwen et, si async, le worker ; `worker_service=inactive` indique qu'aucun service worker utilisateur de ce nom n'est actif. Un nom de service personnalisé requiert une vérification adaptée.
+
+**La correction de code ne débloque pas la MEP** : `.github/workflows/local-delivery.yml` est toujours protégé par `LOCAL_PC_ENABLED`, la réussite CI et la validation explicite du SHA. Ne pas l'activer ni relancer la livraison sans cette validation. L'audit GitHub du 14/10 montre une régression verte mais une livraison PC `skipped` pour `eebec8ef`. Aucun contrôle Qwen réel de cette version ne doit être annoncé.
