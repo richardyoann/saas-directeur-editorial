@@ -101,3 +101,7 @@ La route `/ai/generate` exige désormais une identité et un jeton API **même s
 - **Téléphone** : pas d'accès public ouvert. Préparer un reverse proxy HTTPS privé via Tailscale Serve, avec Uvicorn `--proxy-headers --forwarded-allow-ips 127.0.0.1` (proxy local exclusivement), cookie `Secure`, contrôle CSRF et validation du `X-Forwarded-For`. Aucun tunnel n'est activé automatiquement. Procédure : [MOBILE_PRIVATE_ACCESS.md](docs/MOBILE_PRIVATE_ACCESS.md).
 - **PostgreSQL** : mesurer `EXPLAIN (ANALYZE, BUFFERS)` avant/après index sur **tables temporaires dans une base jetable**. Les index proposés et l'étude d'un pool n'affectent pas la base réelle sans une migration validée. [SQL_BENCHMARK.md](docs/SQL_BENCHMARK.md).
 - **Édition** : sélectionner « Réviser » pour obtenir des champs guidés pour l'analyse et chaque scène (titre, synopsis, narration, personnages, plans, images, sons). La durée totale est validée, les données restent conformes au schéma Pydantic et toute révision conserve audit/versions. L'éditeur JSON brut n'est plus requis.
+
+## MCO — Diagnostic passif de la file éditoriale
+
+Le script `scripts/diagnose_editorial_queue.py` donne des compteurs agrégés par état, les âges des runs `queued`/`running` et des alertes sans contenu métier. Il travaille uniquement en lecture seule sur le tenant configuré, n'appelle pas Qwen et ne réconcilie aucun run. Voir [procédure et limites](docs/EDITORIAL_QUEUE_MONITORING.md). Son usage sur le PC suppose la livraison distincte d'un SHA validé.
