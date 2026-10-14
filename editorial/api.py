@@ -83,7 +83,7 @@ def create_router(get_llm_client):
                 raise HTTPException(503, "Persistance éditoriale indisponible.") from None
         finally:
             generation_gate.release()
-        code = 201 if created else (202 if run["status"] == "running" else 200)
+        code = 201 if created else (202 if run["status"] in {"queued", "running"} else 200)
         if run["status"] == "failed":
             code = {"provider_configuration": 503, "provider_timeout": 504,
                     "provider_unavailable": 502}.get(run.get("error_code"), 422)
