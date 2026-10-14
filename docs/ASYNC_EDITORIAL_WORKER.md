@@ -13,7 +13,7 @@ Ce choix privilégie la simplicité pour le MVP privé, et ne prétend pas rempl
 - Un worker exécute `claim_queued` avec `FOR UPDATE SKIP LOCKED` puis traite `analysis` et `storyboard` via le service existant. Les prompts, résultats, versions, audit et outbox sont conservés comme avant.
 - L'interface vérifie uniquement le run ouvert toutes les 4 secondes, tant que l'onglet est visible et l'état `queued`/`running`. Elle n'envoie jamais de demande de génération supplémentaire.
 - Échec du processus après la prise en charge : run `running` conservé, l'opérateur utilise la réconciliation explicite existante après dix minutes ; **aucun rejeu automatique ambigu**.
-- `/health` = liveness locale ; `/ready` = disponibilité simultanée PostgreSQL + `LLM_BASE_URL/health` (HTTP 200). **`/ready` ne prouve pas que le worker tourne**.
+- `/health` = liveness locale ; `/ready` = disponibilité simultanée PostgreSQL + `LLM_BASE_URL/health` (HTTP 200) **et, seulement en mode asynchrone, présence d'un worker enregistré**. Le verrou de session worker n'atteste pas de sa progression effective.
 - Les clients HTTP Qwen et façade ASGI sont partagés **par processus au démarrage** et fermés à l'arrêt via le lifespan FastAPI. Les tests unitaires sans lifespan ont un fallback temporaire.
 
 ## Installation PC — non exécutée
@@ -53,7 +53,7 @@ Le workflow GitHub de livraison PC n'a volontairement pas été modifié pour ac
 
 **Défaut vérifié dans le code précédent :** en plaçant `EDITORIAL_ASYNC_ENABLED=true` dans l'API sans démarrer le worker, toute nouvelle histoire obtenait HTTP 202 et restait `queued` indéfiniment. Le service API pouvait également afficher `/ready` à 200 sans consommateur de file actif.
 
-**Correction proposée :** le worker conserve un **verrou consultatif PostgreSQL de session par tenant** durant sa vie. Aucun schéma, Redis, migration ou secret supplémentaire n'est nécessaire. Lorsqu'une requête de création arrive en mode asynchrone, le backend vérifie dans **la même transaction** qu'un worker détient ce verrou. Si aucun worker n'est enregistré : HTTP **503**, aucune nouvelle histoire enregistrée et aucun événement audit/outbox ajouté. Les demandes déjà enregistrées avec la même clé d'idempotence restent consultables même lorsque le worker s'arrête. Deux processus ne peuvent pas s'enregistrer comme consommateurs pour le même tenant privé.
+**Correction livrée le 14/10/2026 au SHA `07f99edbec1374af6a929aa814169d32efa6ef3a` :** le worker conserve un **verrou consultatif PostgreSQL de session par tenant** durant sa vie. Aucun schéma, Redis, migration ou secret supplémentaire n'est nécessaire. Lorsqu'une requête de création arrive en mode asynchrone, le backend vérifie dans **la même transaction** qu'un worker détient ce verrou. Si aucun worker n'est enregistré : HTTP **503**, aucune nouvelle histoire enregistrée et aucun événement audit/outbox ajouté. Les demandes déjà enregistrées avec la même clé d'idempotence restent consultables même lorsque le worker s'arrête. Deux processus ne peuvent pas s'enregistrer comme consommateurs pour le même tenant privé.
 
 La route `/ready` vérifie également ce verrou **uniquement lorsque le mode asynchrone est activé**. Liveness `/health` ne change pas.
 
