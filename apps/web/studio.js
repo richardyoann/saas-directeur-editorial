@@ -26,7 +26,7 @@ function lock(){s.csrf=null;s.run=null;$("login").hidden=false;$("app").hidden=t
 function unlock(){ $("login").hidden=true;$("app").hidden=false;$("loginError").hidden=true; }
 async function boot(){try{const x=await api("/studio/session");if(!x.authenticated)return lock();s.csrf=x.csrf;unlock();await list(true);const id=location.hash.replace("#run/","");if(uuid.test(id)&&location.hash.startsWith("#run/"))await openRun(id);}catch(e){lock();$("loginError").hidden=false;$("loginError").textContent=message(e);}}
 async function login(e){e.preventDefault();$("loginButton").disabled=true;try{const x=await api("/studio/session","POST",{password:$("password").value});s.csrf=x.csrf;unlock();$("password").value="";await list(true);}catch(err){$("loginError").hidden=false;$("loginError").textContent=err.status===401?"Mot de passe incorrect.":message(err);}finally{$("loginButton").disabled=false;}}
-async function logout(){try{await api("/studio/logout","POST");}catch{}s.runs=[];lock();}
+async function logout(){try{await api("/studio/logout","POST");s.runs=[];lock();}catch(e){if(e.status===401){s.runs=[];lock();return;}alertUser("Déconnexion non confirmée : la session peut rester active. Réessayez.",true);}}
 async function list(reset=false){
  if(reset){s.runs=[];s.next=null;}
  let path="/studio/api/runs?limit=20";if(!reset&&s.next)path+="&before="+encodeURIComponent(s.next);
