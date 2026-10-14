@@ -80,3 +80,7 @@ Le fournisseur HTTP est isolé dans `apps/api/llama_provider.py`.
 ## Workflow éditorial privé (DEV-005)
 
 `POST /editorial/runs` produit un scénario découpé en scènes et conserve les prompts, résultats et erreurs dans le schéma PostgreSQL audit existant. Deux appels IA maximum; sorties structurées validées, revue humaine obligatoire et renvoi idempotent. Consultation : `GET /editorial/runs/{uuid}` et `/history`. Configuration, preuves et limites : [guide](docs/EDITORIAL_WORKFLOW.md).
+
+## Arvor Studio — interface privée WEB-001
+
+La première interface navigateur se trouve sur `/studio` (par défaut `http://localhost:8000/studio`). Elle comprend bibliothèque paginée, création de brief, analyse, storyboard, historique et validation éditoriale. Définir `EDITORIAL_WEB_PASSWORD` (secret distinct, 32 caractères minimum), en plus de la configuration éditoriale existante. Un seul worker et une exposition HTTP limitée à la boucle locale sont requis; pour un téléphone, configurer et vérifier HTTPS via un reverse proxy. Voir [guide de sécurité, démarrage et recette](docs/STUDIO_PRIVATE.md). Aucune image ni production vidéo intégrées à cette étape.

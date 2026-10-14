@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Arvor Studio · Directeur éditorial</title>
+  <link rel="stylesheet" href="/studio/assets/studio.css">
+  <script defer src="/studio/assets/studio.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+<section id="login" class="login">
+  <div class="login-story"><div class="wordmark"><span>✦</span><b>ARVOR</b><small>STUDIO</small></div><div><div class="overline">DIRECTION ÉDITORIALE · BRETAGNE</div><h1>Les histoires méritent<br><em>un bel écrin.</em></h1><p>Votre atelier privé pour imaginer, structurer et transmettre les légendes bretonnes.</p></div><small>IMAGINER · RACONTER · TRANSMETTRE</small></div>
+  <div class="login-form"><div class="login-card"><div class="overline">ESPACE PRIVÉ</div><h2>Bienvenue dans<br>votre atelier.</h2><p>Connectez-vous pour retrouver vos histoires et vos créations.</p><form id="loginForm"><label for="password">Mot de passe du studio</label><input id="password" type="password" autocomplete="current-password" required minlength="32" placeholder="Mot de passe privé"><button id="loginButton" class="btn primary wide" type="submit">Accéder à mon atelier &nbsp; →</button></form><p id="loginError" class="error" role="alert" hidden></p><small>Accès protégé · Aucune publication automatique</small></div></div>
+</section>
+<div id="app" class="app" hidden>
+  <aside class="sidebar" id="sidebar" aria-label="Navigation">
+    <div class="wordmark"><span>✦</span><b>ARVOR</b><small>STUDIO</small></div>
+    <div class="nav-title">ESPACE DE TRAVAIL</div>
+    <button id="home" class="nav-item selected" type="button">▦ &nbsp; Bibliothèque <span id="count" class="count">0</span></button>
+    <button id="sideCreate" class="nav-item" type="button">＋ &nbsp; Nouvelle histoire</button>
+    <div class="nav-title stories-title">MES HISTOIRES</div>
+    <label class="search"><span class="sr-only">Rechercher dans les histoires chargées</span><input id="filter" type="search" placeholder="⌕  Rechercher une histoire…"></label>
+    <div id="runList" class="run-list" aria-live="polite"></div>
+    <button type="button" class="load" id="more" hidden>Charger les suivantes ↓</button>
+    <div class="sidebar-foot"><div class="aside-note"><span>✧</span><b>Atelier privé</b><p>L’IA propose. Vous décidez. Chaque action est historisée.</p></div><button id="logout" class="nav-item" type="button">⎋ &nbsp; Se déconnecter</button></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><div class="breadcrumb"><button class="hamburger" id="menu" type="button" aria-label="Ouvrir la navigation" aria-expanded="false">☰</button>Mon espace <span>/</span> <strong id="crumb">Bibliothèque</strong></div><div class="user"><span class="private"><i></i> Espace privé</span><span class="avatar">A</span></div></header>
+    <main id="main" tabindex="-1">
+      <section class="hero"><div><div class="overline">✧ &nbsp; L'ATELIER DES HISTOIRES</div><h1>Les légendes prennent <em>vie.</em></h1><p>Imaginez, structurez et affinez vos récits de Bretagne, de la première idée au storyboard prêt à créer.</p><div class="hero-row"><button type="button" class="btn primary" id="heroCreate">＋ &nbsp; Nouvelle histoire</button><span>L'IA propose. Vous décidez.</span></div></div><div class="hero-art" aria-hidden="true"><span>✦</span><small>CRÉATIVITÉ & TRANSMISSION</small></div></section>
+      <div class="metrics"><div class="metric"><small>Histoires chargées</small><strong id="total">0</strong><span>Dans votre bibliothèque</span></div><div class="metric"><small>À valider</small><strong id="pending">0</strong><span>Décision humaine requise</span></div><div class="metric"><small>Scénarios approuvés</small><strong id="approved">0</strong><span>Sur les histoires chargées</span></div></div>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <section id="empty" class="empty"><div class="empty-icon">✧</div><div class="overline">VOTRE BIBLIOTHÈQUE</div><h2>Chaque histoire commence ici.</h2><p>Sélectionnez un récit dans le menu, retrouvez une exécution par son identifiant, ou lancez une nouvelle création.</p><div class="actions"><button class="btn secondary" id="openId" type="button">Ouvrir un identifiant</button><button class="btn primary" id="emptyCreate" type="button">Créer une histoire</button></div></section>
+      <section id="detail" hidden>
+        <div class="detail-header"><div><div class="overline">FICHE DE CRÉATION</div><h2 id="storyTitle">Histoire</h2><p id="storyMeta"></p></div><div class="actions"><span id="status" class="pill">En cours</span><button type="button" class="btn secondary small-btn" id="refresh">↻ Actualiser</button></div></div>
+        <div class="progress"><div><span>01</span><b>Brief</b><small>Intention & format</small></div><div><span>02</span><b>Analyse IA</b><small>Angle & cohérence</small></div><div><span>03</span><b>Storyboard</b><small>Scènes & narration</small></div><div><span>04</span><b>Validation</b><small>Décision humaine</small></div></div>
+        <div class="tabs" role="tablist" aria-label="Contenu de l'histoire"><button type="button" role="tab" aria-selected="true" data-tab="storyboard" class="active">Storyboard</button><button type="button" role="tab" aria-selected="false" data-tab="analysis">Analyse</button><button type="button" role="tab" aria-selected="false" data-tab="history">Historique IA</button><button type="button" role="tab" aria-selected="false" data-tab="reviews">Décisions</button></div>
+        <div id="panel" role="tabpanel" aria-live="polite"></div>
+        <div id="decisionFoot" class="decision-foot" hidden><div><b>Une décision vous appartient.</b><p>Les propositions IA ne sont jamais approuvées automatiquement.</p></div><button id="quickReview" class="btn primary" type="button">Valider le storyboard →</button></div>
+      </section>
+      <footer>ARVOR STUDIO · VERSION PRIVÉE <span>Création responsable & traçable</span></footer>
+    </main>
+  </div>
+</div>
+<dialog id="newDialog"><form id="newForm"><header><div><div class="overline">NOUVELLE CRÉATION</div><h2>Donnez vie à une légende.</h2></div><button type="button" class="close" aria-label="Fermer">✕</button></header><div class="dialog-body"><label for="topic">Sujet de l'histoire *</label><textarea id="topic" rows="3" maxlength="4000" required placeholder="Ex. : La cité engloutie d'Ys, entre légende et mémoire…"></textarea><div class="form-grid"><div><label for="genre">Genre</label><select id="genre"><option value="legend">Légende</option><option value="fiction">Fiction</option><option value="documentary">Documentaire</option></select></div><div><label for="duration">Durée (secondes)</label><input id="duration" type="number" min="15" max="180" value="60" required></div><div><label for="scenes">Nombre de scènes</label><input id="scenes" type="number" min="1" max="6" value="3" required></div><div><label for="audience">Public cible</label><input id="audience" maxlength="200" value="Grand public" required></div></div><label for="tone">Tonalité</label><input id="tone" maxlength="200" value="Narratif et accessible" required><p class="tip">✧ L'IA génère une analyse et un storyboard. Aucun contenu n'est approuvé sans votre décision.</p></div><div class="dialog-foot"><button type="button" class="btn secondary close">Annuler</button><button id="submitNew" class="btn primary" type="submit">Générer le storyboard →</button></div></form></dialog>
+<dialog id="idDialog" class="compact"><form id="idForm"><header><div><div class="overline">RECHERCHER UN RÉCIT</div><h2>Ouvrir une exécution.</h2></div><button type="button" class="close" aria-label="Fermer">✕</button></header><div class="dialog-body"><label for="runId">Identifiant UUID</label><input id="runId" required placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div><div class="dialog-foot"><button type="button" class="btn secondary close">Annuler</button><button type="submit" class="btn primary">Ouvrir →</button></div></form></dialog>
+<dialog id="reviewDialog"><form id="reviewForm"><header><div><div class="overline">REVUE HUMAINE</div><h2 id="reviewTitle">Prendre une décision</h2></div><button type="button" class="close" aria-label="Fermer">✕</button></header><div class="dialog-body"><p id="reviewHelp" class="tip"></p><label for="reviewAction">Décision</label><select id="reviewAction"><option value="accept">Accepter la proposition</option><option value="reject">Demander des changements</option><option value="revise">Réviser manuellement</option></select><label for="reviewComment">Commentaire <small id="commentRequired">(facultatif pour accepter)</small></label><textarea id="reviewComment" maxlength="2000" rows="2" placeholder="Raison ou amélioration attendue…"></textarea><div id="jsonBox" hidden><label for="revisionJson">Résultat corrigé (JSON structuré)</label><textarea id="revisionJson" class="code" rows="12" spellcheck="false"></textarea><small>Conservez le schéma attendu, le nombre de scènes et leur durée totale.</small></div><p id="reviewError" class="error" role="alert" hidden></p><p class="warning">Votre décision est historisée avec votre identité. Une révision de l'analyse invalide le storyboard actuel.</p><label class="checkbox"><input id="confirmReview" type="checkbox" required> Je confirme ma décision.</label></div><div class="dialog-foot"><button type="button" class="btn secondary close">Annuler</button><button id="submitReview" class="btn primary" type="submit">Enregistrer la décision →</button></div></form></dialog>
+</body>
+</html>

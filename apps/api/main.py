@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from apps.api.llama_provider import ProviderError, generate_text
 from editorial.api import create_router, get_identity, security
+from apps.api.studio import router as studio_router
 from fastapi.security import HTTPAuthorizationCredentials
 
 # Existing process variables take precedence; never rewrite the environment file.
@@ -60,4 +61,5 @@ async def generate(
 
 # Configured private identity; tenant and actor never come from request fields.
 app.include_router(create_router(get_llm_client))
+app.include_router(studio_router)
 

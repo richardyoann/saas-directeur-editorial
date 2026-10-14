@@ -63,6 +63,18 @@ def create_router(get_llm_client):
                     "provider_unavailable": 502}.get(run.get("error_code"), 422)
         return JSONResponse(run, status_code=code)
 
+    @router.get("/runs")
+    async def list_runs(limit: int = Query(default=20, ge=1, le=50),
+                        before: UUID | None = Query(default=None),
+                        identity: Identity = Depends(get_identity),
+                        store: PostgresStore = Depends(get_store)):
+        try:
+            return await run_in_threadpool(store.list_runs, identity.tenant, limit, before)
+        except RunMissing:
+            raise HTTPException(404, "Curseur de pagination introuvable.") from None
+        except psycopg.Error:
+            raise HTTPException(503, "Persistance éditoriale indisponible.") from None
+
     @router.get("/runs/{run_id}")
     async def get_run(run_id: UUID, identity: Identity = Depends(get_identity),
                       store: PostgresStore = Depends(get_store)):
