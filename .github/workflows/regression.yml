@@ -36,6 +36,10 @@ jobs:
         env:
           TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
         run: python scripts/prepare_test_database.py
+      - name: Check Studio JavaScript and Python syntax
+        run: |
+          node --check apps/web/studio.js
+          python -m py_compile apps/api/studio.py
       - name: All historical and new suites (skips fail)
         env:
           PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
