@@ -60,14 +60,19 @@ class PrivateMobileProxyTests(unittest.IsolatedAsyncioTestCase):
             cookie = response.headers["set-cookie"].lower()
             for required in ("secure", "httponly", "samesite=strict"):
                 self.assertIn(required, cookie)
+            # ASGITransport connects to the local HTTP hop, so its cookie jar
+            # correctly withholds a Secure cookie. Replay only the opaque cookie
+            # pair to model the external browser's HTTPS request through the proxy.
+            session_cookie = response.headers["set-cookie"].split(";", 1)[0]
+            proxied = self.headers() | {"Cookie": session_cookie}
             self.assertTrue((await client.get(
-                "/studio/session", headers=self.headers())).json()["authenticated"])
+                "/studio/session", headers=proxied)).json()["authenticated"])
             csrf = response.json()["csrf"]
             logout = await client.post("/studio/logout",
-                headers=self.headers() | {"X-CSRF-Token": csrf})
+                headers=proxied | {"X-CSRF-Token": csrf})
             self.assertEqual(logout.status_code, 200)
             self.assertFalse((await client.get(
-                "/studio/session", headers=self.headers())).json()["authenticated"])
+                "/studio/session", headers=proxied)).json()["authenticated"])
 
     async def test_bruteforce_is_per_forwarded_client_not_proxy(self):
         async with await self.client() as client:
