@@ -190,6 +190,10 @@ async def create_run(request: Request):
 async def get_run(request: Request, run_id: UUID):
     return await relay(request, "GET", f"/editorial/runs/{run_id}")
 
+@router.post("/api/runs/{run_id}/reconcile")
+async def reconcile(request: Request, run_id: UUID):
+    return await relay(request, "POST", f"/editorial/runs/{run_id}/reconcile")
+
 @router.get("/api/runs/{run_id}/history")
 async def history(request: Request, run_id: UUID):
     return await relay(request, "GET", f"/editorial/runs/{run_id}/history")
