@@ -207,7 +207,13 @@ Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue
   Select-Object LocalAddress, LocalPort, OwningProcess
 Get-Process | Where-Object { $_.ProcessName -match 'llama|ollama|lmstudio|qwen' } |
   Select-Object ProcessName, Id
-curl.exe --max-time 8 http://127.0.0.1:8081/v1/models
+# Ne pas supposer que llama-server écoute sur 127.0.0.1 :
+# dans l'incident, il écoutait sur l'IP Windows/WSL (172.31.48.1).
+$listener = Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue
+$address = $listener | Where-Object { $_.LocalAddress -notin @('0.0.0.0','::') } |
+  Select-Object -First 1 -ExpandProperty LocalAddress
+if (-not $address -and $listener) { $address = '127.0.0.1' }
+if ($address) { curl.exe --max-time 8 "http://${address}:8081/v1/models" }
 ```
 
 Ces chemins correspondent à l'installation observée ; sinon retrouver l'exécutable sans télécharger/réinstaller le modèle. Ne pas démarrer une deuxième instance sur le même port.
