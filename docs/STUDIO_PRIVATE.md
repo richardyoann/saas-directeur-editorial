@@ -53,3 +53,11 @@ Ne pas considérer l'acceptation produit acquise sur la seule base de tests tech
 ## Revue et parcours navigateur (14 octobre 2026)
 
 La régression API/PostgreSQL ne suffit pas à prouver l'usage du navigateur. La CI dédiée exécute les parcours Chromium contre une API simulée jetable, sans modifier la base utilisateur : connexion/déconnexion, lien direct, création, scénarios, analyse, historique, approbation, rejet, révision, pagination, recherche, navigation précédente, mobile, conflit 409, JSON invalide et reprise explicite après interruption réseau. Elle ne remplace pas la recette finale Qwen/PostgreSQL/PC réels.
+
+## Garde de livraison ajouté à l'audit sécurité (14 octobre 2026)
+
+Toute future activation PC exige désormais un `EDITORIAL_WEB_PASSWORD` différent du jeton API, d'au moins 32 caractères, enregistré dans la configuration privée du processus (non versionnée). Avant de basculer la release et après redémarrage, la livraison vérifie en boucle locale HTML, CSS/JS, absence de session, connexion privée, lecture de bibliothèque authentifiée et déconnexion effective. Un échec empêche ou annule la bascule. Le parcours Qwen/PostgreSQL réel reste testé séparément; ces sondes ne constituent pas une recette fonctionnelle utilisateur exhaustive.
+
+La route de compatibilité `/ai/generate` n'accepte plus d'amorçage anonyme hors boucle locale; dès qu'une identité éditoriale est configurée, son jeton reste obligatoire. La capacité de génération est bornée à deux exécutions simultanées par processus avec HTTP 429 en surcharge. Cette protection n'est pas un quota SaaS distribué et ne remplace pas une limitation par utilisateur ou tenant.
+
+Les tests de sécurité et de livraison sont exécutés en CI sur PostgreSQL jetable et via HTTP simulé; aucune configuration PC ni base utilisateur n'est modifiée par les tests.
