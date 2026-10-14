@@ -7,10 +7,10 @@ Première interface **fonctionnelle** servie par FastAPI à `/studio`, sans fram
 - Création d'histoire (brief strict, 1 à 6 scènes, 15 à 180 secondes).
 - Consultation du storyboard structuré : scènes, narration, plans, émotions, couleurs, personnages, sons et prompts image.
 - Analyse éditoriale et points historiques à vérifier.
-- Historique des traitements (prompts et résultats), revue humaine : accepter, rejeter ou réviser en JSON strict; journal paginé.
+- Historique des traitements (prompts et résultats), revue humaine : accepter, rejeter ou réviser dans l'éditeur guidé (champs structurés validés côté serveur, schémas Pydantic) ; journal paginé.
 - États vides, chargement, erreurs HTTP, affichage sur ordinateur et téléphone.
 
-**Ce qui n'est pas livré** : images produites, générateur vidéo, éditeur WYSIWYG de scènes, multi-comptes SaaS, liens publics et publication. L'interface peut afficher les *prompts* image stockés, pas des images qui n'existent pas.
+**Ce qui n'est pas livré** : images produites, générateur vidéo, éditeur riche WYSIWYG (l'éditeur guidé par champs est livré), multi-comptes SaaS, liens publics et publication. L'interface peut afficher les *prompts* image stockés, pas des images qui n'existent pas.
 
 ## Configuration (PC privé)
 L'application FastAPI existante charge déjà son fichier `.env`. Ajouter, sans versionner le secret :
