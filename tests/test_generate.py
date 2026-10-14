@@ -5,6 +5,7 @@ from unittest.mock import patch
 import httpx
 
 from apps.api.main import app, get_llm_client
+from apps.api.llama_provider import generation_gate
 
 
 class GenerateTests(unittest.IsolatedAsyncioTestCase):
@@ -29,7 +30,7 @@ class GenerateTests(unittest.IsolatedAsyncioTestCase):
                 yield client
 
         app.dependency_overrides[get_llm_client] = mock_client
-        self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api.test")
+        self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost")
         self.addAsyncCleanup(self.client.aclose)
 
     async def generate(self, **kwargs):
@@ -110,6 +111,33 @@ class GenerateTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual((await self.generate()).status_code, 502)
         self.handler = lambda request: httpx.Response(200, text="invalid JSON")
         self.assertEqual((await self.generate()).status_code, 502)
+
+
+    async def test_anonymous_generation_rejected_outside_loopback(self):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                     base_url="http://example.test") as remote:
+            result = await remote.post("/ai/generate", json={"prompt": "bonjour"})
+            self.assertEqual(result.status_code, 403)
+        async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app, client=("192.0.2.12", 12345)),
+                base_url="http://localhost") as remote_peer:
+            result = await remote_peer.post("/ai/generate", json={"prompt": "bonjour"})
+            self.assertEqual(result.status_code, 403)
+        self.assertEqual(self.requests, [])
+
+    async def test_generation_capacity_limit_and_release(self):
+        self.assertTrue(generation_gate.acquire(blocking=False))
+        self.assertTrue(generation_gate.acquire(blocking=False))
+        try:
+            response = await self.generate()
+            self.assertEqual(response.status_code, 429)
+            self.assertEqual(response.headers["Retry-After"], "30")
+            self.assertEqual(self.requests, [])
+        finally:
+            generation_gate.release()
+            generation_gate.release()
+        response = await self.generate()
+        self.assertEqual(response.status_code, 200)
 
 
 if __name__ == "__main__":

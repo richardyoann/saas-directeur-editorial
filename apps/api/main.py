@@ -4,10 +4,10 @@ from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 
-from apps.api.llama_provider import ProviderError, generate_text
+from apps.api.llama_provider import ProviderError, generate_text, generation_gate
 from editorial.api import create_router, get_identity, security
 from apps.api.studio import router as studio_router
 from fastapi.security import HTTPAuthorizationCredentials
@@ -45,18 +45,31 @@ def health():
 @app.post("/ai/generate")
 async def generate(
     request: GenerateRequest,
+    connection: Request,
     client: httpx.AsyncClient = Depends(get_llm_client),
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ):
-    # Preserve the local bootstrap contract, but never bypass a configured identity.
+    # The unauthenticated legacy bootstrap is strictly loopback-only.
+    # Checking both the client and Host prevents a proxied or rebound request
+    # from being mistaken for a local browser.
     if any(os.getenv(name) for name in ("EDITORIAL_API_TOKEN", "EDITORIAL_TENANT_ID", "EDITORIAL_ACTOR_ID")):
         get_identity(credentials)
+    elif (connection.client is None
+          or connection.client.host not in {"127.0.0.1", "::1", "localhost"}
+          or connection.url.hostname not in {"127.0.0.1", "::1", "localhost"}):
+        raise HTTPException(403, "Amorçage anonyme réservé à la boucle locale.")
+    if not generation_gate.acquire(blocking=False):
+        raise HTTPException(429, "Génération déjà en cours : capacité temporairement atteinte.",
+                            headers={"Retry-After": "30"})
     try:
-        return await generate_text(
-            client, os.getenv("LLM_BASE_URL", ""), request.prompt, request.max_tokens
-        )
-    except ProviderError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from None
+        try:
+            return await generate_text(
+                client, os.getenv("LLM_BASE_URL", ""), request.prompt, request.max_tokens
+            )
+        except ProviderError as error:
+            raise HTTPException(status_code=error.status_code, detail=error.detail) from None
+    finally:
+        generation_gate.release()
 
 
 # Configured private identity; tenant and actor never come from request fields.

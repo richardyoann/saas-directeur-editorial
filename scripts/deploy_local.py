@@ -111,6 +111,47 @@ def wait_api(url, process=None):
     raise RuntimeError("API unavailable")
 
 
+def check_studio(url: str, web_password: str):
+    """Verify the real private UI/session/list/logout path before switching releases.
+
+    Never log the password, session cookie, CSRF token or user data.
+    """
+    import httpx
+
+    if not isinstance(web_password, str) or len(web_password) < 32:
+        raise RuntimeError("Private Studio password missing")
+    origin = {"Origin": url}
+    with httpx.Client(timeout=10, trust_env=False) as client:
+        page = client.get(url + "/studio")
+        if page.status_code != 200 or "text/html" not in page.headers.get("content-type", ""):
+            raise RuntimeError("Studio HTML unavailable")
+        for filename in ("studio.css", "studio.js"):
+            asset = client.get(url + "/studio/assets/" + filename)
+            if asset.status_code != 200:
+                raise RuntimeError("Studio asset unavailable")
+        session = client.get(url + "/studio/session")
+        if session.status_code != 200 or session.json().get("authenticated") is not False:
+            raise RuntimeError("Studio session not initially anonymous")
+        login = client.post(url + "/studio/session", json={"password": web_password}, headers=origin)
+        if login.status_code != 200:
+            raise RuntimeError("Studio login failed")
+        body = login.json()
+        csrf = body.get("csrf")
+        cookie = login.headers.get("set-cookie", "").lower()
+        if (body.get("authenticated") is not True or not isinstance(csrf, str)
+                or len(csrf) < 32 or "httponly" not in cookie or "samesite=strict" not in cookie):
+            raise RuntimeError("Studio session contract invalid")
+        index = client.get(url + "/studio/api/runs?limit=1")
+        if index.status_code != 200 or not isinstance(index.json().get("runs"), list):
+            raise RuntimeError("Studio authenticated listing unavailable")
+        logout = client.post(url + "/studio/logout", headers=origin | {"X-CSRF-Token": csrf})
+        if logout.status_code != 200:
+            raise RuntimeError("Studio logout failed")
+        after = client.get(url + "/studio/session")
+        if after.status_code != 200 or after.json().get("authenticated") is not False:
+            raise RuntimeError("Studio logout did not invalidate session")
+
+
 def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise ValueError("Full immutable commit SHA required")
@@ -122,6 +163,10 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
     editorial_token = os.environ.get("EDITORIAL_API_TOKEN") or settings.get("EDITORIAL_API_TOKEN")
     if not isinstance(editorial_token, str) or len(editorial_token) < 32:
         raise ValueError("Editorial authentication missing from private configuration")
+    web_password = os.environ.get("EDITORIAL_WEB_PASSWORD") or settings.get("EDITORIAL_WEB_PASSWORD")
+    if (not isinstance(web_password, str) or len(web_password) < 32
+            or web_password == editorial_token):
+        raise ValueError("Distinct private Studio password is required")
     business_key = uuid5(UUID("4b0d4554-36f5-4aeb-bbc2-8d811535f699"), sha)
     actual = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=source, text=True).strip()
     if actual != sha:
@@ -143,6 +188,7 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
             assert_service_release(root / "current")
             check(f"http://127.0.0.1:{port}", editorial_token=editorial_token,
                   idempotency_key=business_key)
+            check_studio(f"http://127.0.0.1:{port}", web_password)
             print(json.dumps({"sha": sha, "delivery": "already_verified"}))
             return
         releases = root / "releases"
@@ -175,6 +221,7 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
             url = f"http://127.0.0.1:{candidate_port}"
             wait_api(url, process)
             check(url, editorial_token=editorial_token, idempotency_key=business_key)
+            check_studio(url, web_password)
         finally:
             process.terminate()
             try:
@@ -190,6 +237,7 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
             if pid <= 0 or Path(f"/proc/{pid}/cwd").resolve(strict=True) != (root / "current").resolve(strict=True):
                 raise RuntimeError("Service did not start the selected release")
             check(url, editorial_token=editorial_token, idempotency_key=business_key)
+            check_studio(url, web_password)
         assert_current_main(sha)
         activate(root / "current", candidate,
             lambda: command(["systemctl", "--user", "restart", "editorial-api.service"]),
