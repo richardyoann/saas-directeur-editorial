@@ -14,6 +14,18 @@ python scripts/benchmark_editorial_sql.py --rows 1200 --disposable
 
 La CI exécute ce benchmark après la suite de tests dans le service PostgreSQL 16 jetable. Les résultats contiennent `Execution Time` mesuré en millisecondes, types de nœuds `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` et contrôle d'identité des résultats avant/après indexation. **Ne pas interpréter des gains sur un jeu synthétique comme des gains garantis en production**.
 
+## Résultat reproductible du premier passage CI
+
+Exécution [Full regression #38630731419](https://github.com/richardyoann/saas-directeur-editorial/actions/runs/38630731419), PostgreSQL 16, **1 200 runs / 4 800 enregistrements synthétiques**, source PR #77.
+
+| Requête | Sans index expression | Avec index temporaire | Plan observé après |
+|---|---:|---:|---|
+| Catalogue (21 lignes) | 1,703 ms | 0,029 ms | Index Scan + Limit |
+| Historique LLM (2 lignes) | 0,513 ms | 0,027 ms | Index Scan |
+| Décisions (1 ligne) | 0,497 ms | 0,027 ms | Index Scan + Limit |
+
+Contrôle des résultats identiques avant/après réussi. Ce sont des **temps d'exécution d'une mesure unique**, sans charge concurrente, sur jeu artificiel. N'en déduire ni facteur d'accélération garanti, ni besoin immédiat de migration du PC : la taille réelle de sa base et ses latences demeurent inconnues.
+
 ## Index candidats, uniquement après mesures sur jeu représentatif
 
 **Lecture seule / review : ne pas exécuter ces index sur le PC sans validation de migration, sauvegarde et rollback.** PostgreSQL interdit `CREATE INDEX CONCURRENTLY` dans une transaction ; veiller à une connexion autocommit dédiée.
