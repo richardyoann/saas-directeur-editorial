@@ -5,7 +5,7 @@ on:
       - 'apps/web/**'
       - 'apps/api/studio.py'
       - 'tests/studio_browser_fixture.py'
-      - 'tests/test_studio_browser.py'
+      - 'browser_checks/test_studio_browser.py'
       - '.github/workflows/studio-browser.yml'
   workflow_dispatch:
 permissions:
@@ -26,4 +26,4 @@ jobs:
       - name: Run five real Chromium journeys with isolated fake API
         env:
           STUDIO_BROWSER_TESTS: 'yes'
-        run: python -m unittest discover -s tests -p 'test_studio_browser.py' -v
+        run: python -m unittest discover -s browser_checks -p 'test_studio_browser.py' -v
