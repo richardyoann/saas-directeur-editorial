@@ -5,18 +5,18 @@
 
 /* WCAG 2.2 AA: secondary text and keyboard focus on light surfaces.
    All affected text is smaller than 18px and requires >= 4.5:1 contrast. */
-:where(.overline) { color:#276e63; }
-:where(.metric small,.metric span,.detail-header p,.empty p,.scene-content p,
+.overline { color:#276e63; }
+.metric small,.metric span,.detail-header p,.empty p,.scene-content p,
        .card p,footer,.login-card p,.login-card>small,
-       .tabs button,.tags span,.search) { color:#506870; }
-:where(.tip,.decision-foot p,.history-entry p,.scene dd,.breadcrumb) { color:#506870; }
-:where(.tags span) { color:#416960; }
-:where(.private) { color:#31634f; }
-:where(.pill) { color:#6b4e28; }
-:where(.pill.running) { color:#355e82; }
-:where(.pill.failed) { color:#873c32; }
-:where(.pill.approved) { color:#255c3d; }
-:where(button,input,textarea,select,a,summary):focus-visible {
+       .tabs button,.tags span,.search { color:#506870; }
+.tip,.decision-foot p,.history-entry p,.scene dd,.breadcrumb { color:#506870; }
+.tags span { color:#416960; }
+.private { color:#31634f; }
+.pill { color:#6b4e28; }
+.pill.running { color:#355e82; }
+.pill.failed { color:#873c32; }
+.pill.approved { color:#255c3d; }
+button,input,textarea,select,a,summary):focus-visible {
   outline:3px solid #146a61;
   outline-offset:3px;
 }
