@@ -12,7 +12,7 @@ from urllib.request import urlopen
 from uuid import uuid4
 
 import httpx
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 PASSWORD = "w" * 48
@@ -135,14 +135,14 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator('[data-tab="analysis"]').click()
         self.assertIn("Vérifier les sources", self.page.locator("#panel").inner_text())
         self.page.locator('[data-tab="history"]').click()
-        self.assertEqual(self.page.locator("#panel article.card").count(), 2)
+        expect(self.page.locator("#panel article.card")).to_have_count(2)
         self.assertIn("Voir le prompt", self.page.locator("#panel").inner_text())
         self.review("analysis")
         self.review("storyboard")
         self.assertEqual(self.page.locator("#status").inner_text(), "Approuvé")
         self.assertTrue(self.page.locator("#decisionFoot").is_hidden())
         self.page.locator('[data-tab="reviews"]').click()
-        self.assertEqual(self.page.locator("#panel .history-entry").count(), 2)
+        expect(self.page.locator("#panel .history-entry")).to_have_count(2)
         self.page.locator("#logout").click()
         self.page.locator("#login").wait_for(state="visible")
         self.assertTrue(self.page.locator("#app").is_hidden())
@@ -190,7 +190,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.review("analysis")
         self.assertEqual(self.page.locator("#status").inner_text(), "Approuvé")
         self.page.locator('[data-tab="reviews"]').click()
-        self.assertEqual(self.page.locator("#panel .history-entry").count(), 4)
+        expect(self.page.locator("#panel .history-entry")).to_have_count(4)
 
     def test_pagination_search_navigation_and_mobile(self):
         with httpx.Client(base_url=self.base, headers=AUTH) as client:
@@ -203,9 +203,9 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator(".run-item").first.wait_for(state="visible")
         self.assertEqual(self.page.locator(".run-item").count(), 20)
         self.page.locator("#more").click()
-        self.assertEqual(self.page.locator(".run-item").count(), 23)
+        expect(self.page.locator(".run-item")).to_have_count(23)
         self.page.locator("#filter").fill("numéro 22")
-        self.assertEqual(self.page.locator(".run-item").count(), 1)
+        expect(self.page.locator(".run-item")).to_have_count(1)
         self.page.locator("#filter").fill("")
         self.page.locator(".run-item").first.click()
         self.page.locator("#detail").wait_for(state="visible")
@@ -238,7 +238,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#submitReview").click()
         self.page.locator("#reviewDialog").wait_for(state="hidden")
         self.assertEqual(len(calls), 1)
-        self.assertIn("Conflit", self.page.locator("#notice").inner_text())
+        expect(self.page.locator("#notice")).to_contain_text("Conflit")
         self.page.unroute(pattern)
         self.review("storyboard")
         self.assertEqual(self.page.locator("#status").inner_text(), "À valider")
