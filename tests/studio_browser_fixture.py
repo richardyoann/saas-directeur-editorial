@@ -120,6 +120,10 @@ def generate(brief: Brief, authorization: str = Header(""),
     keys[key] = run_id
     events[run_id] = []
     call_count["generate"] += 1
+    if brief.topic == "Asynchrone simulée":
+        record["status"] = "queued"
+        record["_test_polls"] = 0
+        return JSONResponse(record, status_code=202)
     if brief.topic == "Erreur IA simulée":
         record.update(status="failed", error_code="invalid_structured_output")
         return JSONResponse(record, status_code=422)
@@ -136,7 +140,14 @@ def get_record(run_id):
 @app.get("/editorial/runs/{run_id}")
 def detail(run_id: UUID, authorization: str = Header("")):
     require_token(authorization)
-    return get_record(run_id)
+    record = get_record(run_id)
+    if record.get("status") == "queued" and record.get("_test_polls") is not None:
+        record["_test_polls"] += 1
+        if record["_test_polls"] >= 2:
+            record["status"] = "running"
+        if record["_test_polls"] >= 3:
+            record["status"] = "waiting_validation"
+    return record
 
 
 @app.post("/editorial/runs/{run_id}/reconcile")
