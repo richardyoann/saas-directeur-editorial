@@ -6,7 +6,7 @@ Source : document fourni « Revue de code & QA — saas-directeur-editorial ». 
 
 | ID source | Décision | Motivation et preuves attendues |
 | --- | --- | --- |
-| S1 | Partiellement déjà corrigé ; pas de nouveau changement dans cette PR | L'anonyme est déjà interdit hors boucle locale (client + Host) et un jeton est obligatoire dès qu'une identité est configurée. La recommandation de passer **toutes** les requêtes sous `Depends(get_identity)` est une politique cible plus stricte et nécessitera la migration des clients legacy et le test d'intégration Qwen. Ne pas exposer le port sans identité. |
+| S1 | **Corrigé dans cette PR** | `/ai/generate` exige `Depends(get_identity)` partout, y compris en boucle locale. Absence de configuration : HTTP 503 ; absence/mauvais jeton : HTTP 401. Le script de diagnostic et les tests ont été adaptés ; authentification obligatoire même via reverse proxy. |
 | F1 | **Corrigé dans cette PR** | `POST /editorial/runs/{id}/reconcile` : intervention explicite, ancienneté >600s, verrou de ligne, échec atomique avec audit/outbox et snapshot d'interruption. Deux situations testées : étape en cours et entre deux étapes. Aucune nouvelle invocation Qwen. |
 | F2 | **Corrigé dans cette PR** | Le navigateur distingue échec métier confirmé (nouvelle clé) et échec réseau incertain (même clé). Une exécution `running` garde l'association avec sa clé jusqu'à verdict. |
 | A1 | Hors MVP privé : backlog architecture | Identités utilisateurs, rôles, permissions de publication ; ne pas introduire le schéma proposé sans conception sécurité/RGPD et tests multi-tenant. |
