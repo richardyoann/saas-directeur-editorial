@@ -1,0 +1,29 @@
+name: Studio browser journeys
+on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'apps/api/studio.py'
+      - 'tests/studio_browser_fixture.py'
+      - 'browser_checks/test_studio_browser.py'
+      - '.github/workflows/studio-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Install test-only browser driver
+        run: python -m pip install -r requirements.txt playwright==1.58.0
+      - name: Run five real Chromium journeys with isolated fake API
+        env:
+          STUDIO_BROWSER_TESTS: 'yes'
+        run: python -m unittest discover -s browser_checks -p 'test_studio_browser.py' -v

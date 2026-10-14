@@ -2,7 +2,7 @@
 (() => {
 "use strict";
 const $ = id => document.getElementById(id);
-const s = {csrf:null,runs:[],next:null,run:null,tab:"storyboard",pending:null,step:"storyboard",reviews:[],nextReview:null};
+const s = {csrf:null,runs:[],next:null,run:null,tab:"storyboard",pending:null,step:"storyboard",reviews:[],nextReview:null,openRequest:0};
 const uuid=/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const states={waiting_validation:"À valider",changes_requested:"À retravailler",approved:"Approuvé",running:"En cours",failed:"Échec"};
 const names={analysis:"Analyse",storyboard:"Storyboard"};
@@ -22,10 +22,10 @@ async function api(path,method="GET",body,more={}){
  if(!res.ok){if(res.status===401&&path!=="/studio/session")lock();throw {status:res.status,data};}
  return data;
 }
-function lock(){s.csrf=null;s.run=null;$("login").hidden=false;$("app").hidden=true;$("password").value="";}
+function lock(){s.csrf=null;s.run=null;s.runs=[];s.openRequest++;document.querySelectorAll("dialog[open]").forEach(d=>d.close());$("login").hidden=false;$("app").hidden=true;$("password").value="";}
 function unlock(){ $("login").hidden=true;$("app").hidden=false;$("loginError").hidden=true; }
 async function boot(){try{const x=await api("/studio/session");if(!x.authenticated)return lock();s.csrf=x.csrf;unlock();await list(true);const id=location.hash.replace("#run/","");if(uuid.test(id)&&location.hash.startsWith("#run/"))await openRun(id);}catch(e){lock();$("loginError").hidden=false;$("loginError").textContent=message(e);}}
-async function login(e){e.preventDefault();$("loginButton").disabled=true;try{const x=await api("/studio/session","POST",{password:$("password").value});s.csrf=x.csrf;unlock();$("password").value="";await list(true);}catch(err){$("loginError").hidden=false;$("loginError").textContent=err.status===401?"Mot de passe incorrect.":message(err);}finally{$("loginButton").disabled=false;}}
+async function login(e){e.preventDefault();$("loginButton").disabled=true;try{const x=await api("/studio/session","POST",{password:$("password").value});s.csrf=x.csrf;unlock();$("password").value="";await list(true);const id=location.hash.slice(5);if(location.hash.startsWith("#run/")&&uuid.test(id))await openRun(id);}catch(err){$("loginError").hidden=false;$("loginError").textContent=err.status===401?"Mot de passe incorrect.":message(err);}finally{$("loginButton").disabled=false;}}
 async function logout(){try{await api("/studio/logout","POST");s.runs=[];lock();}catch(e){if(e.status===401){s.runs=[];lock();return;}alertUser("Déconnexion non confirmée : la session peut rester active. Réessayez.",true);}}
 async function list(reset=false){
  if(reset){s.runs=[];s.next=null;}
@@ -35,7 +35,7 @@ async function list(reset=false){
 }
 function renderList(){
  const root=$("runList"),q=$("filter").value.trim().toLocaleLowerCase("fr");root.replaceChildren();
- const runs=s.runs.filter(r=>(r.title||r.topic||"").toLocaleLowerCase("fr").includes(q));
+ const runs=s.runs.filter(r=>[r.title,r.topic].filter(Boolean).join(" ").toLocaleLowerCase("fr").includes(q));
  if(!runs.length)put(root,"p","","Aucune histoire correspondante dans les éléments chargés.");
  for(const r of runs){const b=put(root,"button","run-item"+(r.id===s.run?.id?" active":""));b.type="button";put(b,"strong","",r.title||r.topic||"Histoire sans titre");put(b,"small","",(states[r.status]||"Inconnu")+" · "+date(r.created_at));b.addEventListener("click",()=>openRun(r.id));}
  $("count").textContent=s.runs.length+(s.next?"+":"");$("total").textContent=$("count").textContent;
@@ -45,9 +45,12 @@ function renderList(){
 function closeNav(){$("sidebar").classList.remove("open");$("menu").setAttribute("aria-expanded","false");}
 async function openRun(id){
  if(!uuid.test(id))return alertUser("Identifiant UUID invalide.",true);
- try{s.run=await api("/studio/api/runs/"+id);s.tab="storyboard";s.reviews=[];s.nextReview=null;
- history.replaceState(null,"","#run/"+id);$("empty").hidden=true;$("detail").hidden=false;render();renderList();closeNav();$("detail").scrollIntoView({behavior:"smooth",block:"start"});}
- catch(e){alertUser(message(e),true);}
+ const request=++s.openRequest;
+ try{const result=await api("/studio/api/runs/"+id);if(request!==s.openRequest||!s.csrf)return;
+ s.run=result;s.tab="storyboard";s.reviews=[];s.nextReview=null;
+ const target="#run/"+id;if(location.hash!==target)history.pushState(null,"",target);
+ $("empty").hidden=true;$("detail").hidden=false;render();renderList();closeNav();$("detail").scrollIntoView({behavior:"smooth",block:"start"});}
+ catch(e){if(request===s.openRequest)alertUser(message(e),true);}
 }
 function render(){
  if(!s.run)return;const r=s.run,title=r.storyboard?.title||r.brief?.topic||"Sans titre";
@@ -131,16 +134,17 @@ async function create(ev){
  const fp=JSON.stringify(brief);if(!s.pending||s.pending.fp!==fp)s.pending={fp,key:crypto.randomUUID()};
  try{const r=await api("/studio/api/runs","POST",brief,{"Idempotency-Key":s.pending.key});
   s.pending=null;$("newDialog").close();$("newForm").reset();await list(true);await openRun(r.id);
-  alertUser("Histoire générée. Vérifiez toutes les scènes avant validation.");
+  if(r.status==="running")alertUser("Génération enregistrée et en cours. Utilisez Actualiser pour suivre le résultat.");
+  else alertUser("Histoire générée. Vérifiez toutes les scènes avant validation.");
  }catch(e){$("newDialog").close();if(e.data?.id&&uuid.test(e.data.id))await openRun(e.data.id);
   alertUser(message(e)+" La même clé sera utilisée lors d’une relance explicite du même brief.",true);
  }finally{b.disabled=false;b.textContent="Générer le storyboard →";}
 }
-function home(){s.run=null;$("detail").hidden=true;$("empty").hidden=false;$("crumb").textContent="Bibliothèque";history.replaceState(null,"",location.pathname);renderList();closeNav();}
+function home(push=true){s.openRequest++;s.run=null;$("detail").hidden=true;$("empty").hidden=false;$("crumb").textContent="Bibliothèque";if(push&&location.hash)history.pushState(null,"",location.pathname+location.search);renderList();closeNav();}
 function bind(){
  $("loginForm").addEventListener("submit",login);$("logout").addEventListener("click",logout);
  for(const id of ["sideCreate","heroCreate","emptyCreate"])$(id).addEventListener("click",()=>{closeNav();$("newDialog").showModal();});
- $("home").addEventListener("click",home);$("openId").addEventListener("click",()=>$("idDialog").showModal());
+ $("home").addEventListener("click",()=>home());window.addEventListener("popstate",()=>{const id=location.hash.slice(5);if(location.hash.startsWith("#run/")&&uuid.test(id))openRun(id);else home(false);});$("openId").addEventListener("click",()=>$("idDialog").showModal());
  $("idForm").addEventListener("submit",e=>{e.preventDefault();const id=$("runId").value.trim();if(!uuid.test(id))return alertUser("Identifiant UUID invalide.",true);$("idDialog").close();openRun(id);});
  document.querySelectorAll(".close").forEach(b=>b.addEventListener("click",()=>b.closest("dialog").close()));
  document.querySelectorAll("dialog").forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close();}));
