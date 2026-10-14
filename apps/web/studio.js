@@ -57,7 +57,7 @@ function render(){
  $("storyTitle").textContent=title;$("crumb").textContent=title;
  $("storyMeta").textContent=(r.brief?.topic||"Brief indisponible")+" · "+date(r.created_at);
  $("status").textContent=states[r.status]||"Inconnu";$("status").className="pill "+r.status;
- $("decisionFoot").hidden=!["waiting_validation","changes_requested"].includes(r.status);tab(s.tab);
+ $("decisionFoot").hidden=!["waiting_validation","changes_requested"].includes(r.status);$("reconcile").hidden=r.status!=="running";tab(s.tab);
 }
 function tab(name){
  s.tab=name;document.querySelectorAll("[data-tab]").forEach(b=>{b.classList.toggle("active",b.dataset.tab===name);b.setAttribute("aria-selected",String(b.dataset.tab===name));b.tabIndex=b.dataset.tab===name?0:-1;});$("panel").setAttribute("aria-labelledby","tab-"+name);
@@ -112,7 +112,17 @@ async function reviews(reset=true){
   if(s.nextReview){const b=put(root,"button","btn secondary","Décisions précédentes ↓");b.type="button";b.addEventListener("click",()=>reviews(false));}
  }catch(e){empty(message(e));}
 }
-async function refresh(){if(!s.run)return;try{s.run=await api("/studio/api/runs/"+s.run.id);render();await list(true);alertUser("Histoire actualisée.");}catch(e){alertUser(message(e),true);}}
+async function refresh(){if(!s.run)return;try{s.run=await api("/studio/api/runs/"+s.run.id);if(s.run.status==="failed"&&s.pending?.runId===s.run.id)s.pending=null;render();await list(true);alertUser("Histoire actualisée.");}catch(e){alertUser(message(e),true);}}
+async function reconcile(){
+ if(!s.run||s.run.status!=="running")return;
+ const b=$("reconcile");b.disabled=true;
+ try{const run=await api("/studio/api/runs/"+s.run.id+"/reconcile","POST");
+  s.run=run;if(run.status==="failed"&&s.pending?.runId===run.id)s.pending=null;
+  render();await list(true);
+  alertUser(run.status==="failed"?"Génération interrompue confirmée et historisée. Vous pouvez relancer le brief.":"Cette génération n'a pas dépassé le seuil de dix minutes. Réessayez après actualisation.",run.status==="failed");
+ }catch(e){alertUser(message(e),true);}
+ finally{b.disabled=false;}
+}
 function openReview(step,action="accept"){
  s.step=step;$("reviewError").hidden=true;$("reviewError").textContent="";$("reviewTitle").textContent=names[step];$("reviewAction").value=action;$("reviewComment").value="";
  $("reviewHelp").textContent=step==="analysis"?"Une révision de l’analyse invalide le storyboard.":"Une révision crée un nouveau scénario sans effacer le précédent.";
@@ -133,11 +143,16 @@ async function create(ev){
  scene_count:Number($("scenes").value),audience:$("audience").value.trim(),tone:$("tone").value.trim(),sources:[]};
  const fp=JSON.stringify(brief);if(!s.pending||s.pending.fp!==fp)s.pending={fp,key:crypto.randomUUID()};
  try{const r=await api("/studio/api/runs","POST",brief,{"Idempotency-Key":s.pending.key});
-  s.pending=null;$("newDialog").close();$("newForm").reset();await list(true);await openRun(r.id);
-  if(r.status==="running")alertUser("Génération enregistrée et en cours. Utilisez Actualiser pour suivre le résultat.");
+  if(r.status==="running")s.pending.runId=r.id;else s.pending=null;
+  $("newDialog").close();if(r.status!=="running")$("newForm").reset();await list(true);await openRun(r.id);
+  if(r.status==="running")alertUser("Génération enregistrée et en cours. Utilisez Actualiser ou Vérifier un blocage si elle reste bloquée.");
   else alertUser("Histoire générée. Vérifiez toutes les scènes avant validation.");
- }catch(e){$("newDialog").close();if(e.data?.id&&uuid.test(e.data.id))await openRun(e.data.id);
-  alertUser(message(e)+" La même clé sera utilisée lors d’une relance explicite du même brief.",true);
+ }catch(e){$("newDialog").close();
+  const failed=e.data?.status==="failed"&&uuid.test(e.data?.id||"");
+  if(failed)s.pending=null;
+  else if(uuid.test(e.data?.id||"")&&s.pending)s.pending.runId=e.data.id;
+  if(uuid.test(e.data?.id||""))await openRun(e.data.id);
+  alertUser(failed?"Cette génération a échoué et reste historisée. Une nouvelle tentative utilisera une nouvelle clé.":message(e)+" La même clé sera conservée tant que l'issue de la requête reste incertaine.",true);
  }finally{b.disabled=false;b.textContent="Générer le storyboard →";}
 }
 function home(push=true){s.openRequest++;s.run=null;$("detail").hidden=true;$("empty").hidden=false;$("crumb").textContent="Bibliothèque";if(push&&location.hash)history.pushState(null,"",location.pathname+location.search);renderList();closeNav();}
@@ -150,7 +165,7 @@ function bind(){
  document.querySelectorAll("dialog").forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close();}));
  $("newForm").addEventListener("submit",create);$("reviewForm").addEventListener("submit",sendReview);$("reviewAction").addEventListener("change",toggleReview);
  $("menu").addEventListener("click",()=>{const x=$("sidebar").classList.toggle("open");$("menu").setAttribute("aria-expanded",String(x));});
- $("filter").addEventListener("input",renderList);$("more").addEventListener("click",()=>list(false));$("refresh").addEventListener("click",refresh);
+ $("filter").addEventListener("input",renderList);$("more").addEventListener("click",()=>list(false));$("refresh").addEventListener("click",refresh);$("reconcile").addEventListener("click",reconcile);
  $("quickReview").addEventListener("click",()=>openReview("storyboard"));
  const tabs=[...document.querySelectorAll("[data-tab]")];
  tabs.forEach((b,i)=>{b.addEventListener("click",()=>tab(b.dataset.tab));b.addEventListener("keydown",e=>{if(!["ArrowRight","ArrowLeft","Home","End"].includes(e.key))return;e.preventDefault();const position=e.key==="Home"?0:e.key==="End"?tabs.length-1:(i+(e.key==="ArrowRight"?1:tabs.length-1))%tabs.length;const next=tabs[position];next.focus();tab(next.dataset.tab);});});
