@@ -91,6 +91,50 @@ class PostgresStore:
                 raise RunMissing()
             return row[0]
 
+
+    def list_runs(self, tenant, limit=20, before=None):
+        """Tenant-scoped keyset pagination of editorial runs, without prompts."""
+        with self.connect() as conn:
+            anchor = None
+            if before is not None:
+                row = conn.execute(
+                    "SELECT content->>'created_at' FROM po_entity "
+                    "WHERE tenant_id=%s AND kind='treatment' AND entity_id=%s "
+                    "AND content->>'type'='editorial_run' AND NOT deleted",
+                    (tenant, before),
+                ).fetchone()
+                if not row:
+                    raise RunMissing()
+                anchor = row[0]
+            query = (
+                "SELECT entity_id, content FROM po_entity "
+                "WHERE tenant_id=%s AND kind='treatment' "
+                "AND content->>'type'='editorial_run' AND NOT deleted "
+            )
+            params = [tenant]
+            if before is not None:
+                query += "AND (content->>'created_at', entity_id) < (%s::text, %s::uuid) "
+                params.extend((anchor, before))
+            query += "ORDER BY content->>'created_at' DESC, entity_id DESC LIMIT %s"
+            params.append(limit + 1)
+            rows = conn.execute(query, params).fetchall()
+            summaries = []
+            for run_id, run in rows[:limit]:
+                brief = run.get("brief") or {}
+                storyboard = run.get("storyboard") or {}
+                summaries.append({
+                    "id": str(run_id), "topic": brief.get("topic", ""),
+                    "title": storyboard.get("title", ""),
+                    "status": run.get("status", "unknown"),
+                    "created_at": run.get("created_at"),
+                    "updated_at": run.get("updated_at"),
+                    "review_revision": run.get("review_revision", 0),
+                })
+            return {
+                "runs": summaries,
+                "next_before": summaries[-1]["id"] if len(rows) > limit else None,
+            }
+
     def history(self, tenant, run_id):
         self.get(tenant, run_id)
         with self.connect() as conn:
