@@ -13,6 +13,7 @@ from apps.api.llama_provider import ProviderError, generate_text, generation_gat
 from editorial.api import create_router, get_identity
 from apps.api.studio import router as studio_router
 from editorial.worker_guard import worker_online
+from apps.api.request_limits import RequestLimits
 from uuid import UUID
 
 # Existing process variables take precedence; never rewrite the environment file.
@@ -38,6 +39,7 @@ async def lifespan(application: FastAPI):
 
 
 app = FastAPI(title="Directeur éditorial IA", version="0.1.0", lifespan=lifespan)
+app.add_middleware(RequestLimits)
 
 
 class GenerateRequest(BaseModel):

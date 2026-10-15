@@ -58,7 +58,7 @@ La régression API/PostgreSQL ne suffit pas à prouver l'usage du navigateur. La
 
 Toute future activation PC exige désormais un `EDITORIAL_WEB_PASSWORD` différent du jeton API, d'au moins 32 caractères, enregistré dans la configuration privée du processus (non versionnée). Avant de basculer la release et après redémarrage, la livraison vérifie en boucle locale HTML, CSS/JS, absence de session, connexion privée, lecture de bibliothèque authentifiée et déconnexion effective. Un échec empêche ou annule la bascule. Le parcours Qwen/PostgreSQL réel reste testé séparément; ces sondes ne constituent pas une recette fonctionnelle utilisateur exhaustive.
 
-La route de compatibilité `/ai/generate` n'accepte plus d'amorçage anonyme hors boucle locale; dès qu'une identité éditoriale est configurée, son jeton reste obligatoire. La capacité de génération est bornée à deux exécutions simultanées par processus avec HTTP 429 en surcharge. Cette protection n'est pas un quota SaaS distribué et ne remplace pas une limitation par utilisateur ou tenant.
+La route de compatibilité `/ai/generate` exige une identité et un jeton API même en boucle locale. La capacité de génération est bornée à deux exécutions simultanées par processus avec HTTP 429 en surcharge. Cette protection n'est pas un quota SaaS distribué et ne remplace pas une limitation par utilisateur ou tenant.
 
 Les tests de sécurité et de livraison sont exécutés en CI sur PostgreSQL jetable et via HTTP simulé; aucune configuration PC ni base utilisateur n'est modifiée par les tests.
 
@@ -73,3 +73,17 @@ le stockage `EDITORIAL_MEDIA_ROOT`. L'asset PNG n'est accessible que sous
 session Studio ou API authentifiée ; les statuts sont historisés avec audit.
 Le modèle d'images **n'est pas installé** par cette évolution. Cf.
 [MEDIA_001_VISUAL_INTEGRATION.md](MEDIA_001_VISUAL_INTEGRATION.md).
+
+## Limites d'entrée — revue Lot 1 du 15 octobre 2026
+
+Les corps POST/PUT/PATCH sont bornés globalement à **256 000 octets** avant
+parsing FastAPI ; ingestion limitée à **15 secondes** (HTTP 413/408). Le seuil
+Studio plus strict de **64 000 octets** reste applicable. Ce délai porte sur
+l'envoi du corps, pas sur la génération Qwen. JSON excessivement imbriqué et
+mot de passe contenant un surrogate isolé : HTTP 422 ; CSRF non ASCII invalide :
+403. Un mot de passe Unicode UTF-8 valide reste utilisable.
+
+Aucune nouvelle variable ni modification de démarrage. Pour un futur upload,
+concevoir une route et des limites dédiées avant de relever ce plafond.
+Vérifier tests/test_qa_lot1.py puis la CI complète sur DB jetable.
+La [revue Lot 1](QA_LOT1_2026-10-15.md) distingue les correctifs de la recette PC.

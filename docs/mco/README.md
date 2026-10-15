@@ -14,6 +14,23 @@
 | Mode async, worker PostgreSQL, idempotence | [ASYNC_EDITORIAL_WORKER](../ASYNC_EDITORIAL_WORKER.md) |
 | Workflow métier, audit, snapshots | [EDITORIAL_WORKFLOW](../EDITORIAL_WORKFLOW.md) |
 | Rapport d'audit technique et dette SaaS non corrigée | [QA_SECURITY_AUDIT_2026-10-14](../QA_SECURITY_AUDIT_2026-10-14.md) |
+| Revue lot 1 : limites HTTP/images, erreurs Unicode/JSON, recette et dette restante | [QA_LOT1_2026-10-15](../QA_LOT1_2026-10-15.md) |
+
+### Signatures d'entrée ou de fournisseur — revue du 15/10/2026
+
+Sur la baseline 78cfc30d88da79f7b887977dfaf7f26bbe428048, mot de passe JSON avec
+surrogate isolé ou JSON très profondément imbriqué : HTTP 500 reproduit en
+ASGI. Cause confirmée : UnicodeEncodeError / RecursionError non traduits.
+Correctif proposé : 422 contrôlé ; CSRF non ASCII invalide : 403. Tests isolés
+dans tests/test_qa_lot1.py. Ce constat ne décrit pas une panne observée du PC.
+
+Après livraison validée du correctif, HTTP 413 signifie corps >256 000 octets
+(Studio conserve aussi son seuil 64 000) ; 408 signifie ingestion >15 s,
+sans rapport avec le délai de génération. Vérifier taille et réseau avant toute
+reprise. Image trop longue/lente/invalide : consulter statut et audit, ne pas
+rejouer une réservation generating ou un résultat incertain. Prompt visuel
+>14 000 caractères : 422 avant réservation ; raccourcir les descriptions.
+Aucune requête SQL mutante ni suppression de données requise pour ces cas.
 
 **Règle d'or :** aucun `/health=200` ne suffit à affirmer « SaaS opérationnel ». Il faut différencier **liveness**, **readiness**, **version réellement installée**, **génération Qwen**, **persistance PostgreSQL**, **session Studio**, puis **recette utilisateur**.
 

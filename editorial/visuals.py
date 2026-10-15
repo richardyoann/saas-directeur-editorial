@@ -4,6 +4,7 @@ Qwen writes the storyboard. A separate, explicitly configured, OpenAI-images-
 compatible local service renders PNGs. A server-only, audited request creates
 one image for one approved scene; no implicit retries or publication.
 """
+import asyncio
 import base64
 import binascii
 import ipaddress
@@ -24,6 +25,10 @@ PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 class ImageUnavailable(Exception):
     """Absent provider, inaccessible model, invalid/unsafe output or timeout."""
+
+
+class ImagePromptTooLong(ValueError):
+    """A valid storyboard can still exceed the renderer's prompt budget."""
 
 
 def characters(board):
@@ -82,7 +87,7 @@ def image_prompt(run, scene_number):
         f"Description artistique : {scene['image_prompt']}."
     )
     if len(prompt) > 14000:
-        raise ValueError("image_prompt_too_long")
+        raise ImagePromptTooLong("image_prompt_too_long")
     return prompt
 
 
@@ -126,14 +131,21 @@ async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str):
     if not private_image_url(base_url):
         raise ImageUnavailable()
     try:
-        response = await client.post(
-            base_url.rstrip("/") + "/v1/images/generations",
-            json={"prompt": prompt, "n": 1, "size": "512x512", "output_format": "png"},
-            timeout=120.0
-        )
-        if response.status_code != 200 or len(response.content) > MAX_PNG_BYTES * 2:
-            raise ImageUnavailable()
-        payload = response.json()
+        async with asyncio.timeout(120):
+            async with client.stream(
+                "POST", base_url.rstrip("/") + "/v1/images/generations",
+                json={"prompt": prompt, "n": 1, "size": "512x512", "output_format": "png"},
+                timeout=120.0, follow_redirects=False
+            ) as response:
+                if response.status_code != 200:
+                    raise ImageUnavailable()
+                body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    if len(body) + len(chunk) > MAX_PNG_BYTES * 2:
+                        raise ImageUnavailable()
+                    body.extend(chunk)
+                import json
+                payload = json.loads(body)
         entries = payload.get("data") if isinstance(payload, dict) else None
         encoded = entries[0].get("b64_json") if isinstance(entries, list) and len(entries) == 1 and isinstance(entries[0], dict) else None
         if not isinstance(encoded, str) or len(encoded) > MAX_PNG_BYTES * 2:
@@ -141,7 +153,7 @@ async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str):
         data = base64.b64decode(encoded, validate=True)
         validate_png(data)
         return data
-    except (httpx.HTTPError, ValueError, KeyError, TypeError, binascii.Error) as exc:
+    except (httpx.HTTPError, TimeoutError, ValueError, KeyError, TypeError, binascii.Error, RecursionError):
         raise ImageUnavailable() from None
 
 

@@ -15,7 +15,7 @@ from editorial.models import Brief, ReviewDecision
 from editorial.service import run_workflow
 from editorial.store import PostgresStore, RunConflict, RunMissing, ReviewInvalid
 from editorial.worker_guard import WorkerOffline
-from editorial.visuals import ImageUnavailable, image_gate, media_location, load_png, render_png, save_png, validate_png, private_image_url
+from editorial.visuals import ImageUnavailable, ImagePromptTooLong, image_gate, media_location, load_png, render_png, save_png, validate_png, private_image_url
 
 security = HTTPBearer(auto_error=False)
 
@@ -171,6 +171,8 @@ def create_router(get_llm_client):
                           store: PostgresStore = Depends(get_store)):
         try:
             return await run_in_threadpool(store.visual_plan, identity.tenant, run_id)
+        except ImagePromptTooLong:
+            raise HTTPException(422, "Descriptions visuelles trop longues : réduisez les portraits ou la scène.") from None
         except RunMissing:
             raise HTTPException(404, "Histoire introuvable.") from None
         except psycopg.Error:
@@ -202,6 +204,8 @@ def create_router(get_llm_client):
                 scene_id, _ = await run_in_threadpool(
                     store.begin_image, identity.tenant, identity.actor,
                     run_id, scene_number, scene["prompt"])
+            except ImagePromptTooLong:
+                raise HTTPException(422, "Descriptions visuelles trop longues : réduisez les portraits ou la scène.") from None
             except RunMissing:
                 raise HTTPException(404, "Scène introuvable.") from None
             except RunConflict:

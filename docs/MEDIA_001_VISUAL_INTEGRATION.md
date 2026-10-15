@@ -51,7 +51,7 @@ dans l'URL, ni chemin supplémentaire. Le fournisseur doit accepter :
 POST /v1/images/generations
 Content-Type: application/json
 
-{"prompt":"...","n":1,"size":"512x512","response_format":"b64_json"}
+{"prompt":"...","n":1,"size":"512x512","output_format":"png"}
 ```
 
 Et renvoyer un seul objet `data[0].b64_json` encodant un PNG valide
@@ -92,6 +92,14 @@ Aucun changement du schéma SQL (reuse de `po_entity`, `po_audit`,
 historisé en base : ne pas partager de dump ni captures de détails métier.
 
 ## Tests et limites de recette
+
+Revue Lot 1 du 15/10/2026 : réponse JSON du fournisseur lue en streaming,
+limitée à **8 Mio pendant réception**, délai mural **120 secondes**, redirections
+refusées même si le client HTTP est configuré autrement. Le PNG décodé reste
+limité à 4 Mio. Un prompt visuel dépassant 14 000 caractères retourne 422 avant
+réservation ; raccourcir les portraits ou la scène, sans relance automatique.
+La validation PNG actuelle ne décode pas intégralement le fichier : voir le
+constat L1-06 de la [revue](QA_LOT1_2026-10-15.md).
 
 ```bash
 python scripts/run_regression.py
