@@ -145,3 +145,7 @@ complètent les tests PostgreSQL. La solution GPU RX 580 est une piste de
 recette, **pas une installation déjà réalisée**. Diagnostic Windows, construction
 facultative et conditions réseau WSL :
 [MEDIA_002_SDCPP_VULKAN.md](docs/MEDIA_002_SDCPP_VULKAN.md).
+
+## Livraison privée sans écriture métier (REL-002)
+
+La recette candidate de Qwen utilise exclusivement la base PostgreSQL jetable du job ; après bascule, seuls les contrôles GET santé/readiness/liste et les opérations de session Studio volatile sont utilisés. Les verrous GitHub `LOCAL_PC_ENABLED=true` et `LOCAL_PC_APPROVED_SHA=<SHA complet accepté>` doivent tous deux être activés, et le SHA doit disposer de sa CI et de son audit de dépendances réussis. Voir [REL_002_SAFE_DELIVERY.md](docs/REL_002_SAFE_DELIVERY.md). La fusion et les tests ne valent pas livraison PC.
