@@ -75,13 +75,14 @@ def classify_failure(jobs, workflow="Full regression"):
 
 def release_packet(run, repository, pc_enabled):
     conclusion = run["conclusion"]
+    workflow = run["name"]
     sha = run["head_sha"]
     safe_flag = "off" if pc_enabled == "false" else "on" if pc_enabled == "true" else "unknown"
     lines = [
-        "## Private release candidate — evidence only",
+        "## Private release evidence — not an approval",
         f"- Repository: `{repository}`",
         f"- SHA from completed main CI: `{sha}`",
-        f"- GitHub regression: **{conclusion}**",
+        f"- Completed workflow: **{workflow}**, conclusion: **{conclusion}**",
         f"- LOCAL_PC_ENABLED at reporting time: **{safe_flag}**",
         "- Deployment: **not performed by this report**",
         "- Human approval: **required for this exact SHA before PC activation**",
