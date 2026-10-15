@@ -117,6 +117,32 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#submitReview").click()
         self.page.locator("#reviewDialog").wait_for(state="hidden")
 
+    def test_visual_character_to_private_image_after_approval(self):
+        self.sign_in()
+        run_id = self.create("Le marin d'Ys")
+        self.page.locator('[data-tab="visuals"]').click()
+        expect(self.page.locator("#panel .visual-card")).to_have_count(3)
+        self.assertIn("Manteau de laine rouge", self.page.locator("#panel").inner_text())
+        first = self.page.locator("#panel .visual-card").first
+        self.assertTrue(first.get_by_role("button", name="Générer cette image").is_disabled())
+        first.locator("summary").click()
+        self.assertIn("Manteau de laine rouge", first.locator("details p").inner_text())
+        self.review("analysis")
+        self.review("storyboard")
+        self.page.locator('[data-tab="visuals"]').click()
+        first = self.page.locator("#panel .visual-card").first
+        button = first.get_by_role("button", name="Générer cette image")
+        expect(button).to_be_enabled()
+        button.click()
+        expect(first.locator("img.image-preview")).to_have_count(1)
+        src = first.locator("img.image-preview").get_attribute("src")
+        self.assertEqual(src, f"/studio/api/runs/{run_id}/scenes/1/image")
+        expect(first.locator("img.image-preview")).to_have_js_property("complete", True)
+        with httpx.Client(base_url=self.base) as unauth:
+            self.assertEqual(unauth.get(src).status_code, 401)
+        self.assertEqual(self.page.locator("#panel .visual-card").count(), 3)
+        self.assertEqual(self.page.locator("#panel .visual-card img").count(), 1)
+
     def test_login_create_analysis_history_approve_logout(self):
         self.page.goto(self.base + "/studio")
         self.assertTrue(self.page.locator("#login").is_visible())

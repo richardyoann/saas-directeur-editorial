@@ -3,13 +3,15 @@
 This module is used only by the browser CI tests, never by the runtime.
 No real PostgreSQL, Qwen, or persistent user data.
 """
+import base64
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from editorial.models import Analysis, Brief, ReviewDecision, Storyboard
+from editorial.visuals import characters, image_prompt
 from apps.api.studio import router, sessions, failures
 
 app = FastAPI()
@@ -17,6 +19,8 @@ app.include_router(router)
 runs = {}
 keys = {}
 events = {}
+image_states = {}
+IMAGE_BYTES = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")
 call_count = {"review": 0, "generate": 0}
 
 
@@ -51,6 +55,7 @@ def reset():
     runs.clear()
     keys.clear()
     events.clear()
+    image_states.clear()
     sessions.clear()
     failures.clear()
     call_count.update(review=0, generate=0)
@@ -113,6 +118,8 @@ def generate(brief: Brief, authorization: str = Header(""),
                      "message": "Développer un récit accessible",
                      "historical_checks": ["Vérifier les sources historiques"]},
         "storyboard": {"title": brief.topic, "synopsis": "Conte breton illustré",
+                       "cast": [{"name": "Un marin", "appearance": "Manteau de laine rouge et barbe grise",
+                                 "personality": "Courageux", "role": "Témoin"}],
                        "scenes": scenes},
         "reviews": {},
     }
@@ -170,6 +177,47 @@ def history(run_id: UUID, authorization: str = Header("")):
         {"order": 1, "prompt": "Storyboard : " + record["brief"]["topic"],
          "parsed": record["storyboard"]},
     ]}
+
+
+@app.get("/editorial/runs/{run_id}/visuals")
+def visuals(run_id: UUID, authorization: str = Header("")):
+    require_token(authorization)
+    record = get_record(run_id)
+    board = record.get("storyboard")
+    if not board or record.get("storyboard_stale"):
+        return {"run_id": str(run_id), "approved": False, "characters": [], "scenes": []}
+    return {"run_id": str(run_id), "approved": record["status"] == "approved",
+            "characters": characters(board),
+            "scenes": [
+                {"scene_number": n, "scene_id": str(n), "title": scene["title"],
+                 "prompt": image_prompt(record, n),
+                 "image_status": image_states.get((str(run_id), n), "not_generated")}
+                for n, scene in enumerate(board["scenes"], 1)
+            ]}
+
+
+@app.post("/editorial/runs/{run_id}/scenes/{scene_number}/image")
+def generate_image(run_id: UUID, scene_number: int, authorization: str = Header("")):
+    require_token(authorization)
+    record = get_record(run_id)
+    if record["status"] != "approved" or record.get("storyboard_stale"):
+        raise HTTPException(409)
+    if scene_number < 1 or scene_number > len(record["storyboard"]["scenes"]):
+        raise HTTPException(404)
+    key = (str(run_id), scene_number)
+    if key in image_states:
+        raise HTTPException(409)
+    image_states[key] = "ready"
+    return JSONResponse({"scene_number": scene_number, "status": "ready", "width": 1, "height": 1}, status_code=201)
+
+
+@app.get("/editorial/runs/{run_id}/scenes/{scene_number}/image")
+def get_image(run_id: UUID, scene_number: int, authorization: str = Header("")):
+    require_token(authorization)
+    get_record(run_id)
+    if image_states.get((str(run_id), scene_number)) != "ready":
+        raise HTTPException(404)
+    return Response(IMAGE_BYTES, media_type="image/png", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/editorial/runs/{run_id}/reviews")

@@ -6,7 +6,7 @@ from uuid import UUID
 from apps.api.llama_provider import ProviderError, generate_text
 from editorial.models import Analysis, Brief, Storyboard
 
-PROMPT_VERSION = "1.1.0"
+PROMPT_VERSION = "1.2.0"
 
 SYSTEM_PROMPT = (
     "Tu es directeur éditorial. Réponds uniquement en JSON conforme au schéma fourni. "
@@ -31,7 +31,9 @@ def prompt_for(step, brief, analysis=None):
         "Distingue légende, fiction et fait historique. Ne présente pas une invention comme un fait vérifié. "
         "À l'étape analysis seulement, indique dans historical_checks les affirmations à vérifier. "
         "Pour le storyboard, respecte exactement scene_count et la somme duration_seconds du brief. "
-        "Rédige en français, avec des descriptions courtes et exploitables."
+        "Rédige en français, avec des descriptions courtes et exploitables. "
+        "Dans le storyboard, si possible, ajoute cast : fiches personnages cohérentes "
+        "(name, appearance, personality, role), puis conserve leurs mêmes caractéristiques visuelles d’une scène à l’autre."
     )
     durations = [brief.duration_seconds // brief.scene_count + (i < brief.duration_seconds % brief.scene_count)
                  for i in range(brief.scene_count)]

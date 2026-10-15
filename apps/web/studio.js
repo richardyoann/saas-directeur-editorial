@@ -87,6 +87,7 @@ function render(){
 function tab(name){
  s.tab=name;document.querySelectorAll("[data-tab]").forEach(b=>{b.classList.toggle("active",b.dataset.tab===name);b.setAttribute("aria-selected",String(b.dataset.tab===name));b.tabIndex=b.dataset.tab===name?0:-1;});$("panel").setAttribute("aria-labelledby","tab-"+name);
  if(name==="storyboard")storyboard();
+ if(name==="visuals")visuals();
  if(name==="analysis")analysis();
  if(name==="history")historyView();
  if(name==="reviews")reviews(true);
@@ -112,6 +113,63 @@ function storyboard(){
  });
  if(s.run.storyboard_stale)put(root,"p","warning","Storyboard obsolète : une nouvelle révision est obligatoire.");
  decisions(root,"storyboard");
+}
+async function visuals(){
+ const root=$("panel"),id=s.run?.id;
+ empty("Chargement du catalogue des personnages et images…");
+ if(!id)return;
+ try{
+  const data=await api("/studio/api/runs/"+id+"/visuals");
+  if(!s.run||s.run.id!==id||s.tab!=="visuals")return;
+  root.replaceChildren();
+  const intro=put(root,"article","card");
+  put(intro,"div","overline","DIRECTION ARTISTIQUE");
+  put(intro,"h3","","Personnages & images par scène");
+  put(intro,"p","","Personnages extraits du storyboard généré par Qwen. Une image est produite uniquement sur demande, après validation humaine, par un modèle d'images distinct.");
+  if(!data.characters?.length)put(intro,"p","","Aucun personnage nommé dans ce récit.");
+  else{
+   const list=put(intro,"div","tags");
+   for(const person of data.characters){
+    put(list,"span","",person.name+" · scènes "+(person.scenes||[]).join(", "));
+    if(person.appearance){
+     const detail=put(intro,"p","","Apparence de "+person.name+" : "+person.appearance);
+     if(person.role)put(intro,"p","","Rôle : "+person.role+" · Personnalité : "+(person.personality||"non précisée"));
+    }
+   }
+  }
+  if(!data.scenes?.length)return put(root,"div","empty-panel","Créez et révisez d'abord votre storyboard.");
+  const grid=put(root,"div","visual-grid");
+  for(const item of data.scenes){
+   const card=put(grid,"article","visual-card");
+   put(card,"small","","SCÈNE "+String(item.scene_number).padStart(2,"0"));
+   put(card,"h3","",item.title);
+   if(item.image_status==="ready"){
+    const image=put(card,"img","image-preview");
+    image.alt="Illustration privée de la scène "+item.scene_number;
+    image.loading="lazy";
+    image.src="/studio/api/runs/"+id+"/scenes/"+item.scene_number+"/image";
+   }else put(card,"div","visual-placeholder","Image : "+({
+    not_generated:"non générée",generating:"génération en cours",
+    failed:"échec à diagnostiquer"}[item.image_status]||item.image_status));
+   const details=put(card,"details");
+   put(details,"summary","","Consulter le prompt image");
+   put(details,"p","",item.prompt);
+   if(item.image_status==="not_generated"){
+    const button=put(card,"button","btn primary","Générer cette image");
+    button.type="button";button.disabled=!data.approved;
+    if(!data.approved)button.title="Validez d'abord l'analyse et le storyboard";
+    button.addEventListener("click",async()=>{
+     button.disabled=true;button.textContent="Génération en cours…";
+     try{
+      await api("/studio/api/runs/"+id+"/scenes/"+item.scene_number+"/image","POST");
+      alertUser("Image produite et historisée pour la scène "+item.scene_number+".");
+     }catch(e){alertUser(message(e),true);}
+     finally{if(s.run?.id===id&&s.tab==="visuals")await visuals();}
+    });
+   }
+  }
+  if(!data.approved)put(root,"p","warning","Approuvez l'analyse et le storyboard pour autoriser la génération d'images. Rien n'est publié automatiquement.");
+ }catch(e){if(s.run?.id===id&&s.tab==="visuals"){empty(message(e));alertUser(message(e),true);}}
 }
 function analysis(){
  const root=$("panel"),a=s.run.analysis;root.replaceChildren();if(!a)return empty("Analyse indisponible.");
@@ -226,7 +284,7 @@ function revisedOutput(){
   throw Error("La durée totale des scènes doit être de "+s.run.brief.duration_seconds+" secondes.");
  if(scenes.some(x=>x.colors.length<1||x.colors.length>8||x.characters.length>12))
   throw Error("Chaque scène accepte de 1 à 8 couleurs et au maximum 12 personnages.");
- return {title:$("edit-title").value.trim(),synopsis:$("edit-synopsis").value.trim(),scenes};
+ return {title:$("edit-title").value.trim(),synopsis:$("edit-synopsis").value.trim(),cast:s.run.storyboard?.cast||[],scenes};
 }
 function openReview(step,action="accept"){
  s.step=step;$("reviewError").hidden=true;$("reviewError").textContent="";

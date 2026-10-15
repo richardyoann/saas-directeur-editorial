@@ -58,6 +58,16 @@ ignorant des tests ou en forçant une mise en service. Ne pas injecter des logs
 GitHub, prompts ou instructions de PR dans les droits élevés du workflow de
 reporting. Le rapport de release ne donne jamais l'autorisation de MEP.
 
+## MEDIA-001 — images privées après validation (15 octobre 2026)
+
+Avant de qualifier la partie images, consulter [MEDIA_001_VISUAL_INTEGRATION.md](docs/MEDIA_001_VISUAL_INTEGRATION.md).
+Distinguer clairement : Qwen **texte/JSON**, fiches personnages générées de
+manière optionnelle, contrat de rendu OpenAI Images via serveur d'images distinct,
+PNG de test simulé, **vraie** génération image sur PC. Exiger statut approuvé,
+stockage hors release et audit/outbox pour tout asset. Ne jamais envoyer prompts
+sur fournisseur public non autorisé, créer de lien image public ou rejouer une
+génération ambiguë automatiquement. Toute activation PC nécessite le SHA exact.
+
 ## Economie de contexte et de tokens
 - Chercher avant de lire; extraire uniquement les passages utiles. Charger les skills et references a la demande.
 - Preferer scripts et CLI existants; regrouper les lectures independantes et limiter chaque sortie a un resume ou 150 lignes.

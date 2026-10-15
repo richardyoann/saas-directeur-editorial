@@ -14,7 +14,7 @@ from uuid import UUID
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 router = APIRouter(prefix="/studio", include_in_schema=False)
 ASSETS = Path(__file__).resolve().parents[1] / "web"
@@ -209,6 +209,44 @@ async def reviews(request: Request, run_id: UUID, limit: int = Query(20, ge=1, l
     path = f"/editorial/runs/{run_id}/reviews?limit={limit}"
     if before_revision is not None: path += f"&before_revision={before_revision}"
     return await relay(request, "GET", path)
+
+@router.get("/api/runs/{run_id}/visuals")
+async def visual_plan(request: Request, run_id: UUID):
+    return await relay(request, "GET", f"/editorial/runs/{run_id}/visuals")
+
+@router.post("/api/runs/{run_id}/scenes/{scene_number}/image")
+async def image_generate(request: Request, run_id: UUID, scene_number: int):
+    if scene_number < 1 or scene_number > 6:
+        raise HTTPException(404, "Scène introuvable.")
+    return await relay(request, "POST", f"/editorial/runs/{run_id}/scenes/{scene_number}/image")
+
+@router.get("/api/runs/{run_id}/scenes/{scene_number}/image")
+async def image_view(request: Request, run_id: UUID, scene_number: int):
+    # Private image data is streamed through the session facade, never served
+    # from /media or a public/static directory.
+    session(request)
+    if not configured():
+        raise HTTPException(503, "Accès privé non configuré.")
+    if scene_number < 1 or scene_number > 6:
+        raise HTTPException(404, "Image introuvable.")
+    path = f"/editorial/runs/{run_id}/scenes/{scene_number}/image"
+    auth = {"Authorization": "Bearer " + os.environ["EDITORIAL_API_TOKEN"]}
+    try:
+        shared = getattr(request.app.state, "internal_client", None)
+        if shared is not None:
+            result = await shared.get(path, headers=auth)
+        else:
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=request.app),
+                                         base_url="http://internal", timeout=15,
+                                         trust_env=False) as client:
+                result = await client.get(path, headers=auth)
+    except (httpx.HTTPError, TimeoutError):
+        raise HTTPException(502, "Image privée indisponible.") from None
+    if result.status_code != 200 or result.headers.get("content-type", "").split(";")[0] != "image/png":
+        raise HTTPException(404, "Image privée introuvable.")
+    if len(result.content) > 4 * 1024 * 1024:
+        raise HTTPException(502, "Image privée trop volumineuse.")
+    return no_store(Response(content=result.content, media_type="image/png"))
 
 @router.post("/api/runs/{run_id}/steps/{step}/review")
 async def review(request: Request, run_id: UUID, step: Literal["analysis", "storyboard"]):

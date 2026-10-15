@@ -124,3 +124,14 @@ des commentaires de triage des échecs ou un dossier de release dans le résumé
 des Actions. **Aucun correctif arbitraire, aucune MEP et aucune activation PC
 n'est effectuée automatiquement par ces nouveaux workflows.** Voir
 [fonctionnement, permissions, tests et limites](docs/AUTONOMOUS_CI.md).
+
+## Personnages et images privées (MEDIA-001)
+
+L'onglet **Personnages & images** présente les fiches de personnages et les
+prompts visuels produits à partir du storyboard Qwen. Après validation humaine
+complète, une image par scène peut être demandée explicitement à un serveur de
+synthèse d'images **distinct** de Qwen, compatible OpenAI Images (`b64_json`,
+PNG). L'image est conservée hors du dépôt et des releases, avec métadonnées,
+audit et contrôle d'accès via Studio. L'absence de serveur d'images retourne
+503 ; **aucun modèle graphique n'est installé ou supposé opérationnel**.
+Guide : [intégration personnages / images, configuration privée et tests](docs/MEDIA_001_VISUAL_INTEGRATION.md).
