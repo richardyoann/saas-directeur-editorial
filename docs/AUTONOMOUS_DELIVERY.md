@@ -7,6 +7,16 @@ explicite du SHA exact**, y compris une activation sur le PC privé.
 Cette règle remplace l'autorisation d'installation automatique du 11 octobre.
 La validation des résultats éditoriaux reste humaine.
 
+## Préqualification automatisée CI-002
+
+Le contrôle des risques PR, l'audit des dépendances systématique, le triage
+borné des CI en échec et le dossier de release sont documentés dans
+[AUTONOMOUS_CI.md](AUTONOMOUS_CI.md). Ils ne corrigent pas arbitrairement le
+code, ne fusionnent aucune PR, ne remplacent aucune revue et n'installent rien
+sur le PC. Seule une validation explicite du SHA exact peut déclencher la
+procédure de livraison ci-dessous. La preuve du premier vrai run de reporting
+reste obligatoire avant d'annoncer ce nouveau workflow opérationnel.
+
 ## Validation et activation d'une MEP
 
 LOCAL_PC_ENABLED=false bloque le déclenchement automatique de livraison après
