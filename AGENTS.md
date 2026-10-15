@@ -30,6 +30,23 @@ Le PO périodique compare la dernière synthèse et reste silencieux sans change
 Garder Project/dépôt privés. Aucun merge, suppression, migration production, élargissement d’accès ou infrastructure existante modifiée sans accord.
 Le disque WSL Ubuntu est introuvable dans cette session. Ne pas réinstaller/réinitialiser; identifier une sauvegarde avec l’utilisateur.
 
+## Incidents et MCO — capitalisation (15 octobre 2026)
+
+Avant tout diagnostic de panne, **lire [l'index MCO](docs/mco/README.md)**,
+rechercher d'abord une signature similaire dans
+[la rétrospective PC](docs/mco/INCIDENT_2026-10-14_REMISE_EN_SERVICE_PC.md),
+puis utiliser le [runbook](docs/mco/RUNBOOK_DIAGNOSTIC_PC.md).
+Consigner une fiche d'incident avec symptôme, preuve, hypothèse, correction,
+validation et limite ; distinguer toujours cause confirmée et cause supposée.
+Mettre la documentation MCO à jour dans la même PR lorsqu'une nouvelle classe
+d'incident est résolue. Ne pas conserver de secrets ni de prompts bruts.
+
+Lire d'abord l'état des services, dépendances, SHA, readiness et preuves CI ;
+commencer par des commandes **non destructives**. Aucune suppression de volumes
+PostgreSQL, réinitialisation Git ou rejeu ambigu de génération IA pour « essayer ».
+Une CI verte ne prouve pas une release installée. Aucune fusion susceptible de
+déclencher une MEP si `LOCAL_PC_ENABLED=true` sans autorisation du **nouveau SHA**.
+
 ## Economie de contexte et de tokens
 - Chercher avant de lire; extraire uniquement les passages utiles. Charger les skills et references a la demande.
 - Preferer scripts et CLI existants; regrouper les lectures independantes et limiter chaque sortie a un resume ou 150 lignes.

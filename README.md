@@ -1,5 +1,13 @@
 # Directeur éditorial IA
 
+## Base de connaissances MCO
+
+Pour analyser une panne sans réinstaller ou supprimer les données :
+**[index MCO et modèle de ticket](docs/mco/README.md)**,
+**[rétrospective de la remise en service du 14–15/10/2026](docs/mco/INCIDENT_2026-10-14_REMISE_EN_SERVICE_PC.md)**,
+**[runbook de diagnostic PC](docs/mco/RUNBOOK_DIAGNOSTIC_PC.md)**.
+Ces documents séparent constat/diagnostic/action/preuve, Windows/WSL, code/version/dépendances, test simulé/recette réelle, et décrivent les garde-fous PostgreSQL et GitHub.
+
 ## Diagnostic et Git dans l’environnement restreint
 
 ```bash
