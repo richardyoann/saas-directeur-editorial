@@ -1,0 +1,29 @@
+name: Automated PR risk review
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: risk-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  risk-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Inventory change risks without repo write access
+        env:
+          REVIEW_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python scripts/ci_autonomy.py --base origin/main --head HEAD --sha "$REVIEW_HEAD_SHA"
+      - name: Verify review algorithm tests
+        run: python -m unittest tests.test_ci_autonomy tests.test_ci_status_report -v
