@@ -125,6 +125,21 @@ class IsolatedPCReleaseTests(unittest.TestCase):
         self.assertEqual([x[1] for x in seen],
                          ["/health", "/ready", "/editorial/runs", "/editorial/runs"])
 
+    def test_github_job_requires_explicit_sha_even_on_manual_dispatch(self):
+        workflow = (Path(__file__).resolve().parents[1] /
+                    ".github/workflows/local-delivery.yml").read_text()
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("vars.LOCAL_PC_ENABLED == 'true'", workflow)
+        self.assertIn("vars.LOCAL_PC_APPROVED_SHA", workflow)
+        self.assertIn("inputs.approved_sha == github.sha", workflow)
+        self.assertIn("github.ref == 'refs/heads/main'", workflow)
+        self.assertIn("github.event.workflow_run.conclusion == 'success'", workflow)
+        self.assertIn("github.event.workflow_run.head_branch == 'main'", workflow)
+        self.assertIn("actions: read", workflow)
+        self.assertIn('[[ "$APPROVED_SHA" == "$EXPECTED_SHA" ]]', workflow)
+        self.assertLess(workflow.index("name: Enforce exact SHA approval"),
+                        workflow.index("name: Prepare test dependencies and disposable DB"))
+
     def test_deployment_never_calls_real_editorial_generator_on_activated_release(self):
         import inspect
         body = inspect.getsource(d.deploy)
