@@ -6,9 +6,11 @@ one image for one approved scene; no implicit retries or publication.
 """
 import base64
 import binascii
+import ipaddress
 import os
 from pathlib import Path
 import struct
+from urllib.parse import urlsplit
 from threading import BoundedSemaphore
 from uuid import UUID
 
@@ -96,8 +98,25 @@ def validate_png(data):
     return width, height
 
 
+def private_image_url(value):
+    """Only local/private image engines are allowed to receive story prompts."""
+    try:
+        parsed = urlsplit(value)
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username or parsed.password or parsed.query or parsed.fragment
+                or parsed.path.strip("/")):
+            return False
+        host = parsed.hostname
+        if host == "localhost":
+            return True
+        address = ipaddress.ip_address(host)
+        return address.is_private or address.is_loopback
+    except ValueError:
+        return False
+
+
 async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str):
-    if not base_url.startswith(("http://", "https://")) or not base_url.rstrip("/"):
+    if not private_image_url(base_url):
         raise ImageUnavailable()
     try:
         response = await client.post(
