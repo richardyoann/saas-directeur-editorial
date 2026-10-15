@@ -30,6 +30,17 @@ PNG = base64.b64decode(
 
 
 class VisualContractTests(unittest.IsolatedAsyncioTestCase):
+    async def test_optional_cast_is_schema_valid_and_old_stories_work(self):
+        from editorial.models import Storyboard
+        old = Storyboard.model_validate(outputs()[1])
+        self.assertEqual(old.cast, [])
+        new = outputs()[1]
+        new["cast"] = [{
+            "name": "Un marin", "appearance": "Bonnet bleu, manteau usé",
+            "personality": "Audacieux", "role": "Témoin"
+        }]
+        self.assertEqual(Storyboard.model_validate(new).cast[0].role, "Témoin")
+
     async def test_character_names_remain_consistent(self):
         board = {"scenes": [{"characters": ["L'Ankou", "Marin"]},
                             {"characters": ["l'ankou", "Marin", "Roi"]}]}
@@ -110,6 +121,7 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.tenant, self.actor, self.key = uuid4(), uuid4(), uuid4()
         env = patch.dict(os.environ, {
             "EDITORIAL_API_TOKEN": "t" * 48,
+            "EDITORIAL_WEB_PASSWORD": "w" * 48,
             "EDITORIAL_TENANT_ID": str(self.tenant),
             "EDITORIAL_ACTOR_ID": str(self.actor),
             "IMAGE_BASE_URL": "http://127.0.0.1:8082",
@@ -159,6 +171,17 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(render.await_count, 1)
         self.assertEqual(response.json()["status"], "ready")
         self.assertEqual((await self.client.get(path, headers=self.auth)).content, PNG)
+        # A browser session (not a bearer token embedded in JS) can preview it.
+        self.assertEqual((await self.client.get(
+            f"/studio/api/runs/{self.run_id}/scenes/1/image")).status_code, 401)
+        login = await self.client.post("/studio/session",
+            headers={"Origin": "http://localhost"}, json={"password": "w" * 48})
+        self.assertEqual(login.status_code, 200)
+        preview = await self.client.get(
+            f"/studio/api/runs/{self.run_id}/scenes/1/image")
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.content, PNG)
+        self.assertEqual(preview.headers.get("cache-control"), "no-store")
         duplicate = await self.client.post(path, headers=self.auth)
         self.assertEqual(duplicate.status_code, 409)
         self.assertEqual((await self.client.get(base + "/scenes/2/image", headers=self.auth)).status_code, 404)
