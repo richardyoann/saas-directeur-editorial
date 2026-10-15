@@ -35,3 +35,14 @@ button,input,textarea,select,a,summary:focus-visible {
  #editFields fieldset{padding:9px 10px 13px}
  #editFields legend{font-size:15px}
 }
+
+/* Private character and media preview (no public image URLs). */
+.visual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:16px 0}
+.visual-card{border:1px solid var(--line);border-radius:13px;background:white;padding:18px;display:flex;flex-direction:column;gap:10px}
+.visual-card h3{font-size:18px;margin:0}
+.visual-card small{color:#678c85;font-weight:700;letter-spacing:.1em}
+.visual-card details{font-size:12px;color:#627b7e;overflow-wrap:anywhere}
+.visual-card details p{white-space:pre-wrap}
+.visual-card .btn{align-self:flex-start}
+.image-preview{width:100%;aspect-ratio:1/1;object-fit:contain;border-radius:9px;background:#eef5f2}
+.visual-placeholder{min-height:145px;background:#e5f0eb;border:1px dashed #cadecd;border-radius:9px;display:grid;place-items:center;color:#557b76;font-size:12px;text-align:center;padding:15px}
