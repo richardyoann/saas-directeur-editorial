@@ -68,8 +68,8 @@ def release_packet(run, repository, pc_enabled):
     safe_flag = "off" if pc_enabled == "false" else "on" if pc_enabled == "true" else "unknown"
     lines = [
         "## Private release candidate — evidence only",
-        f"- Repository: \`{repository}\`",
-        f"- SHA from completed main CI: \`{sha}\`",
+        f"- Repository: `{repository}`",
+        f"- SHA from completed main CI: `{sha}`",
         f"- GitHub regression: **{conclusion}**",
         f"- LOCAL_PC_ENABLED at reporting time: **{safe_flag}**",
         "- Deployment: **not performed by this report**",
@@ -89,9 +89,9 @@ def triage_comment(run, outcome):
     # Canonical URL constructed from validated run ID rather than untrusted URL.
     return ("{marker}\n"
             "### Automated CI triage — {workflow}\n"
-            "- Head SHA: \`{sha}\`\n"
+            "- Head SHA: `{sha}`\n"
             "- Result: **{status}**\n"
-            "- GitHub Actions run ID: \`{run_id}\`\n"
+            "- GitHub Actions run ID: `{run_id}`\n"
             "- Failed jobs: **{n}**\n"
             "- Next step: {hint}\n\n"
             "This is a status/heuristic report, not a code review, code fix, deployment approval or verified root cause.\n"
