@@ -12,7 +12,7 @@ from pilotage.audit import mutate
 from editorial.models import Brief, Analysis, Storyboard, ReviewDecision
 from editorial.worker_guard import WorkerOffline, worker_lock_id
 
-WORKFLOW_VERSION = "editorial-v1.1"
+WORKFLOW_VERSION = "editorial-v1.2"
 # Conservative threshold: both provider calls have a 120s wall limit.
 # This does not run automatically on reads; a user must request reconciliation.
 INTERRUPTED_AFTER_SECONDS = 600
@@ -188,7 +188,7 @@ class PostgresStore:
                             {"run_id": str(run_id), "type": "editorial_step_snapshot",
                              "order": len(run["steps"]), "prompt_id": step["prompt_id"],
                              "treatment_id": str(treatment_id),
-                             "prompt": prompt[0] if prompt else None, "prompt_version": "1.1.0",
+                             "prompt": prompt[0] if prompt else None, "prompt_version": "1.2.0",
                              "response_metadata": {}, "raw_response": None, "parsed": None,
                              "error_code": "run_interrupted"})
                 run["steps"].append({"name": step["name"], "status": "failed",
@@ -270,13 +270,13 @@ class PostgresStore:
             started_at = now()
             self._write(conn, tenant, actor, run_id, "prompt", prompt_id,
                         {"run_id": str(run_id), "version": 1, "step": step, "text": prompt,
-                         "prompt_version": "1.1.0", "workflow_version": WORKFLOW_VERSION})
+                         "prompt_version": "1.2.0", "workflow_version": WORKFLOW_VERSION})
             self._write(conn, tenant, actor, run_id, "treatment", treatment_id,
                         {"run_id": str(run_id), "step": step, "prompt_id": str(prompt_id),
                          "status": "running", "started_at": started_at,
                          "parameters": {"max_tokens": 2048, "stream": False,
                                         "temperature": 0.1, "response_format": "json_object",
-                                        "system_prompt_version": "1.1.0"}})
+                                        "system_prompt_version": "1.2.0"}})
             run.update(current_step={"name": step, "treatment_id": str(treatment_id),
                                      "prompt_id": str(prompt_id), "started_at": started_at}, updated_at=started_at)
             self._write(conn, tenant, actor, run_id, "treatment", run_id, run, version)
@@ -305,13 +305,13 @@ class PostgresStore:
                          "provider": response.get("provider"), "usage": response.get("usage"),
                          "duration_seconds": response.get("duration_seconds"),
                          "finish_reason": response.get("finish_reason"), "parameters": {"max_tokens": 2048, "stream": False,
-                         "temperature": 0.1, "response_format": "json_object", "system_prompt_version": "1.1.0"},
+                         "temperature": 0.1, "response_format": "json_object", "system_prompt_version": "1.2.0"},
                          "started_at": run["current_step"]["started_at"], "finished_at": now()}
             self._write(conn, tenant, actor, run_id, "treatment", treatment_id, treatment, 1)
             self._write(conn, tenant, actor, run_id, "result", result_id,
                         {"run_id": str(run_id), "type": "editorial_step_snapshot", "order": len(run["steps"]),
                          "prompt_id": str(prompt_id), "treatment_id": str(treatment_id),
-                         "prompt": prompt, "prompt_version": "1.1.0", "response_metadata": {k: v for k, v in response.items() if k not in {"prompt", "response"}},
+                         "prompt": prompt, "prompt_version": "1.2.0", "response_metadata": {k: v for k, v in response.items() if k not in {"prompt", "response"}},
                          "raw_response": response.get("response"), "parsed": parsed, "error_code": error_code})
             run["steps"].append({"name": step, "status": treatment["status"], "treatment_id": str(treatment_id), "result_id": str(result_id)})
             if error_code:
