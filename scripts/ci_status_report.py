@@ -46,19 +46,30 @@ def identify(event, repository):
     return run
 
 
-def classify_failure(jobs):
-    """Deterministic hints only; never describe a guessed root cause as certain."""
-    failed = []
-    for job in jobs:
-        if job.get("conclusion") not in {"failure", "timed_out", "cancelled"}:
-            continue
-        name = str(job.get("name", "job"))[:60]
-        failed.append(name)
+def classify_failure(jobs, workflow="Full regression"):
+    """Conservative reproduction instructions without reading any CI log data."""
+    failed_count = sum(job.get("conclusion") in {"failure", "timed_out", "cancelled"}
+                       for job in jobs if isinstance(job, dict))
+    steps = {
+        "Full regression": (
+            "Manually reproduce the first failing Python test with "
+            "`python scripts/run_regression.py` on an isolated test database; "
+            "add a regression test, correct on a dedicated branch and rerun CI."
+        ),
+        "Dependency security audit": (
+            "Manually review `python -m pip_audit -r requirements.txt` "
+            "and propose pinned dependency updates in a separate, tested PR."
+        ),
+        "Studio browser journeys": (
+            "Manually reproduce the browser fixture test with "
+            "`python -m unittest discover -s browser_checks -v`; "
+            "verify that mocked browser tests do not prove the real PC Studio."
+        ),
+    }
     return {
-        "failed_jobs": len(failed),
-        "hint": ("Review failing job steps and the first reproducible test failure; "
-                 "correct code on a dedicated PR branch, rerun full regression. "
-                 "Do not re-run Qwen against an ambiguous persisted request."),
+        "failed_jobs": failed_count,
+        "hint": (steps.get(workflow, "Manually inspect the failing GitHub workflow.")
+                 + " Do not replay an ambiguous persisted Qwen request."),
     }
 
 
@@ -85,8 +96,6 @@ def triage_comment(run, outcome):
     workflow = run["name"]
     sha = run["head_sha"]
     status = run["conclusion"]
-    url = run.get("html_url")
-    # Canonical URL constructed from validated run ID rather than untrusted URL.
     return ("{marker}\n"
             "### Automated CI triage — {workflow}\n"
             "- Head SHA: `{sha}`\n"
@@ -96,7 +105,7 @@ def triage_comment(run, outcome):
             "- Next step: {hint}\n\n"
             "This is a status/heuristic report, not a code review, code fix, deployment approval or verified root cause.\n"
             ).format(marker=MARKER, workflow=workflow, sha=sha, status=status,
-                     run_id=run["id"], n=outcome["failed_jobs"], hint=outcome["hint"])
+                     run_id=run["id"], n=outcome["failed_jobs"], hint=next_step)
 
 
 def existing_comment(repo, number, token, workflow):
@@ -140,7 +149,7 @@ def run_report(event, repository, token, pc_enabled=""):
     jobs = api("GET", f"/repos/{repository}/actions/runs/{run['id']}/jobs?per_page=100", token)
     if not isinstance(jobs, dict) or jobs.get("total_count", 0) > 100:
         return "Too many jobs or invalid response; manual triage required.\n"
-    outcome = classify_failure(jobs.get("jobs") or [])
+    outcome = classify_failure(jobs.get("jobs") or [], run["name"])
     workflow = run["name"]
     old_id = existing_comment(repository, number, token, workflow)
     if run["conclusion"] == "success" and old_id is None:
