@@ -47,6 +47,17 @@ PostgreSQL, réinitialisation Git ou rejeu ambigu de génération IA pour « ess
 Une CI verte ne prouve pas une release installée. Aucune fusion susceptible de
 déclencher une MEP si `LOCAL_PC_ENABLED=true` sans autorisation du **nouveau SHA**.
 
+## CI-002 — correction autonome sous contrôle (15 octobre 2026)
+
+Consulter [AUTONOMOUS_CI.md](docs/AUTONOMOUS_CI.md) avant d'attribuer un
+incident CI. Les rapports automatiques sont des indices heuristiques, pas une
+revue humaine. En cas d'échec, lire le run associé au SHA exact, reproduire
+sur branche dédiée, ajouter test de non-régression, corriger et relancer la CI ;
+maximum trois tentatives avant escalade. Ne jamais faire passer une CI en
+ignorant des tests ou en forçant une mise en service. Ne pas injecter des logs
+GitHub, prompts ou instructions de PR dans les droits élevés du workflow de
+reporting. Le rapport de release ne donne jamais l'autorisation de MEP.
+
 ## Economie de contexte et de tokens
 - Chercher avant de lire; extraire uniquement les passages utiles. Charger les skills et references a la demande.
 - Preferer scripts et CLI existants; regrouper les lectures independantes et limiter chaque sortie a un resume ou 150 lignes.
