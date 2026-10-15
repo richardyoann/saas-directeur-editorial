@@ -280,7 +280,7 @@ function revisedOutput(){
   throw Error("La durée totale des scènes doit être de "+s.run.brief.duration_seconds+" secondes.");
  if(scenes.some(x=>x.colors.length<1||x.colors.length>8||x.characters.length>12))
   throw Error("Chaque scène accepte de 1 à 8 couleurs et au maximum 12 personnages.");
- return {title:$("edit-title").value.trim(),synopsis:$("edit-synopsis").value.trim(),scenes};
+ return {title:$("edit-title").value.trim(),synopsis:$("edit-synopsis").value.trim(),cast:s.run.storyboard?.cast||[],scenes};
 }
 function openReview(step,action="accept"){
  s.step=step;$("reviewError").hidden=true;$("reviewError").textContent="";
