@@ -113,3 +113,14 @@ La route `/ai/generate` exige désormais une identité et un jeton API **même s
 ## MCO — Diagnostic passif de la file éditoriale
 
 Le script `scripts/diagnose_editorial_queue.py` donne des compteurs agrégés par état, les âges des runs `queued`/`running` et des alertes sans contenu métier. Il travaille uniquement en lecture seule sur le tenant configuré, n'appelle pas Qwen et ne réconcilie aucun run. Voir [procédure et limites](docs/EDITORIAL_QUEUE_MONITORING.md). Son usage sur le PC suppose la livraison distincte d'un SHA validé.
+
+## Revue CI/CD et préqualification automatiques (CI-002)
+
+Sur chaque PR, **Automated PR risk review** signale les chemins sensibles,
+migrations, modifications CD et absence de tests ou documentation. L'audit des
+dépendances couvre toutes les PR, `main` et un contrôle hebdomadaire. Après les
+runs GitHub, un workflow séparé, exécuté depuis `main` de confiance, produit
+des commentaires de triage des échecs ou un dossier de release dans le résumé
+des Actions. **Aucun correctif arbitraire, aucune MEP et aucune activation PC
+n'est effectuée automatiquement par ces nouveaux workflows.** Voir
+[fonctionnement, permissions, tests et limites](docs/AUTONOMOUS_CI.md).
