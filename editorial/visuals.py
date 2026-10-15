@@ -110,7 +110,14 @@ def private_image_url(value):
         if host == "localhost":
             return True
         address = ipaddress.ip_address(host)
-        return address.is_private or address.is_loopback
+        # Explicit loopback/RFC1918/IPv6 ULA allowlist. ipaddress.is_private
+        # also includes link-local metadata IPs (169.254.169.254): never
+        # allow a prompt to flow to an infrastructure metadata endpoint.
+        allowed = (
+            "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12",
+            "192.168.0.0/16", "::1/128", "fc00::/7",
+        )
+        return any(address in ipaddress.ip_network(net) for net in allowed)
     except ValueError:
         return False
 
@@ -121,7 +128,7 @@ async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str):
     try:
         response = await client.post(
             base_url.rstrip("/") + "/v1/images/generations",
-            json={"prompt": prompt, "n": 1, "size": "512x512", "response_format": "b64_json"},
+            json={"prompt": prompt, "n": 1, "size": "512x512", "output_format": "png"},
             timeout=120.0
         )
         if response.status_code != 200 or len(response.content) > MAX_PNG_BYTES * 2:

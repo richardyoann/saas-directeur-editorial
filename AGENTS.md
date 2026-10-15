@@ -118,3 +118,14 @@ Git history is unavailable in this workspace, so existing commit conventions can
 ## Security & Configuration
 
 Copy `.env.example` to `.env` and set `LLM_BASE_URL` for your local model server. Keep secrets, model weights, and generated media out of commits. Compose credentials are development defaults; replace them before shared deployment and preserve localhost port bindings for local use.
+
+## MEDIA-002 — Cible stable-diffusion.cpp locale (15 octobre 2026)
+
+Pour un vrai test graphique, lire [MEDIA_002_SDCPP_VULKAN.md](docs/MEDIA_002_SDCPP_VULKAN.md).
+L'API sd-server documentée reçoit `output_format: png` et renvoie
+`data[0].b64_json`. Ne jamais dire qu'un serveur compatible ou un test
+HTTP simulé prouve que la Radeon RX 580 / Vulkan fonctionne. La CLI de
+préflight `scripts/diagnose_image_runtime.py` **ne génère pas d'image** et
+`scripts/diagnose_vulkan_windows.ps1` ne modifie pas le PC. Pas de
+modification de runtime/config/deploiement, de téléchargement de modèle ou de
+nouvelle release privée sans validation du SHA exact.

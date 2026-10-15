@@ -135,3 +135,13 @@ PNG). L'image est conservée hors du dépôt et des releases, avec métadonnées
 audit et contrôle d'accès via Studio. L'absence de serveur d'images retourne
 503 ; **aucun modèle graphique n'est installé ou supposé opérationnel**.
 Guide : [intégration personnages / images, configuration privée et tests](docs/MEDIA_001_VISUAL_INTEGRATION.md).
+
+## Moteur graphique local : SD.cpp / Vulkan (MEDIA-002)
+
+Le pont d'images utilise désormais la forme documentée de l'API `sd-server` :
+`POST /v1/images/generations` (`output_format=png`). Une vérification en
+lecture seule de `GET /v1/models` et un contrat HTTP simulant trois scènes
+complètent les tests PostgreSQL. La solution GPU RX 580 est une piste de
+recette, **pas une installation déjà réalisée**. Diagnostic Windows, construction
+facultative et conditions réseau WSL :
+[MEDIA_002_SDCPP_VULKAN.md](docs/MEDIA_002_SDCPP_VULKAN.md).
