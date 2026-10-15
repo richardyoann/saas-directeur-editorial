@@ -51,7 +51,7 @@ dans l'URL, ni chemin supplémentaire. Le fournisseur doit accepter :
 POST /v1/images/generations
 Content-Type: application/json
 
-{"prompt":"...","n":1,"size":"512x512","response_format":"b64_json"}
+{"prompt":"...","n":1,"size":"512x512","output_format":"png"}
 ```
 
 Et renvoyer un seul objet `data[0].b64_json` encodant un PNG valide
