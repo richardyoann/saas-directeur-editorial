@@ -338,6 +338,125 @@ class PostgresStore:
             return run
 
 
+    @staticmethod
+    def _visual_scene(run, scene_number):
+        if not run.get("storyboard") or not isinstance(scene_number, int):
+            raise RunConflict()
+        scene_ids = run.get("scene_ids") or []
+        if not (1 <= scene_number <= len(scene_ids)):
+            raise RunMissing()
+        return UUID(scene_ids[scene_number - 1])
+
+    @staticmethod
+    def _visual_id(scene_id):
+        return uuid5(scene_id, "private-image-v1")
+
+    def visual_plan(self, tenant, run_id):
+        """Projection for UI, no binary payload and no secret storage paths."""
+        from editorial.visuals import characters, image_prompt
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
+                "AND entity_id=%s AND NOT deleted", (tenant, run_id),
+            ).fetchone()
+            if not row or row[0].get("type") != "editorial_run":
+                raise RunMissing()
+            run = row[0]
+            board = run.get("storyboard")
+            if not board or run.get("storyboard_stale"):
+                return {"run_id": str(run_id), "characters": [], "scenes": [],
+                        "approved": False}
+            entries = []
+            scene_ids = run.get("scene_ids") or []
+            for i, scene_id in enumerate(scene_ids, 1):
+                asset_id = self._visual_id(UUID(scene_id))
+                record = conn.execute(
+                    "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='result' "
+                    "AND entity_id=%s AND NOT deleted", (tenant, asset_id),
+                ).fetchone()
+                asset = record[0] if record and record[0].get("scenario_id") == run.get("scenario_id") else None
+                entries.append({"scene_number": i, "scene_id": scene_id,
+                                "title": board["scenes"][i - 1]["title"],
+                                "prompt": image_prompt(run, i),
+                                "image_status": asset.get("status", "not_generated") if asset else "not_generated"})
+            return {"run_id": str(run_id), "characters": characters(board),
+                    "scenes": entries, "approved": run["status"] == "approved"}
+
+    def begin_image(self, tenant, actor, run_id, scene_number, prompt):
+        """Reserve image exactly once; audit and outbox share the transaction."""
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
+                "AND entity_id=%s AND NOT deleted FOR UPDATE", (tenant, run_id),
+            ).fetchone()
+            if not row or row[0].get("type") != "editorial_run":
+                raise RunMissing()
+            run = row[0]
+            if run.get("status") != "approved" or run.get("storyboard_stale"):
+                raise RunConflict()
+            scene_id = self._visual_scene(run, scene_number)
+            asset_id = self._visual_id(scene_id)
+            existing = conn.execute(
+                "SELECT 1 FROM po_entity WHERE tenant_id=%s AND kind='result' "
+                "AND entity_id=%s AND NOT deleted", (tenant, asset_id),
+            ).fetchone()
+            if existing:
+                # Manual reconciliation of failed/ambiguous images only.
+                raise RunConflict()
+            self._write(conn, tenant, actor, run_id, "result", asset_id,
+                        {"type": "scene_image_asset", "run_id": str(run_id),
+                         "scenario_id": run["scenario_id"], "scene_id": str(scene_id),
+                         "scene_number": scene_number, "status": "generating",
+                         "prompt": prompt, "created_at": now()})
+            return scene_id, asset_id
+
+    def finish_image(self, tenant, actor, run_id, scene_id, *, width=None, height=None, error_code=None):
+        """Finalize exact reserved record; never overwrite an earlier asset."""
+        with self.connect() as conn:
+            asset_id = self._visual_id(scene_id)
+            row = conn.execute(
+                "SELECT version,content FROM po_entity WHERE tenant_id=%s AND kind='result' "
+                "AND entity_id=%s AND NOT deleted FOR UPDATE", (tenant, asset_id),
+            ).fetchone()
+            if not row or row[1].get("type") != "scene_image_asset" or row[1].get("run_id") != str(run_id):
+                raise RunMissing()
+            version, record = row
+            if record["status"] != "generating":
+                raise RunConflict()
+            current = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
+                "AND entity_id=%s AND NOT deleted", (tenant, run_id),
+            ).fetchone()
+            if not current or current[0].get("scenario_id") != record["scenario_id"] or current[0].get("status") != "approved":
+                raise RunConflict()
+            record.update(status="failed" if error_code else "ready",
+                          finished_at=now(), error_code=error_code)
+            if not error_code:
+                record.update(width=width, height=height, mime_type="image/png")
+            self._write(conn, tenant, actor, run_id, "result", asset_id, record, version)
+            return {"scene_number": record["scene_number"], "status": record["status"],
+                    "width": record.get("width"), "height": record.get("height")}
+
+    def image_asset(self, tenant, run_id, scene_number):
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
+                "AND entity_id=%s AND NOT deleted", (tenant, run_id)
+            ).fetchone()
+            if not row or row[0].get("type") != "editorial_run":
+                raise RunMissing()
+            run = row[0]
+            if run.get("status") != "approved" or run.get("storyboard_stale"):
+                raise RunMissing()
+            scene_id = self._visual_scene(run, scene_number)
+            asset = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='result' "
+                "AND entity_id=%s AND NOT deleted", (tenant, self._visual_id(scene_id)),
+            ).fetchone()
+            if not asset or asset[0].get("status") != "ready" or asset[0].get("scenario_id") != run["scenario_id"]:
+                raise RunMissing()
+            return scene_id
+
     def review(self, tenant, actor, run_id, step, decision):
         decision = ReviewDecision.model_validate(decision)
         with self.connect() as conn:
