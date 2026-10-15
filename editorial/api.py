@@ -15,7 +15,7 @@ from editorial.models import Brief, ReviewDecision
 from editorial.service import run_workflow
 from editorial.store import PostgresStore, RunConflict, RunMissing, ReviewInvalid
 from editorial.worker_guard import WorkerOffline
-from editorial.visuals import ImageUnavailable, image_gate, media_location, load_png, render_png, save_png, validate_png
+from editorial.visuals import ImageUnavailable, image_gate, media_location, load_png, render_png, save_png, validate_png, private_image_url
 
 security = HTTPBearer(auto_error=False)
 
@@ -184,7 +184,7 @@ def create_router(get_llm_client):
         # Images require a separate, explicitly configured provider. Qwen is
         # text-only here. One scene is initiated by an explicit user action.
         base = os.getenv("IMAGE_BASE_URL", "")
-        if not base.startswith(("http://", "https://")) or not os.getenv("EDITORIAL_MEDIA_ROOT"):
+        if not private_image_url(base) or not os.getenv("EDITORIAL_MEDIA_ROOT"):
             raise HTTPException(503, "Générateur d'images privé non configuré.")
         if not image_gate.acquire(blocking=False):
             raise HTTPException(429, "Génération d'image occupée.",
