@@ -6,7 +6,7 @@ from uuid import UUID
 from apps.api.llama_provider import ProviderError, generate_text
 from editorial.models import Analysis, Brief, Storyboard
 
-PROMPT_VERSION = "1.1.0"
+PROMPT_VERSION = "1.2.0"
 
 SYSTEM_PROMPT = (
     "Tu es directeur éditorial. Réponds uniquement en JSON conforme au schéma fourni. "
