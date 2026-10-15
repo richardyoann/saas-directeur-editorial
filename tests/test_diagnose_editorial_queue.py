@@ -104,5 +104,51 @@ class QueueMonitoringTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 2)
 
 
+@unittest.skipUnless(os.getenv("PO_TEST_DATABASE_URL"),
+                     "dedicated PostgreSQL test target not configured")
+class RealPostgresQueueMonitoringTests(unittest.TestCase):
+    """Exercise the actual SQL, not only a mocked psycopg connection."""
+
+    @classmethod
+    def setUpClass(cls):
+        if os.getenv("PO_ALLOW_TEST_MIGRATION") != "yes":
+            raise RuntimeError("Disposable PostgreSQL test migration not authorized")
+        from pathlib import Path
+        from editorial.store import PostgresStore
+        cls.database_url = os.environ["PO_TEST_DATABASE_URL"]
+        cls.store = PostgresStore(cls.database_url)
+        with cls.store.connect() as conn:
+            conn.execute(Path("pilotage/migration.sql").read_text())
+
+    def test_actual_postgres_aggregates_and_isolates_tenant(self):
+        from uuid import uuid4
+        from editorial.models import Brief
+        from editorial.worker_guard import registered_worker
+
+        tenant, foreign_tenant, actor = uuid4(), uuid4(), uuid4()
+        brief = Brief(topic="Ys").model_dump()
+        running, _ = self.store.start(tenant, actor, uuid4(), brief)
+        self.store.begin_step(tenant, actor, UUID(running["id"]),
+                              "analysis", "test prompt - must stay private")
+        with registered_worker(self.database_url, tenant):
+            queued, created = self.store.enqueue(tenant, actor, uuid4(), brief)
+            self.assertTrue(created)
+            self.assertEqual(queued["status"], "queued")
+        self.store.start(foreign_tenant, actor, uuid4(),
+                         Brief(topic="Another tenant").model_dump())
+
+        # SELECT executes on the real PostgreSQL 16 CI service, in a
+        # read-only transaction and without fetching raw editorial content.
+        rows = monitor.read_rows(self.database_url, tenant)
+        result = monitor.assess(rows)
+        self.assertEqual(result["total_runs"], 2)
+        self.assertEqual(result["counts"]["running"], 1)
+        self.assertEqual(result["counts"]["queued"], 1)
+        self.assertEqual(result["status"], "ok")
+        self.assertNotIn("test prompt - must stay private", json.dumps(result))
+        self.assertNotIn("Another tenant", json.dumps(result))
+        self.assertIsNotNone(result["oldest_age_seconds"]["running"])
+
+
 if __name__ == "__main__":
     unittest.main()
