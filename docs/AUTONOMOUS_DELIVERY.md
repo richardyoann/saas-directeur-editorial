@@ -203,3 +203,7 @@ Voir docs/TOKEN_ECONOMY.md : profils .codex/agents, deux sous-agents maximum, co
 ## Installation des routes de décision humaine
 
 L'incrément EDIT-001 ajoute les routes review/reviews au code API; aucune nouvelle variable privée, dépendance ou migration. Le workflow et deploy_local appliquent les mêmes contrôles. Les nouveaux tests utilisent seulement PostgreSQL jetable; les traitements de preuve de livraison restent waiting_validation, sans acceptation humaine automatique. Contrat : docs/EDITORIAL_WORKFLOW.md. Une vérification HTTP déployée vérifie401/404/422 sans modifier de résultat métier.
+
+## REL-002 : isolation des données et verrou du commit
+
+Le workflow de livraison corrigé utilise une base de recette PostgreSQL jetable, et les contrôles actifs du SaaS sont limités à des lectures (plus authentification/logout de session volatile). Il impose désormais `LOCAL_PC_APPROVED_SHA` égal au SHA autorisé et `LOCAL_PC_ENABLED=true` ; un déclenchement manuel par SHA exact est prévu. Le contrat des deux preuves CI, les prérequis, le rollback et l'absence d'installation d'un moteur d'images sont expliqués dans [REL_002_SAFE_DELIVERY.md](REL_002_SAFE_DELIVERY.md). Ne pas appliquer les étapes historiques qui activeraient le seul flag `LOCAL_PC_ENABLED` sans le nouveau verrou. Une autorisation sur l'ancien SHA ne couvre pas le commit correctif.
