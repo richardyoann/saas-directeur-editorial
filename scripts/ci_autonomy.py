@@ -92,7 +92,7 @@ def format_summary(report, sha):
     status = report["status"]
     parts = [
         "## Automated PR change inventory",
-        f"Status: **{status}** · Commit: \`{sha}\`",
+        f"Status: **{status}** · Commit: `{sha}`",
         f"Changed: {report['changed_files']}; code: {report['code_files']}; tests: {report['test_files']}; docs: {report['doc_files']}.",
     ]
     if report["blockers"]:
