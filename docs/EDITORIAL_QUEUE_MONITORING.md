@@ -95,10 +95,14 @@ codes de statut, jamais les données des histoires.
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Le test unitaire simule la DB pour valider le SQL en lecture seule, le filtre
-tenant, les retards, les dates ambiguës et la non-divulgation. Une CI réussie
-ne prouve **pas** une lecture de la base utilisateur : valider la commande sur
-le PC privé après accord sur le SHA exact. Les index JSONB optimisés restent
+Les tests unitaires simulent les erreurs et dates ambiguës ; un test
+d'intégration supplémentaire exécute la vraie agrégation sur PostgreSQL 16
+**jetable**, avec deux tenants distincts et un run en cours / en attente.
+Il ne s'exécute que si `PO_TEST_DATABASE_URL` est renseignée ; les créations
+de schéma nécessitent `PO_ALLOW_TEST_MIGRATION=yes`. Ne jamais utiliser la
+base PC comme cible de ces tests mutables. Une CI réussie ne prouve **pas** une
+lecture de la base utilisateur : valider la commande sur le PC privé après
+accord sur le SHA exact. Les index JSONB optimisés restent
 reportés à une mesure représentative avant migration. La requête agrégée peut
 balayer les runs d'un tenant : exécuter à une fréquence modérée, pas en boucle
 rapprochée.
