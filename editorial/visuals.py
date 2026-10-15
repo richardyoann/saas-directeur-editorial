@@ -121,7 +121,7 @@ async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str):
     try:
         response = await client.post(
             base_url.rstrip("/") + "/v1/images/generations",
-            json={"prompt": prompt, "n": 1, "size": "512x512", "response_format": "b64_json"},
+            json={"prompt": prompt, "n": 1, "size": "512x512", "output_format": "png"},
             timeout=120.0
         )
         if response.status_code != 200 or len(response.content) > MAX_PNG_BYTES * 2:
