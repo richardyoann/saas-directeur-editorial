@@ -7,6 +7,11 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
+
+# Direct execution sets sys.path[0] to scripts/, not the repository root.
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import httpx
 
