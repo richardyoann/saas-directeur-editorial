@@ -150,8 +150,8 @@ def already_delivered(root: Path, sha: str) -> bool:
             and release.name.startswith(sha + "-"))
 
 
-def command(args, cwd=None, quiet=True):
-    subprocess.run(args, cwd=cwd, check=True, timeout=600,
+def command(args, cwd=None, quiet=True, env=None):
+    subprocess.run(args, cwd=cwd, check=True, timeout=600, env=env,
                    stdout=subprocess.DEVNULL if quiet else None,
                    stderr=subprocess.DEVNULL if quiet else None)
 
@@ -313,7 +313,7 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
         python = str(candidate / ".venv/bin/python")
         command([python, "-m", "pip", "install", "-r", "requirements.txt", "psycopg[binary]==3.3.6"], candidate)
         # Historical tests use only the ephemeral DB supplied by the workflow.
-        command([python, "scripts/run_regression.py"], candidate, quiet=False)
+        command([python, "scripts/run_regression.py"], candidate, quiet=False, env=candidate_env)
         prepare_disposable_editorial_db(test_url, settings.get("PO_DATABASE_URL"))
         (candidate / ".env").symlink_to(config)
         with socket.socket() as sock:
