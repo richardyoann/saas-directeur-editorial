@@ -199,6 +199,18 @@ def wait_api(url, process=None):
     raise RuntimeError("API unavailable")
 
 
+def check_runtime_readonly(url):
+    """Only GET probes in the active application; never creates a user run."""
+    import httpx
+    with httpx.Client(timeout=5, trust_env=False) as client:
+        health = client.get(url + "/health")
+        if health.status_code != 200 or health.json().get("status") != "ok":
+            raise RuntimeError("Activated API health unavailable")
+        ready = client.get(url + "/ready")
+        if ready.status_code != 200 or ready.json().get("ready") is not True:
+            raise RuntimeError("Activated API dependencies unavailable")
+
+
 def check_studio(url: str, web_password: str):
     """Verify the real private UI/session/list/logout path before switching releases.
 
@@ -278,7 +290,7 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if already_delivered(root, sha):
             assert_service_release(root / "current")
-            check(f"http://127.0.0.1:{port}")
+            check_runtime_readonly(f"http://127.0.0.1:{port}")
             check_readonly_editorial(f"http://127.0.0.1:{port}", editorial_token)
             check_studio(f"http://127.0.0.1:{port}", web_password)
             print(json.dumps({"sha": sha, "delivery": "already_verified"}))
@@ -330,7 +342,7 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
                 "editorial-api.service", "--property=MainPID", "--value"], text=True).strip())
             if pid <= 0 or Path(f"/proc/{pid}/cwd").resolve(strict=True) != (root / "current").resolve(strict=True):
                 raise RuntimeError("Service did not start the selected release")
-            check(url)
+            check_runtime_readonly(url)
             check_readonly_editorial(url, editorial_token)
             check_studio(url, web_password)
         verify_approved_sha(sha)
