@@ -9,12 +9,14 @@ import binascii
 import os
 from pathlib import Path
 import struct
+from threading import BoundedSemaphore
 from uuid import UUID
 
 import httpx
 
 
 MAX_PNG_BYTES = 4 * 1024 * 1024
+image_gate = BoundedSemaphore(1)
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
