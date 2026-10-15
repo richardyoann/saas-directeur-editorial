@@ -25,17 +25,29 @@ class ImageUnavailable(Exception):
 
 
 def characters(board):
-    """Deduplicate character names while preserving their first appearance."""
-    items = {}
+    """Merge optional Qwen portraits with names used in each scene."""
+    entries = {}
+    for profile in board.get("cast") or []:
+        name = profile["name"].strip()
+        key = name.casefold()
+        if key not in entries:
+            entries[key] = {"name": name, "appearance": profile["appearance"],
+                            "personality": profile["personality"], "role": profile["role"],
+                            "first_scene": None, "scenes": []}
     for index, scene in enumerate(board.get("scenes", []), 1):
         for raw in scene.get("characters", []):
             name = raw.strip()
             key = name.casefold()
-            if key not in items:
-                items[key] = {"name": name, "first_scene": index, "scenes": []}
-            if index not in items[key]["scenes"]:
-                items[key]["scenes"].append(index)
-    return list(items.values())
+            if key not in entries:
+                entries[key] = {"name": name, "appearance": None,
+                                "personality": None, "role": None,
+                                "first_scene": index, "scenes": []}
+            person = entries[key]
+            if person["first_scene"] is None:
+                person["first_scene"] = index
+            if index not in person["scenes"]:
+                person["scenes"].append(index)
+    return list(entries.values())
 
 
 def image_prompt(run, scene_number):
@@ -46,12 +58,21 @@ def image_prompt(run, scene_number):
     scene = scenes[scene_number - 1]
     names = ", ".join(scene.get("characters", [])) or "aucun"
     palette = ", ".join(scene.get("colors", []))
+    portraits = [
+        f"{person['name']} : {person['appearance']}"
+        for person in characters(board)
+        if person.get("appearance") and any(
+            person["name"].casefold() == name.strip().casefold()
+            for name in scene.get("characters", [])
+        )
+    ]
     prompt = (
         "Illustration cinématique cohérente pour une légende bretonne. "
         "Aucune inscription ni texte dans l'image. "
         f"Scène {scene_number} : {scene['title']}. "
         f"Sujet : {scene['visual_description']}. "
         f"Personnages : {names}. "
+        f"Repères visuels permanents : {'; '.join(portraits) or 'non définis'}. "
         f"Paysage : {scene['landscape']}. "
         f"Palette : {palette}. "
         f"Cadrage : {scene['shot']}. "
