@@ -48,9 +48,17 @@ class Scene(StrictModel):
     image_prompt: Text
 
 
+class CharacterProfile(StrictModel):
+    name: ShortText
+    appearance: Text
+    personality: ShortText
+    role: ShortText
+
+
 class Storyboard(StrictModel):
     title: ShortText
     synopsis: Text
+    cast: list[CharacterProfile] = Field(default_factory=list, max_length=12)
     scenes: list[Scene] = Field(min_length=1, max_length=6)
 
     def validate_brief(self, brief: Brief):
