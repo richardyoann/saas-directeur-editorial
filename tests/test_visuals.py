@@ -37,6 +37,23 @@ class VisualContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([x["name"] for x in c], ["L'Ankou", "Marin", "Roi"])
         self.assertEqual(c[0]["scenes"], [1, 2])
 
+    async def test_qwen_character_profiles_anchor_multiple_scenes(self):
+        board = outputs()[1]
+        board["cast"] = [{"name": "Un marin", "appearance": "Manteau rouge et barbe grise",
+                          "personality": "Courageux", "role": "Héros"}]
+        people = characters(board)
+        self.assertEqual(people[0]["appearance"], "Manteau rouge et barbe grise")
+        prompt = image_prompt({"storyboard": board}, 2)
+        self.assertIn("Manteau rouge et barbe grise", prompt)
+
+    async def test_public_or_credentialed_image_provider_is_rejected(self):
+        from editorial.visuals import private_image_url
+        self.assertFalse(private_image_url("https://api.public.example"))
+        self.assertFalse(private_image_url("http://admin:secret@127.0.0.1:8082"))
+        self.assertFalse(private_image_url("http://127.0.0.1:8082/other"))
+        self.assertTrue(private_image_url("http://127.0.0.1:8082"))
+        self.assertTrue(private_image_url("http://172.31.48.1:8082"))
+
     async def test_prompt_contains_scene_information(self):
         scene = outputs()[1]["scenes"][0]
         text = image_prompt({"storyboard": {"scenes": [scene]}}, 1)
@@ -53,14 +70,14 @@ class VisualContractTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(__import__("json").loads(request.content)["response_format"], "b64_json")
             return httpx.Response(200, json={"data": [{"b64_json": base64.b64encode(PNG).decode()}]})
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            raw = await render_png(client, "http://images.test", "Une côte bretonne")
+            raw = await render_png(client, "http://127.0.0.1:8082", "Une côte bretonne")
         self.assertEqual(raw, PNG)
         self.assertEqual(validate_png(raw), (1, 1))
         async with httpx.AsyncClient(transport=httpx.MockTransport(
             lambda request: httpx.Response(200, json={"data": [{"url": "https://untrusted"}]})
         )) as client:
             with self.assertRaises(ImageUnavailable):
-                await render_png(client, "http://images.test", "test")
+                await render_png(client, "http://127.0.0.1:8082", "test")
         with self.assertRaises(ImageUnavailable):
             validate_png(b"<script>alert(1)</script>")
 
@@ -95,7 +112,7 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "EDITORIAL_API_TOKEN": "t" * 48,
             "EDITORIAL_TENANT_ID": str(self.tenant),
             "EDITORIAL_ACTOR_ID": str(self.actor),
-            "IMAGE_BASE_URL": "http://images.test",
+            "IMAGE_BASE_URL": "http://127.0.0.1:8082",
             "EDITORIAL_MEDIA_ROOT": self.media.name,
         })
         env.start()
