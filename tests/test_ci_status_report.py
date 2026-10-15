@@ -82,7 +82,7 @@ class AutomatedTriageTests(unittest.TestCase):
     def test_resolved_failure_comment_has_no_stale_repair_instruction(self):
         pr = {"head": {"sha": SHA}, "base": {"ref": "main"}, "state": "open"}
         old = {"id": 50, "user": {"type": "Bot"},
-               "body": reporter.MARKER + "\\n### Automated CI triage — Full regression"}
+               "body": reporter.MARKER + "\n### Automated CI triage — Full regression"}
         with patch.object(reporter, "api", side_effect=[
             pr, {"total_count": 1, "jobs": [{"name": "regression", "conclusion": "success"}]},
             [old], {"id": 50},
@@ -100,7 +100,7 @@ class AutomatedTriageTests(unittest.TestCase):
         summary = reporter.triage_comment(
             data["workflow_run"], reporter.classify_failure([{
                 "name": "audit", "conclusion": "failure"
-            }]))
+            }], "Dependency security audit"))
         self.assertIn("pip", summary)
         self.assertIn("manual", summary.lower())
         self.assertNotIn("raw log content", summary)
