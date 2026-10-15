@@ -125,7 +125,8 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.assertIn("Manteau de laine rouge", self.page.locator("#panel").inner_text())
         first = self.page.locator("#panel .visual-card").first
         self.assertTrue(first.get_by_role("button", name="Générer cette image").is_disabled())
-        self.assertIn("Manteau de laine rouge", first.locator("details").inner_text())
+        first.locator("summary").click()
+        self.assertIn("Manteau de laine rouge", first.locator("details p").inner_text())
         self.review("analysis")
         self.review("storyboard")
         self.page.locator('[data-tab="visuals"]').click()
