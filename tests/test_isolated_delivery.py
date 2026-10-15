@@ -147,6 +147,7 @@ class IsolatedPCReleaseTests(unittest.TestCase):
         self.assertEqual(body.count("idempotency_key=business_key"), 1)
         self.assertIn("env=candidate_env", body)
         self.assertIn("prepare_disposable_editorial_db(", body)
+        self.assertIn('command([python, "scripts/run_regression.py"], candidate, quiet=False, env=candidate_env)', body)
         self.assertIn("check_readonly_editorial(url, editorial_token)", body)
         self.assertIn("check_runtime_readonly(url)", body)
         self.assertNotIn("check(url)\n", body)
