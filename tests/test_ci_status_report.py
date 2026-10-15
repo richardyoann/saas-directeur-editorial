@@ -37,6 +37,15 @@ class AutomatedTriageTests(unittest.TestCase):
         self.assertIn(SHA, report)
         self.assertIn("**unknown**", reporter.release_packet(run, REPO, "") )
 
+    def test_dependency_release_packet_is_not_mislabeled_regression(self):
+        run = event("failure", "push")["workflow_run"]
+        run["name"] = "Dependency security audit"
+        report = reporter.release_packet(run, REPO, "false")
+        self.assertIn("Dependency security audit", report)
+        self.assertNotIn("GitHub regression:", report)
+        self.assertIn("**failure**", report)
+        self.assertIn("not performed", report)
+
     def test_stale_head_never_posts(self):
         with patch.object(reporter, "api", return_value={
             "head": {"sha": "b" * 40}, "base": {"ref": "main"}, "state": "open",
