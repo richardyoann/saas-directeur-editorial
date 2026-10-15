@@ -131,6 +131,10 @@ async function visuals(){
    const list=put(intro,"div","tags");
    for(const person of data.characters){
     put(list,"span","",person.name+" · scènes "+(person.scenes||[]).join(", "));
+    if(person.appearance){
+     const detail=put(intro,"p","","Apparence de "+person.name+" : "+person.appearance);
+     if(person.role)put(intro,"p","","Rôle : "+person.role+" · Personnalité : "+(person.personality||"non précisée"));
+    }
    }
   }
   if(!data.scenes?.length)return put(root,"div","empty-panel","Créez et révisez d'abord votre storyboard.");
