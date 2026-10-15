@@ -96,6 +96,9 @@ def triage_comment(run, outcome):
     workflow = run["name"]
     sha = run["head_sha"]
     status = run["conclusion"]
+    next_step = ("Latest check passed: the previous CI alert is resolved for this SHA. "
+                 "A passing check does not imply code review or PC deployment."
+                 if status == "success" else outcome["hint"])
     return ("{marker}\n"
             "### Automated CI triage — {workflow}\n"
             "- Head SHA: `{sha}`\n"
