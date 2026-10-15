@@ -116,13 +116,10 @@ class IsolatedPCReleaseTests(unittest.TestCase):
                 return (httpx.Response(200, json={"runs": []}) if
                         request.headers.get("authorization") else httpx.Response(401))
             return httpx.Response(404)
-        client = httpx.Client(transport=httpx.MockTransport(handler))
-        class Wrapper:
-            def __enter__(self):
-                return client
-            def __exit__(self, *args):
-                client.close()
-        with patch("httpx.Client", return_value=Wrapper()):
+        actual_client = httpx.Client
+        def client_factory(*args, **kwargs):
+            return actual_client(transport=httpx.MockTransport(handler))
+        with patch("httpx.Client", side_effect=client_factory):
             d.check_runtime_readonly("http://127.0.0.1:8000")
             d.check_readonly_editorial("http://127.0.0.1:8000", "x" * 40)
         self.assertEqual([x[1] for x in seen],
