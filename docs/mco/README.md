@@ -6,6 +6,7 @@
 
 | Besoin | Document |
 | --- | --- |
+| Résultat image incertain, timeout et fichier privé conservé | [Runbook images](IMAGE_GENERATION_RECOVERY.md) |
 | Comprendre l'incident du 14–15/10/2026 (symptômes, causes, corrections, preuves) | [INC-2026-10-14 — remise en service PC](INCIDENT_2026-10-14_REMISE_EN_SERVICE_PC.md) |
 | Diagnostiquer une panne aujourd'hui : commandes, tests, sauvegarde, mise en service | [RUNBOOK — diagnostic et reprise PC](RUNBOOK_DIAGNOSTIC_PC.md) |
 | Mécanisme de déploiement sécurisé et rollback | [AUTONOMOUS_DELIVERY](../AUTONOMOUS_DELIVERY.md) |

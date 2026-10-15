@@ -7,6 +7,11 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
+
+# Direct execution sets sys.path[0] to scripts/, not the repository root.
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import httpx
 
@@ -51,6 +56,8 @@ def main(argv=None):
     # Note: a models list is not proof of Vulkan, GPU execution or valid images.
     data["gpu_verified"] = False
     data["generation_verified"] = False
+    data["model_identity_verified"] = False
+    data["vram_peak_bytes"] = None
     print(json.dumps(data, sort_keys=True))
     return 0 if data["ready"] else 2
 

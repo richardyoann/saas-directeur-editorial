@@ -1,5 +1,15 @@
 # État du projet
 
+## Lot 2 — provenance et recette images, 15 octobre 2026
+
+Travail sur PR #87 : reçus de génération (empreintes, paramètres, personnages,
+durée), classification des erreurs incertaines, conservation du PNG sur perte
+d'acquittement DB et contrôle privé en lecture seule API/Studio/CLI. Aucun
+nouveau modèle ni seed inventée : informations absentes du contrat actuel.
+Tests ciblés locaux réussis ; régression PostgreSQL et navigateur à vérifier
+sur le SHA final. Aucun déploiement PC, rendu GPU ou acceptation artistique.
+Voir docs/MEDIA_002_IMAGE_RECEIPTS.md et docs/mco/IMAGE_GENERATION_RECOVERY.md.
+
 ## PO-001 — État vérifié le 12 octobre 2026 à 17:02 UTC
 
 Cette section actualise les constats historiques conservés ci-dessous.
