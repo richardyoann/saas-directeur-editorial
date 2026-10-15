@@ -220,6 +220,12 @@ async def image_generate(request: Request, run_id: UUID, scene_number: int):
         raise HTTPException(404, "Scène introuvable.")
     return await relay(request, "POST", f"/editorial/runs/{run_id}/scenes/{scene_number}/image")
 
+@router.get("/api/runs/{run_id}/visuals/verification")
+async def image_verification(request: Request, run_id: UUID,
+                             expected_scenes: int = Query(3, ge=1, le=6)):
+    return await relay(request, "GET",
+                       f"/editorial/runs/{run_id}/visuals/verification?expected_scenes={expected_scenes}")
+
 @router.get("/api/runs/{run_id}/scenes/{scene_number}/image")
 async def image_view(request: Request, run_id: UUID, scene_number: int):
     # Private image data is streamed through the session facade, never served

@@ -221,6 +221,73 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(plan["scenes"][0]["image_status"], "failed")
         self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 409)
 
+    async def test_receipts_three_images_readonly_verification_and_tamper(self):
+        from test_image_receipts import sample_scene
+        png = sample_scene()[1]
+        await self.approve()
+        base = f"/editorial/runs/{self.run_id}"
+        with patch("editorial.api.render_png", new_callable=AsyncMock, return_value=png) as render:
+            for i in range(1, 4):
+                response = await self.client.post(base + f"/scenes/{i}/image", headers=self.auth)
+                self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(render.await_count, 3)
+        counts_before = self.store.image_audit_counts(self.tenant, self.run_id)
+        response = await self.client.get(base + "/visuals/verification", headers=self.auth)
+        self.assertEqual(response.status_code, 200, response.text)
+        report = response.json()
+        self.assertTrue(report["technical_passed"], report)
+        self.assertTrue(report["duplicate_image_digests"])
+        self.assertFalse(report["gpu_verified"])
+        self.assertTrue(report["human_visual_review_required"])
+        self.assertEqual(self.store.image_audit_counts(self.tenant, self.run_id), counts_before)
+        self.assertEqual(list(counts_before.values()), [2, 2, 2])
+        plan = self.store.visual_plan(self.tenant, self.run_id)
+        self.assertNotIn("character_references", plan["scenes"][0]["generation"]["provenance"])
+        self.assertIsNone(plan["scenes"][0]["generation"]["provenance"]["seed"])
+        run = self.store.get(self.tenant, self.run_id)
+        path = Path(self.media.name) / str(self.tenant) / str(self.run_id) / (run["scene_ids"][0] + ".png")
+        path.write_bytes(png + b"tampered")
+        changed = (await self.client.get(base + "/visuals/verification", headers=self.auth)).json()
+        self.assertFalse(changed["technical_passed"])
+        self.assertIn("image_digest_mismatch_or_missing", changed["scenes"][0]["reasons"])
+        self.assertEqual((await self.client.get(base + "/visuals/verification")).status_code, 401)
+        with patch.dict(os.environ, {"EDITORIAL_TENANT_ID": str(uuid4())}):
+            self.assertEqual((await self.client.get(base + "/visuals/verification", headers=self.auth)).status_code, 404)
+
+    async def test_timeout_is_uncertain_and_does_not_repeat_provider_call(self):
+        await self.approve()
+        url = f"/editorial/runs/{self.run_id}/scenes/1/image"
+        with patch("editorial.api.render_png", new_callable=AsyncMock,
+                   side_effect=ImageUnavailable("image_provider_timeout")) as render:
+            self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 504)
+            self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 409)
+        self.assertEqual(render.await_count, 1)
+        generation = self.store.visual_plan(self.tenant, self.run_id)["scenes"][0]["generation"]
+        self.assertTrue(generation["outcome_uncertain"])
+        self.assertEqual(generation["error_code"], "image_provider_timeout")
+        self.assertGreaterEqual(generation["duration_seconds"], 0)
+
+    async def test_ambiguous_database_acknowledgement_preserves_private_png(self):
+        import psycopg
+        await self.approve()
+        url = f"/editorial/runs/{self.run_id}/scenes/1/image"
+        with patch("editorial.api.render_png", new_callable=AsyncMock, return_value=PNG), \
+             patch.object(self.store, "finish_image", side_effect=psycopg.OperationalError()):
+            self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 503)
+        run = self.store.get(self.tenant, self.run_id)
+        self.assertEqual(load_png(self.tenant, self.run_id, UUID(run["scene_ids"][0])), PNG)
+        self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 409)
+
+    async def test_reservation_rejects_a_stale_prompt_or_scene_identity(self):
+        from editorial.store import RunConflict
+        await self.approve()
+        plan = self.store.visual_plan(self.tenant, self.run_id)
+        for prompt, scene_id in [("stale prompt", UUID(plan["scenes"][0]["scene_id"])),
+                                 (plan["scenes"][0]["prompt"], uuid4())]:
+            with self.assertRaises(RunConflict):
+                self.store.begin_image(self.tenant, self.actor, self.run_id, 1, prompt, scene_id)
+        self.assertEqual(self.store.visual_plan(self.tenant, self.run_id)["scenes"][0]["image_status"], "not_generated")
+
 
 if __name__ == "__main__":
     unittest.main()

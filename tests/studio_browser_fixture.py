@@ -191,9 +191,25 @@ def visuals(run_id: UUID, authorization: str = Header("")):
             "scenes": [
                 {"scene_number": n, "scene_id": str(n), "title": scene["title"],
                  "prompt": image_prompt(record, n),
-                 "image_status": image_states.get((str(run_id), n), "not_generated")}
+                 "image_status": image_states.get((str(run_id), n), "not_generated"),
+                 "generation": {"duration_seconds": 1.25, "outcome_uncertain": False,
+                                "provenance": {"character_reference_sha256": "fixture"}}
+                    if (str(run_id), n) in image_states else None}
                 for n, scene in enumerate(board["scenes"], 1)
             ]}
+
+
+@app.get("/editorial/runs/{run_id}/visuals/verification")
+def verify_images(run_id: UUID, expected_scenes: int = Query(3, ge=1, le=6),
+                  authorization: str = Header("")):
+    require_token(authorization)
+    plan = visuals(run_id, authorization)
+    return {"run_id": str(run_id), "expected_scenes": expected_scenes,
+            "technical_passed": plan["approved"] and len(plan["scenes"]) == expected_scenes
+                and all(s["image_status"] == "ready" for s in plan["scenes"]),
+            "scenes": [{"passed": s["image_status"] == "ready"} for s in plan["scenes"]],
+            "gpu_verified": False, "human_visual_review_required": True,
+            "duplicate_image_digests": False}
 
 
 @app.post("/editorial/runs/{run_id}/scenes/{scene_number}/image")

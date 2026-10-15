@@ -2,6 +2,9 @@
 
 ## But et statut
 
+Provenance, durée et contrôle sans génération :
+[MEDIA_002_IMAGE_RECEIPTS.md](MEDIA_002_IMAGE_RECEIPTS.md).
+
 Cette évolution prépare un serveur d'images **local et privé** pour le PC
 Windows 11, RX 580 8 Go, et l'application Arvor Studio dans Ubuntu WSL.
 Elle valide le **contrat réel HTTP** d'un serveur compatible

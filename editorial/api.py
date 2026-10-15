@@ -1,5 +1,7 @@
 import hmac
+import hashlib
 import os
+import time
 from dataclasses import dataclass
 from uuid import UUID
 from typing import Literal
@@ -201,7 +203,7 @@ def create_router(get_llm_client):
                 await run_in_threadpool(media_location, identity.tenant, run_id, UUID(scene["scene_id"]))
                 scene_id, _ = await run_in_threadpool(
                     store.begin_image, identity.tenant, identity.actor,
-                    run_id, scene_number, scene["prompt"])
+                    run_id, scene_number, scene["prompt"], UUID(scene["scene_id"]))
             except RunMissing:
                 raise HTTPException(404, "Scène introuvable.") from None
             except RunConflict:
@@ -211,6 +213,7 @@ def create_router(get_llm_client):
             except psycopg.Error:
                 raise HTTPException(503, "Persistance éditoriale indisponible.") from None
 
+            started = time.monotonic()
             try:
                 png = await render_png(client, base, scene["prompt"])
                 width, height = validate_png(png)
@@ -218,21 +221,53 @@ def create_router(get_llm_client):
                 try:
                     return JSONResponse(await run_in_threadpool(
                         store.finish_image, identity.tenant, identity.actor,
-                        run_id, scene_id, width=width, height=height
+                        run_id, scene_id, width=width, height=height,
+                        duration_seconds=round(time.monotonic() - started, 6),
+                        png_sha256=hashlib.sha256(png).hexdigest(), byte_count=len(png)
                     ), status_code=201)
                 except (RunConflict, RunMissing, psycopg.Error):
-                    path.unlink(missing_ok=True)
+                    # A DB commit can succeed even if its acknowledgement is lost.
+                    # Preserve the private file for explicit reconciliation.
                     raise HTTPException(503, "État de l'image non confirmé : intervention requise.") from None
-            except ImageUnavailable:
+            except ImageUnavailable as exc:
                 try:
                     await run_in_threadpool(store.finish_image, identity.tenant,
                                             identity.actor, run_id, scene_id,
-                                            error_code="image_provider_invalid_or_unavailable")
+                                            error_code=exc.code,
+                                            duration_seconds=round(time.monotonic() - started, 6))
                 except (RunConflict, RunMissing, psycopg.Error):
                     raise HTTPException(503, "Résultat d'image incertain : intervention requise.") from None
+                if exc.code in {"image_provider_timeout", "image_provider_response_uncertain"}:
+                    raise HTTPException(504 if exc.code == "image_provider_timeout" else 502,
+                                        "Résultat d'image incertain : vérifiez le moteur avant toute reprise.") from None
                 raise HTTPException(502, "Génération d'image échouée, sans rejeu automatique.") from None
         finally:
             image_gate.release()
+
+    @router.get("/runs/{run_id}/visuals/verification")
+    async def verify_images(run_id: UUID,
+                            expected_scenes: int = Query(default=3, ge=1, le=6),
+                            identity: Identity = Depends(get_identity),
+                            store: PostgresStore = Depends(get_store)):
+        from editorial.image_verification import verify_scene, verification_report
+        try:
+            plan = await run_in_threadpool(store.visual_plan, identity.tenant, run_id)
+            counts = await run_in_threadpool(store.image_audit_counts, identity.tenant, run_id)
+            checks = []
+            for scene in plan["scenes"]:
+                png = None
+                if plan["approved"] and scene["image_status"] == "ready":
+                    try:
+                        png = await run_in_threadpool(load_png, identity.tenant, run_id,
+                                                      UUID(scene["scene_id"]))
+                    except ImageUnavailable:
+                        pass
+                checks.append(verify_scene(scene, png, counts.get(scene["scene_id"], 0)))
+            return verification_report(plan, checks, expected_scenes)
+        except RunMissing:
+            raise HTTPException(404, "Histoire introuvable.") from None
+        except psycopg.Error:
+            raise HTTPException(503, "Persistance éditoriale indisponible.") from None
 
     @router.get("/runs/{run_id}/scenes/{scene_number}/image")
     async def download_image(run_id: UUID, scene_number: int,

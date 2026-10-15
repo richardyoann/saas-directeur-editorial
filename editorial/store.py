@@ -375,14 +375,26 @@ class PostgresStore:
                     "AND entity_id=%s AND NOT deleted", (tenant, asset_id),
                 ).fetchone()
                 asset = record[0] if record and record[0].get("scenario_id") == run.get("scenario_id") else None
+                generation = None
+                if asset:
+                    generation = {key: asset.get(key) for key in (
+                        "created_at", "finished_at", "duration_seconds", "error_code",
+                        "png_sha256", "byte_count", "width", "height", "provenance",
+                        "outcome_uncertain", "code_version", "scenario_id")}
+                    # Full character/prompt snapshots stay in the private audit record.
+                    if generation["provenance"]:
+                        generation["provenance"] = {
+                            key: value for key, value in generation["provenance"].items()
+                            if key != "character_references"}
                 entries.append({"scene_number": i, "scene_id": scene_id,
                                 "title": board["scenes"][i - 1]["title"],
                                 "prompt": image_prompt(run, i),
-                                "image_status": asset.get("status", "not_generated") if asset else "not_generated"})
+                                "image_status": asset.get("status", "not_generated") if asset else "not_generated",
+                                "generation": generation})
             return {"run_id": str(run_id), "characters": characters(board),
                     "scenes": entries, "approved": run["status"] == "approved"}
 
-    def begin_image(self, tenant, actor, run_id, scene_number, prompt):
+    def begin_image(self, tenant, actor, run_id, scene_number, prompt, expected_scene_id=None):
         """Reserve image exactly once; audit and outbox share the transaction."""
         with self.connect() as conn:
             row = conn.execute(
@@ -395,6 +407,10 @@ class PostgresStore:
             if run.get("status") != "approved" or run.get("storyboard_stale"):
                 raise RunConflict()
             scene_id = self._visual_scene(run, scene_number)
+            from editorial.visuals import image_prompt, image_provenance
+            if ((expected_scene_id is not None and scene_id != expected_scene_id)
+                    or prompt != image_prompt(run, scene_number)):
+                raise RunConflict()
             asset_id = self._visual_id(scene_id)
             existing = conn.execute(
                 "SELECT 1 FROM po_entity WHERE tenant_id=%s AND kind='result' "
@@ -407,10 +423,13 @@ class PostgresStore:
                         {"type": "scene_image_asset", "run_id": str(run_id),
                          "scenario_id": run["scenario_id"], "scene_id": str(scene_id),
                          "scene_number": scene_number, "status": "generating",
-                         "prompt": prompt, "created_at": now()})
+                         "prompt": prompt, "created_at": now(),
+                         "code_version": runtime_code_version(),
+                         "provenance": image_provenance(run, scene_number, prompt)})
             return scene_id, asset_id
 
-    def finish_image(self, tenant, actor, run_id, scene_id, *, width=None, height=None, error_code=None):
+    def finish_image(self, tenant, actor, run_id, scene_id, *, width=None, height=None,
+                     error_code=None, duration_seconds=None, png_sha256=None, byte_count=None):
         """Finalize exact reserved record; never overwrite an earlier asset."""
         with self.connect() as conn:
             asset_id = self._visual_id(scene_id)
@@ -430,12 +449,31 @@ class PostgresStore:
             if not current or current[0].get("scenario_id") != record["scenario_id"] or current[0].get("status") != "approved":
                 raise RunConflict()
             record.update(status="failed" if error_code else "ready",
-                          finished_at=now(), error_code=error_code)
+                          finished_at=now(), error_code=error_code,
+                          duration_seconds=duration_seconds,
+                          outcome_uncertain=error_code in {
+                              "image_provider_timeout", "image_provider_response_uncertain"})
             if not error_code:
-                record.update(width=width, height=height, mime_type="image/png")
+                record.update(width=width, height=height, mime_type="image/png",
+                              png_sha256=png_sha256, byte_count=byte_count)
             self._write(conn, tenant, actor, run_id, "result", asset_id, record, version)
             return {"scene_number": record["scene_number"], "status": record["status"],
-                    "width": record.get("width"), "height": record.get("height")}
+                    "width": record.get("width"), "height": record.get("height"),
+                    "duration_seconds": duration_seconds}
+
+    def image_audit_counts(self, tenant, run_id):
+        """Read-only evidence, scoped to the current run and its current scenes."""
+        run = self.get(tenant, run_id)
+        with self.connect() as conn:
+            counts = {}
+            for scene_id in run.get("scene_ids") or []:
+                asset_id = self._visual_id(UUID(scene_id))
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM po_audit a JOIN po_outbox o USING(event_id) "
+                    "WHERE a.tenant_id=%s AND a.kind='result' AND a.entity_id=%s AND a.correlation_id=%s",
+                    (tenant, asset_id, run_id)).fetchone()[0]
+                counts[scene_id] = count
+            return counts
 
     def image_asset(self, tenant, run_id, scene_number):
         with self.connect() as conn:

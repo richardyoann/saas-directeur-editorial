@@ -6,6 +6,8 @@ one image for one approved scene; no implicit retries or publication.
 """
 import base64
 import binascii
+import hashlib
+import json
 import ipaddress
 import os
 from pathlib import Path
@@ -24,6 +26,27 @@ PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 class ImageUnavailable(Exception):
     """Absent provider, inaccessible model, invalid/unsafe output or timeout."""
+
+    def __init__(self, code="image_provider_invalid_or_unavailable"):
+        self.code = code
+        super().__init__(code)
+
+
+IMAGE_PARAMETERS = {"n": 1, "size": "512x512", "output_format": "png"}
+
+
+def image_provenance(run, scene_number, prompt):
+    """Snapshot what we actually control, without claiming engine telemetry."""
+    references = characters(run.get("storyboard") or {})
+    canonical = json.dumps(references, sort_keys=True, ensure_ascii=False,
+                           separators=(",", ":"))
+    return {"contract_version": "private-image-v2", "provider": "sd.cpp-compatible",
+            "parameters": dict(IMAGE_PARAMETERS), "model": None, "seed": None,
+            "model_seed_reason": "not_reported_by_image_contract",
+            "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+            "character_reference_sha256": hashlib.sha256(canonical.encode()).hexdigest(),
+            "character_references": references, "scene_number": scene_number,
+            "gpu_verified": False, "vram_peak_bytes": None}
 
 
 def characters(board):
@@ -128,10 +151,14 @@ async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str):
     try:
         response = await client.post(
             base_url.rstrip("/") + "/v1/images/generations",
-            json={"prompt": prompt, "n": 1, "size": "512x512", "output_format": "png"},
+            json={"prompt": prompt, **IMAGE_PARAMETERS},
             timeout=120.0
         )
-        if response.status_code != 200 or len(response.content) > MAX_PNG_BYTES * 2:
+        if response.status_code >= 500:
+            raise ImageUnavailable("image_provider_response_uncertain")
+        if response.status_code != 200:
+            raise ImageUnavailable("image_provider_rejected")
+        if len(response.content) > MAX_PNG_BYTES * 2:
             raise ImageUnavailable()
         payload = response.json()
         entries = payload.get("data") if isinstance(payload, dict) else None
@@ -141,7 +168,11 @@ async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str):
         data = base64.b64decode(encoded, validate=True)
         validate_png(data)
         return data
-    except (httpx.HTTPError, ValueError, KeyError, TypeError, binascii.Error) as exc:
+    except httpx.TimeoutException:
+        raise ImageUnavailable("image_provider_timeout") from None
+    except httpx.HTTPError:
+        raise ImageUnavailable("image_provider_response_uncertain") from None
+    except (ValueError, KeyError, TypeError, binascii.Error):
         raise ImageUnavailable() from None
 
 

@@ -126,6 +126,20 @@ async function visuals(){
   put(intro,"div","overline","DIRECTION ARTISTIQUE");
   put(intro,"h3","","Personnages & images par scène");
   put(intro,"p","","Personnages extraits du storyboard généré par Qwen. Une image est produite uniquement sur demande, après validation humaine, par un modèle d'images distinct.");
+  put(intro,"p","","La cohérence visuelle reste à vérifier après génération. Le modèle exact, la seed et la mémoire GPU ne sont pas communiqués par ce moteur.");
+  const verify=put(intro,"button","btn","Vérifier les images et leur historique");
+  verify.type="button";
+  const verification=put(intro,"p","","Aucun contrôle d'intégrité lancé.");
+  verify.addEventListener("click",async()=>{
+   verify.disabled=true;
+   try{
+    const report=await api("/studio/api/runs/"+id+"/visuals/verification?expected_scenes="+data.scenes.length);
+    verification.textContent=(report.technical_passed?"Intégrité et historique vérifiés.":"Contrôle incomplet : vérifiez les images et leur historique.")+
+     " Validation visuelle humaine requise. GPU et VRAM non mesurés.";
+    if(report.duplicate_image_digests)verification.textContent+=" Plusieurs scènes utilisent une image identique : à vérifier.";
+   }catch(e){verification.textContent=message(e);}
+   finally{verify.disabled=false;}
+  });
   if(!data.characters?.length)put(intro,"p","","Aucun personnage nommé dans ce récit.");
   else{
    const list=put(intro,"div","tags");
@@ -151,6 +165,14 @@ async function visuals(){
    }else put(card,"div","visual-placeholder","Image : "+({
     not_generated:"non générée",generating:"génération en cours",
     failed:"échec à diagnostiquer"}[item.image_status]||item.image_status));
+   const generation=item.generation;
+   if(generation){
+    if(Number.isFinite(generation.duration_seconds))put(card,"p","","Durée : "+generation.duration_seconds.toFixed(2)+" s");
+    if(generation.provenance?.character_reference_sha256)put(card,"p","","Repères personnages conservés dans l'historique.");
+    if(generation.outcome_uncertain||item.image_status==="generating")
+     put(card,"p","warning","Résultat en attente ou incertain. Vérifiez le moteur avant toute reprise ; aucune nouvelle génération automatique.");
+    else if(item.image_status==="failed")put(card,"p","warning","Génération échouée. Le diagnostic est conservé ; aucune relance automatique.");
+   }
    const details=put(card,"details");
    put(details,"summary","","Consulter le prompt image");
    put(details,"p","",item.prompt);
