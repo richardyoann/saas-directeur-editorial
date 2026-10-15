@@ -6,7 +6,7 @@ from typing import Literal
 
 import psycopg
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
@@ -15,6 +15,7 @@ from editorial.models import Brief, ReviewDecision
 from editorial.service import run_workflow
 from editorial.store import PostgresStore, RunConflict, RunMissing, ReviewInvalid
 from editorial.worker_guard import WorkerOffline
+from editorial.visuals import ImageUnavailable, image_gate, media_location, load_png, render_png, save_png, validate_png
 
 security = HTTPBearer(auto_error=False)
 
@@ -162,6 +163,90 @@ def create_router(get_llm_client):
                     "next_before_revision": reviews[limit-1]["revision"] if len(reviews) > limit else None}
         except RunMissing:
             raise HTTPException(404, "Exécution introuvable.") from None
+        except psycopg.Error:
+            raise HTTPException(503, "Persistance éditoriale indisponible.") from None
+
+    @router.get("/runs/{run_id}/visuals")
+    async def get_visuals(run_id: UUID, identity: Identity = Depends(get_identity),
+                          store: PostgresStore = Depends(get_store)):
+        try:
+            return await run_in_threadpool(store.visual_plan, identity.tenant, run_id)
+        except RunMissing:
+            raise HTTPException(404, "Histoire introuvable.") from None
+        except psycopg.Error:
+            raise HTTPException(503, "Persistance éditoriale indisponible.") from None
+
+    @router.post("/runs/{run_id}/scenes/{scene_number}/image")
+    async def generate_image(run_id: UUID, scene_number: int,
+                             identity: Identity = Depends(get_identity),
+                             store: PostgresStore = Depends(get_store),
+                             client=Depends(get_llm_client)):
+        # Images require a separate, explicitly configured provider. Qwen is
+        # text-only here. One scene is initiated by an explicit user action.
+        base = os.getenv("IMAGE_BASE_URL", "")
+        if not base.startswith(("http://", "https://")) or not os.getenv("EDITORIAL_MEDIA_ROOT"):
+            raise HTTPException(503, "Générateur d'images privé non configuré.")
+        if not image_gate.acquire(blocking=False):
+            raise HTTPException(429, "Génération d'image occupée.",
+                                headers={"Retry-After": "30"})
+        try:
+            try:
+                plan = await run_in_threadpool(store.visual_plan, identity.tenant, run_id)
+                if not plan["approved"]:
+                    raise HTTPException(409, "Le scénario doit être approuvé avant les images.")
+                if scene_number < 1 or scene_number > len(plan["scenes"]):
+                    raise HTTPException(404, "Scène introuvable.")
+                scene = plan["scenes"][scene_number - 1]
+                # Refuse an unconfigured storage location before claiming the job.
+                await run_in_threadpool(media_location, identity.tenant, run_id, UUID(scene["scene_id"]))
+                scene_id, _ = await run_in_threadpool(
+                    store.begin_image, identity.tenant, identity.actor,
+                    run_id, scene_number, scene["prompt"])
+            except RunMissing:
+                raise HTTPException(404, "Scène introuvable.") from None
+            except RunConflict:
+                raise HTTPException(409, "Image déjà demandée ou scénario modifié.") from None
+            except ImageUnavailable:
+                raise HTTPException(503, "Stockage privé des images indisponible.") from None
+            except psycopg.Error:
+                raise HTTPException(503, "Persistance éditoriale indisponible.") from None
+
+            try:
+                png = await render_png(client, base, scene["prompt"])
+                width, height = validate_png(png)
+                path = await run_in_threadpool(save_png, identity.tenant, run_id, scene_id, png)
+                try:
+                    return JSONResponse(await run_in_threadpool(
+                        store.finish_image, identity.tenant, identity.actor,
+                        run_id, scene_id, width=width, height=height
+                    ), status_code=201)
+                except (RunConflict, RunMissing, psycopg.Error):
+                    path.unlink(missing_ok=True)
+                    raise HTTPException(503, "État de l'image non confirmé : intervention requise.") from None
+            except ImageUnavailable:
+                try:
+                    await run_in_threadpool(store.finish_image, identity.tenant,
+                                            identity.actor, run_id, scene_id,
+                                            error_code="image_provider_invalid_or_unavailable")
+                except (RunConflict, RunMissing, psycopg.Error):
+                    raise HTTPException(503, "Résultat d'image incertain : intervention requise.") from None
+                raise HTTPException(502, "Génération d'image échouée, sans rejeu automatique.") from None
+        finally:
+            image_gate.release()
+
+    @router.get("/runs/{run_id}/scenes/{scene_number}/image")
+    async def download_image(run_id: UUID, scene_number: int,
+                             identity: Identity = Depends(get_identity),
+                             store: PostgresStore = Depends(get_store)):
+        try:
+            scene_id = await run_in_threadpool(store.image_asset, identity.tenant, run_id, scene_number)
+            png = await run_in_threadpool(load_png, identity.tenant, run_id, scene_id)
+            return Response(png, media_type="image/png", headers={
+                "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "default-src 'none'"
+            })
+        except (RunMissing, ImageUnavailable):
+            raise HTTPException(404, "Image privée introuvable.") from None
         except psycopg.Error:
             raise HTTPException(503, "Persistance éditoriale indisponible.") from None
 
