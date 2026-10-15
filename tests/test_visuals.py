@@ -62,6 +62,10 @@ class VisualContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(private_image_url("https://api.public.example"))
         self.assertFalse(private_image_url("http://admin:secret@127.0.0.1:8082"))
         self.assertFalse(private_image_url("http://127.0.0.1:8082/other"))
+        self.assertFalse(private_image_url("http://169.254.169.254"))
+        self.assertFalse(private_image_url("http://0.0.0.0:8082"))
+        self.assertFalse(private_image_url("http://[fe80::1]:8082"))
+        self.assertFalse(private_image_url("http://[::ffff:169.254.169.254]:8082"))
         self.assertTrue(private_image_url("http://127.0.0.1:8082"))
         self.assertTrue(private_image_url("http://172.31.48.1:8082"))
 
