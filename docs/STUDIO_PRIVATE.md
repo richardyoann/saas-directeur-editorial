@@ -61,3 +61,15 @@ Toute future activation PC exige désormais un `EDITORIAL_WEB_PASSWORD` différe
 La route de compatibilité `/ai/generate` n'accepte plus d'amorçage anonyme hors boucle locale; dès qu'une identité éditoriale est configurée, son jeton reste obligatoire. La capacité de génération est bornée à deux exécutions simultanées par processus avec HTTP 429 en surcharge. Cette protection n'est pas un quota SaaS distribué et ne remplace pas une limitation par utilisateur ou tenant.
 
 Les tests de sécurité et de livraison sont exécutés en CI sur PostgreSQL jetable et via HTTP simulé; aucune configuration PC ni base utilisateur n'est modifiée par les tests.
+
+
+## Personnages et visuels privés (MEDIA-001, code proposé)
+
+Un nouvel onglet Studio recense les personnages (fiches Qwen facultatives,
+compatibilité des anciennes histoires), leurs apparitions et les prompts image.
+La génération d'images requiert la validation de l'analyse et du storyboard,
+une action explicite par scène, un modèle d'images local distinct de Qwen et
+le stockage `EDITORIAL_MEDIA_ROOT`. L'asset PNG n'est accessible que sous
+session Studio ou API authentifiée ; les statuts sont historisés avec audit.
+Le modèle d'images **n'est pas installé** par cette évolution. Cf.
+[MEDIA_001_VISUAL_INTEGRATION.md](MEDIA_001_VISUAL_INTEGRATION.md).
