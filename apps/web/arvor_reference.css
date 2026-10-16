@@ -187,3 +187,99 @@ h1,h2,h3,h4{color:#264436;font-family:Georgia,serif;font-weight:500}
 .arvor-story-filters button{border:0;border-radius:5px;background:transparent;padding:10px 13px;color:#677e6d;font-size:12px;cursor:pointer}
 .arvor-story-filters button.active,.arvor-story-filters button:hover{background:#e8efe4;color:#264936}
 .arvor-story-filters button:focus-visible{outline:3px solid #a9914a;outline-offset:2px}
+
+
+/* Art direction approved for Arvor: 2026 design reference.
+   Font families are local-first: the private Studio makes no external font request. */
+:root{
+ --arvor-forest:#132b23;--arvor-sage:#52796f;--arvor-gold:#c5a059;
+ --arvor-moss:#84a98c;--arvor-parchment:#f9faf7;
+ --navy:var(--arvor-forest);--teal:var(--arvor-sage);
+ --sand:var(--arvor-gold);--arvor-text:#243d33;
+ font-family:"Plus Jakarta Sans",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+body{font-family:"Plus Jakarta Sans",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+h1,h2,h3,h4,.sidebar .wordmark b,.story-tile-content strong,
+.arvor-stat strong,.metric strong,.arvor-calendar-toolbar strong{
+ font-family:"Playfair Display",Georgia,"Times New Roman",serif;
+}
+.sidebar{background:var(--arvor-forest)}
+.btn.primary{background:var(--arvor-forest)}
+.btn.primary:hover:not(:disabled){background:#264d3e}
+.sidebar .nav-item.selected,.sidebar .nav-item:hover{background:#285040}
+.sidebar .wordmark>span{color:var(--arvor-gold)}
+.story-back{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.story-back .btn{font-size:12px}
+.story-location{font-size:12px;color:#52796f}
+.story-location:not(:empty):before{content:"⌖  "}
+#detail .detail-header{align-items:center;gap:22px;margin-bottom:23px}
+#detail .detail-header>div:first-child{min-width:0;flex:1}
+#detail .detail-header h2{
+ font-size:clamp(29px,3.5vw,46px);line-height:1.16;color:#203e31;
+ overflow-wrap:anywhere
+}
+#detail .detail-header p{color:#617a68;font-size:13px;max-width:760px;line-height:1.7}
+#detail .detail-header .actions{justify-content:flex-end}
+#detail .detail-header .actions>.btn{white-space:nowrap}
+#detail .detail-header .actions>.pill{border-radius:6px}
+.story-detail-banner{
+ height:clamp(175px,25vw,305px);position:relative;overflow:hidden;
+ border-radius:9px;margin-bottom:23px;
+ background:linear-gradient(118deg,#152f26,#305344 55%,#587866);
+}
+.story-detail-banner>img{display:block;width:100%;height:100%;object-fit:cover}
+.story-cover-placeholder{
+ width:100%;height:100%;display:flex;flex-direction:column;gap:8px;
+ align-items:center;justify-content:center;color:#e8eddf;text-align:center
+}
+.story-cover-placeholder>span{font-size:54px;line-height:1;color:#c5a059}
+.story-cover-placeholder>strong{
+ font-size:clamp(22px,3vw,36px);font-family:"Playfair Display",Georgia,serif;font-weight:400
+}
+.story-cover-placeholder>small{font-size:12px;color:#bed2c3}
+.composer-hide{display:none!important}
+.story-composer{padding:4px 0 14px;display:grid;gap:2px}
+.story-composer[hidden]{display:none!important}
+.story-composer .nav-title{margin-top:17px;margin-bottom:10px}
+.story-composer .nav-title:first-child{margin-top:0}
+.composer-link{
+ display:flex;align-items:center;text-align:left;width:100%;gap:11px;
+ padding:11px 10px;border:0;border-radius:6px;background:none;
+ color:#cce0d3;font-size:12px;cursor:pointer;
+}
+.composer-link:hover,.composer-link.active{background:#315c49;color:#fff}
+.composer-link:focus-visible{outline:3px solid #d3b477;outline-offset:1px}
+.composer-icon{width:20px;flex:0 0 20px;text-align:center;color:#cfba84;font-size:16px}
+.composer-label{flex:1}
+.composer-count{font-size:11px;color:#acc8b5}
+.composer-memory{padding-top:11px;border-top:1px solid #355345}
+.composer-hint{padding:12px;color:#acc8b5;font-size:11px;line-height:1.6}
+.composer-collection{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:19px}
+.composer-collection-card{
+ border:1px solid #dbe4d8;background:#fff;color:#284435;border-radius:7px;
+ text-align:left;padding:24px;min-height:145px;display:flex;flex-direction:column;
+ gap:10px;cursor:pointer;line-height:1.6
+}
+.composer-collection-card:hover{border-color:#84a98c;box-shadow:0 8px 20px #122b2310}
+.composer-collection-card strong{font-family:"Playfair Display",Georgia,serif;font-size:21px;font-weight:500}
+.composer-collection-card p{font-size:12px;color:#536d5e;margin:0}
+#detail .progress{background:#edf2eb;border:1px solid #dbe5dc;border-radius:7px}
+#detail .progress>div span{border-color:#b5cdb9}
+#detail .card,#detail .scene,#detail .element-row{border-radius:7px}
+#detail .tabs button.active{color:#315b45;border-bottom-color:#315b45}
+#detail .review-buttons .btn.primary{background:#23503e}
+@media(max-width:1100px){
+ #detail .detail-header{align-items:flex-start;flex-direction:column}
+ #detail .detail-header .actions{justify-content:flex-start}
+}
+@media(max-width:780px){
+ .story-detail-banner{height:195px}
+ #detail .detail-header h2{font-size:31px}
+ .story-back{margin-top:12px}
+}
+
+/* Honest checklist-based GitHub epic progress. */
+.arvor-epic-progress{width:125px;max-width:100%;height:9px;border:0;accent-color:#52796f;flex:0 1 125px}
+.arvor-epic-progress::-webkit-progress-bar{background:#e6ede6;border-radius:15px}
+.arvor-epic-progress::-webkit-progress-value{background:#52796f;border-radius:15px}
+.arvor-epic-progress::-moz-progress-bar{background:#52796f;border-radius:15px}
