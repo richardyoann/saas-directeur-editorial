@@ -376,6 +376,15 @@ class StudioBrowserJourneys(unittest.TestCase):
         expect(self.page.locator("#library")).to_be_visible()
         self.assertTrue(composer.is_hidden())
 
+    def test_next_studio_private_login_and_library(self):
+        self.page.goto(self.base + "/studio/next")
+        expect(self.page.locator("#login-screen")).to_be_visible()
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        expect(self.page.locator("#studio-shell")).to_be_visible()
+        self.page.locator("#side-create").click()
+        expect(self.page.locator("#editor")).to_be_visible()
+
     def test_accessible_tab_navigation_and_small_text_contrast(self):
         self.sign_in()
         self.page.locator("#heroCreate").click()
