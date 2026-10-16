@@ -194,6 +194,13 @@ function openEditor(mode){
  $('#editor-title').textContent=title;$('#editor-kicker').textContent=kick;fields(rows);$('#editor').showModal();
  $('#editor-fields input, #editor-fields textarea, #editor-fields select')?.focus();
 }
+async function saveRemoteEditor(input){
+ try{
+  if(editorAction==='new')await createRemote(input);
+  else if(editorAction==='story'||editorAction==='scene')await reviseRemote(input);
+  else showToast('Ajout autonome de scène non disponible : le nombre de scènes est fixé par le brief.');
+ }catch(error){showToast('Enregistrement refusé : '+error.message)}
+}
 async function saveEditor(e){e.preventDefault();const input=Object.fromEntries(new FormData($('#editor-form')).entries());await saveRemoteEditor(input)}
 function exportStory(){const s=story(state.storyId);if(!s)return;const blob=new Blob([JSON.stringify({format:'arvor-story-demo-v1',exported_at:new Date().toISOString(),story:s},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='arvor-'+s.id+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Export JSON préparé.');}
 $$('[data-route]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.route)));
