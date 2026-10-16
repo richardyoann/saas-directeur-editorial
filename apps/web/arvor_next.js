@@ -158,6 +158,17 @@ async function loadMedia(){
   if(state.storyId===id&&state.panel==='media'){mediaData={visuals,media};render()}
  }catch(e){showToast('Catalogue indisponible : '+e.message)}
 }
+function renderHistory(){
+ const steps=historyData?.steps||[];
+ return panelHeader('MÉMOIRE ÉDITORIALE','Historique des traitements','Prompts, résultats et erreurs issus de la chaîne IA.')
+  +`<section class="panel">${steps.length?steps.map((item,i)=>`<details class="mini-row"><summary>Étape ${i+1} · ${escapeHtml(item.order===0?'Analyse':'Storyboard')}</summary><h4>Prompt</h4><pre>${escapeHtml(typeof item.prompt==='string'?item.prompt:JSON.stringify(item.prompt,null,2))}</pre><h4>Sortie structurée</h4><pre>${escapeHtml(typeof item.parsed==='string'?item.parsed:JSON.stringify(item.parsed,null,2))}</pre></details>`).join(''):'<p>Aucun traitement chargé.</p>'}</section>`;
+}
+async function loadHistory(){
+ const id=state.storyId;
+ try{const response=await api('/studio/api/runs/'+encodeURIComponent(id)+'/history');
+ if(state.storyId===id&&state.panel==='history'){historyData=response;render()}
+ }catch(err){showToast(err.message)}
+}
 function renderAtelierPanel(s){
  const k=state.panel;
  if(k==='overview')return panelHeader('LA TRAME DE VOTRE RÉCIT','Une histoire, tout un univers.','Un aperçu clair de votre narration, de vos scènes et de votre distribution.')+`<div class="panel-grid"><div><section class="panel"><div class="eyebrow">SYNOPSIS</div><h3 style="margin-top:9px">L’essentiel du récit</h3><p>${escapeHtml(s.summary)}</p>${btn('Modifier le synopsis','edit','small','data-action="edit-story"')}</section><section class="panel"><div class="section-head"><div><div class="eyebrow">DÉCOUPAGE</div><h3 style="margin:7px 0">Le fil des scènes</h3></div>${btn('Ajouter une scène','plus','small','data-action="add-scene"')}</div>${sceneRows(s)}</section></div><div><section class="panel"><div class="eyebrow">FICHE ÉDITORIALE</div><h3 style="margin:9px 0">Repères</h3>${[['Univers',s.place],['Statut',s.status],['Scènes',s.scenes.length],['Dernière édition',formatDay(s.updated)]].map(([n,v])=>`<div class="mini-row"><b>${n}</b><span>${escapeHtml(v)}</span></div>`).join('')}</section><section class="panel"><div class="eyebrow">DISTRIBUTION</div><h3 style="margin:9px 0">Personnages</h3>${s.characters.map(p=>`<div class="mini-row"><b>${escapeHtml(p.name)}</b><span>${escapeHtml(p.role)}</span></div>`).join('')||'<p>Personnages à créer.</p>'}</section></div></div>`;
