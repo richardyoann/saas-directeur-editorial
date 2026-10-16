@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>Arvor · Directeur éditorial</title>
+  <title>Arvor Studio · Directeur éditorial</title>
   <link rel="stylesheet" href="/studio/assets/studio.css">
   <script defer src="/studio/assets/studio.js"></script>
 </head>
@@ -19,8 +19,7 @@
     <div class="wordmark"><span>✦</span><b>ARVOR</b><small>STUDIO</small></div>
     <div class="nav-title">ESPACE DE TRAVAIL</div>
     <button id="home" class="nav-item selected" type="button">▦ &nbsp; Histoires <span id="count" class="count">0</span></button>
-    <button id="journalNav" class="nav-item" type="button">◷ &nbsp; Journal de création</button>
-    <button id="conceptionNav" class="nav-item" type="button">♧ &nbsp; Administration</button>
+    <button id="conceptionNav" class="nav-item" type="button">▤ &nbsp; Conception</button>
     <button id="sideCreate" class="nav-item" type="button">＋ &nbsp; Nouvelle histoire</button>
     <div class="nav-title stories-title">MES HISTOIRES</div>
     <label class="search"><span class="sr-only">Rechercher dans les histoires chargées</span><input id="filter" type="search" placeholder="⌕  Rechercher une histoire…"></label>
@@ -35,10 +34,9 @@
       <div class="metrics"><div class="metric"><small>Histoires chargées</small><strong id="total">0</strong><span>Dans votre bibliothèque</span></div><div class="metric"><small>À valider</small><strong id="pending">0</strong><span>Décision humaine requise</span></div><div class="metric"><small>Scénarios approuvés</small><strong id="approved">0</strong><span>Sur les histoires chargées</span></div></div>
       <div id="notice" class="notice" role="status" hidden></div>
       <section id="library" class="library" aria-label="Histoires"><div class="library-heading"><div><div class="overline">BIBLIOTHÈQUE DES RÉCITS</div><h2>Explorer mes histoires</h2><p>Ouvrez une histoire pour parcourir son scénario, ses scènes et les données de chaque élément.</p></div><button id="libraryCreate" type="button" class="btn primary">＋ Nouvelle histoire</button></div><div id="storyCards" class="story-cards" aria-live="polite"></div></section>
-      <section id="journal" class="journal" hidden><div class="overline">RIEN NE SE PERD</div><h2>La mémoire de vos créations.</h2><p>Historique des histoires réellement enregistrées, sans données de démonstration.</p><div id="journalContent" class="journal-list" aria-live="polite"></div></section>
       <section id="conception" class="conception" hidden>
         <div class="overline">PILOTAGE DU PRODUIT</div>
-        <h2>Le projet, en toute clarté.</h2>
+        <h2>Conception et livraisons</h2>
         <p>Consultez les epics, les PR et les contrôles techniques réellement exécutés sur votre PC. L’approbation d’une livraison reste hors de Studio et porte toujours sur un SHA exact.</p>
         <div id="conceptionContent" aria-live="polite"></div>
       </section>
