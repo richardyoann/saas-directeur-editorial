@@ -64,9 +64,32 @@ def audit_repository(root: Path) -> list[str]:
     return issues
 
 
+
+def audit_secret_configuration(root: Path) -> list[str]:
+    """Reject inline production credentials and require external secret files."""
+    target = root / "compose.yml"
+    if not target.is_file():
+        return []
+    try:
+        source = target.read_text(encoding="utf-8")
+    except OSError:
+        return ["compose.yml: unreadable secret configuration"]
+    errors = []
+    for name in ("POSTGRES_PASSWORD_FILE", "MINIO_ROOT_USER_FILE", "MINIO_ROOT_PASSWORD_FILE"):
+        if name + ":" not in source:
+            errors.append("compose.yml: missing " + name)
+    if re.search(r"(?m)^\s*(?:POSTGRES_PASSWORD|MINIO_ROOT_USER|MINIO_ROOT_PASSWORD)\s*:", source):
+        errors.append("compose.yml: inline credentials are forbidden")
+    for name in ("ARVOR_POSTGRES_PASSWORD_FILE", "ARVOR_MINIO_ROOT_USER_FILE",
+                 "ARVOR_MINIO_ROOT_PASSWORD_FILE"):
+        if "$" + "{" + name + ":?" not in source:
+            errors.append("compose.yml: external path must be mandatory: " + name)
+    return errors
+
+
 def main() -> int:
     repo = Path(__file__).resolve().parents[1]
-    problems = audit_repository(repo)
+    problems = audit_repository(repo) + audit_secret_configuration(repo)
     if problems:
         for item in problems:
             print(f"::error::{item}")

@@ -17,6 +17,7 @@ from editorial.models import Brief, ReviewDecision
 from editorial.service import run_workflow
 from editorial.store import PostgresStore, RunConflict, RunMissing, ReviewInvalid
 from editorial.worker_guard import WorkerOffline
+from editorial.runtime_secrets import secret
 from editorial.visuals import ImageUnavailable, ImagePromptTooLong, image_gate, media_preflight, load_png, render_png, save_png, validate_png, private_image_url
 
 security = HTTPBearer(auto_error=False)
@@ -29,9 +30,9 @@ class Identity:
 
 
 def get_identity(credentials: HTTPAuthorizationCredentials | None = Depends(security)):
-    token = os.getenv("EDITORIAL_API_TOKEN", "")
+    token = secret("EDITORIAL_API_TOKEN")
     try:
-        identity = Identity(UUID(os.environ["EDITORIAL_TENANT_ID"]), UUID(os.environ["EDITORIAL_ACTOR_ID"]))
+        identity = Identity(UUID(secret("EDITORIAL_TENANT_ID")), UUID(secret("EDITORIAL_ACTOR_ID")))
         if len(token) < 32:
             raise ValueError()
     except (KeyError, ValueError):
@@ -42,7 +43,7 @@ def get_identity(credentials: HTTPAuthorizationCredentials | None = Depends(secu
 
 
 def get_store():
-    url = os.getenv("PO_DATABASE_URL", "")
+    url = secret("PO_DATABASE_URL")
     if not url:
         raise HTTPException(503, "Persistance éditoriale non configurée.")
     return PostgresStore(url)

@@ -10,6 +10,7 @@ on:
       - Private PC delivery
       - Chat approved PC delivery
       - CI supply-chain guardrails
+      - Secret exposure scan
     types: [completed]
   schedule:
     - cron: '7 7 * * *'

@@ -15,6 +15,7 @@ from apps.api.llama_provider import ProviderError, generate_text, generation_gat
 from editorial.api import create_router, get_identity
 from apps.api.studio import router as studio_router
 from editorial.worker_guard import worker_online
+from editorial.runtime_secrets import secret
 from apps.api.request_limits import RequestLimits
 # Existing process variables take precedence; never rewrite the environment file.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
@@ -85,7 +86,7 @@ def health():
 
 def _database_ready():
     import psycopg
-    url = os.getenv("PO_DATABASE_URL", "")
+    url = secret("PO_DATABASE_URL")
     if not url:
         return False
     try:
@@ -105,7 +106,7 @@ def _database_ready():
 
 def _worker_ready():
     """Probe only the configured private tenant, no secrets in response."""
-    url, tenant_id = os.getenv("PO_DATABASE_URL", ""), os.getenv("EDITORIAL_TENANT_ID", "")
+    url, tenant_id = secret("PO_DATABASE_URL"), secret("EDITORIAL_TENANT_ID")
     if not url:
         return False
     try:
@@ -126,8 +127,8 @@ async def ready(client: httpx.AsyncClient = Depends(get_llm_client)):
     """
     base = os.getenv("LLM_BASE_URL", "").rstrip("/")
     async_mode = os.getenv("EDITORIAL_ASYNC_ENABLED", "").lower() == "true"
-    key = (os.getenv("PO_DATABASE_URL", ""), base, async_mode,
-           os.getenv("EDITORIAL_TENANT_ID", ""))
+    key = (secret("PO_DATABASE_URL"), base, async_mode,
+           secret("EDITORIAL_TENANT_ID"))
     async with _ready_lock:
         current = time.monotonic()
         if _ready_cache["key"] != key or current >= _ready_cache["until"]:

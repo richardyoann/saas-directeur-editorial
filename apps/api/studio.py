@@ -18,6 +18,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from apps.api.request_limits import load_bounded_json
+from editorial.runtime_secrets import secret
 
 router = APIRouter(prefix="/studio", include_in_schema=False)
 ASSETS = Path(__file__).resolve().parents[1] / "web"
@@ -55,8 +56,8 @@ def origin(request):
         raise HTTPException(403, "Origine refusée.")
 
 def configured():
-    password = os.getenv("EDITORIAL_WEB_PASSWORD", "")
-    token = os.getenv("EDITORIAL_API_TOKEN", "")
+    password = secret("EDITORIAL_WEB_PASSWORD")
+    token = secret("EDITORIAL_API_TOKEN")
     try:
         return len(password) >= 32 and len(token) >= 32 and not hmac.compare_digest(password.encode(), token.encode())
     except UnicodeEncodeError:
@@ -131,7 +132,7 @@ async def login(request: Request):
     if len(failures.get(peer, [])) >= 5:
         raise HTTPException(429, "Trop de tentatives, réessayez plus tard.")
     supplied = (await body(request)).get("password")
-    password = os.environ["EDITORIAL_WEB_PASSWORD"]
+    password = secret("EDITORIAL_WEB_PASSWORD")
     if isinstance(supplied, str):
         try:
             supplied.encode("utf-8")
@@ -166,7 +167,7 @@ async def relay(request, method, path, payload=None, headers=None):
         mutation(request)
     if not configured():
         raise HTTPException(503, "Accès privé non configuré.")
-    auth = {"Authorization": "Bearer " + os.environ["EDITORIAL_API_TOKEN"]}
+    auth = {"Authorization": "Bearer " + secret("EDITORIAL_API_TOKEN")}
     auth.update(headers or {})
     try:
         shared = getattr(request.app.state, "internal_client", None)
@@ -251,7 +252,7 @@ async def image_view(request: Request, run_id: UUID, scene_number: int):
     if scene_number < 1 or scene_number > 6:
         raise HTTPException(404, "Image introuvable.")
     path = f"/editorial/runs/{run_id}/scenes/{scene_number}/image"
-    auth = {"Authorization": "Bearer " + os.environ["EDITORIAL_API_TOKEN"]}
+    auth = {"Authorization": "Bearer " + secret("EDITORIAL_API_TOKEN")}
     try:
         shared = getattr(request.app.state, "internal_client", None)
         if shared is not None:
@@ -325,7 +326,7 @@ async def _gh(method: str, suffix: str, *, token: str, payload: dict | None = No
 
 
 def _github_read_token():
-    return os.getenv("EDITORIAL_GITHUB_READ_TOKEN", "")
+    return secret("EDITORIAL_GITHUB_READ_TOKEN")
 
 
 
