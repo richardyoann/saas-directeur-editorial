@@ -46,6 +46,7 @@ jobs:
         run: |
           node --check apps/web/studio.js
           node --check apps/web/arvor_reference.js
+          node --check apps/web/arvor_next.js
           python -m py_compile apps/api/studio.py
       - name: All historical and new suites (skips fail)
         env:

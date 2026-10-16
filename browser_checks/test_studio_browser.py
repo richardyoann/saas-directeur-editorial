@@ -376,6 +376,45 @@ class StudioBrowserJourneys(unittest.TestCase):
         expect(self.page.locator("#library")).to_be_visible()
         self.assertTrue(composer.is_hidden())
 
+    def test_next_studio_private_login_and_library(self):
+        with httpx.Client(base_url=self.base, headers=AUTH) as client:
+            run = client.post("/editorial/runs", headers={"Idempotency-Key": str(uuid4())}, json={"topic":"Le murmure de Brocéliande"})
+            self.assertEqual(run.status_code, 200)
+        self.page.goto(self.base + "/studio/next")
+        expect(self.page.locator("#login-screen")).to_be_visible()
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        expect(self.page.locator("#studio-shell")).to_be_visible()
+        self.page.locator("#side-create").click()
+        expect(self.page.locator("#editor")).to_be_visible()
+        self.page.locator("#editor-cancel").click()
+        self.assertEqual(self.page.locator(".story-card").count(), 1,
+            "UI: " + self.page.locator("#content").inner_text()[:500]
+            + " / Auth: " + self.page.locator("#login-error").inner_text())
+        self.page.locator(".story-card [data-open]").click()
+        expect(self.page.locator(".outline")).to_be_visible()
+        self.page.locator('[data-panel="scenes"]').click()
+        expect(self.page.locator(".scene-row")).to_have_count(3)
+
+    def test_next_studio_real_creation_and_revision(self):
+        self.page.goto(self.base + "/studio/next")
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        expect(self.page.locator("#studio-shell")).to_be_visible()
+        self.page.locator("#side-create").click()
+        self.page.locator("#edit-topic").fill("La légende du vent")
+        self.page.locator("#editor-form button[type=submit]").click()
+        expect(self.page.locator(".story-banner h1")).to_have_text("La légende du vent")
+        self.page.locator('[data-action="edit-story"]').first.click()
+        self.page.locator("#edit-summary").fill("Une histoire de vent et de mémoire")
+        with self.page.expect_response("**/studio/api/runs/*/steps/storyboard/review") as response_info:
+            self.page.locator("#editor-form button[type=submit]").click()
+        result = response_info.value
+        self.assertEqual(result.status, 200, result.text()[:500])
+        self.page.wait_for_timeout(300)
+        self.assertIn("Une histoire de vent", self.page.locator(".story-banner").inner_text(),
+                      "Révision: " + self.page.locator("#toast").inner_text())
+
     def test_accessible_tab_navigation_and_small_text_contrast(self):
         self.sign_in()
         self.page.locator("#heroCreate").click()
