@@ -406,7 +406,9 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator('[data-action="edit-story"]').first.click()
         self.page.locator("#edit-summary").fill("Une histoire de vent et de mémoire")
         self.page.locator("#editor-form button[type=submit]").click()
-        expect(self.page.locator(".story-banner")).to_contain_text("Une histoire de vent")
+        self.page.wait_for_timeout(300)
+        self.assertIn("Une histoire de vent", self.page.locator(".story-banner").inner_text(),
+                      "Révision: " + self.page.locator("#toast").inner_text())
 
     def test_accessible_tab_navigation_and_small_text_contrast(self):
         self.sign_in()
