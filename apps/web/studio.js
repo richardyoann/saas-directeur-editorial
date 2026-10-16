@@ -24,8 +24,8 @@ async function api(path,method="GET",body,more={}){
 }
 function lock(){s.csrf=null;s.run=null;s.runs=[];s.openRequest++;document.querySelectorAll("dialog[open]").forEach(d=>d.close());$("login").hidden=false;$("app").hidden=true;$("password").value="";}
 function unlock(){ $("login").hidden=true;$("app").hidden=false;$("loginError").hidden=true; }
-async function boot(){try{const x=await api("/studio/session");if(!x.authenticated)return lock();s.csrf=x.csrf;unlock();await list(true);const id=location.hash.replace("#run/","");if(uuid.test(id)&&location.hash.startsWith("#run/"))await openRun(id);}catch(e){lock();$("loginError").hidden=false;$("loginError").textContent=message(e);}}
-async function login(e){e.preventDefault();$("loginButton").disabled=true;try{const x=await api("/studio/session","POST",{password:$("password").value});s.csrf=x.csrf;unlock();$("password").value="";await list(true);const id=location.hash.slice(5);if(location.hash.startsWith("#run/")&&uuid.test(id))await openRun(id);}catch(err){$("loginError").hidden=false;$("loginError").textContent=err.status===401?"Mot de passe incorrect.":message(err);}finally{$("loginButton").disabled=false;}}
+async function boot(){try{const x=await api("/studio/session");if(!x.authenticated)return lock();s.csrf=x.csrf;unlock();await list(true);const id=location.hash.replace("#run/","");if(location.hash==="#conception")showConception();else if(uuid.test(id)&&location.hash.startsWith("#run/"))await openRun(id);else home(false);}catch(e){lock();$("loginError").hidden=false;$("loginError").textContent=message(e);}}
+async function login(e){e.preventDefault();$("loginButton").disabled=true;try{const x=await api("/studio/session","POST",{password:$("password").value});s.csrf=x.csrf;unlock();$("password").value="";await list(true);const id=location.hash.slice(5);if(location.hash==="#conception")showConception();else if(location.hash.startsWith("#run/")&&uuid.test(id))await openRun(id);else home(false);}catch(err){$("loginError").hidden=false;$("loginError").textContent=err.status===401?"Mot de passe incorrect.":message(err);}finally{$("loginButton").disabled=false;}}
 async function logout(){try{await api("/studio/logout","POST");s.runs=[];lock();}catch(e){if(e.status===401){s.runs=[];lock();return;}alertUser("Déconnexion non confirmée : la session peut rester active. Réessayez.",true);}}
 async function list(reset=false){
  if(reset){s.runs=[];s.next=null;}
@@ -38,9 +38,38 @@ function renderList(){
  const runs=s.runs.filter(r=>[r.title,r.topic].filter(Boolean).join(" ").toLocaleLowerCase("fr").includes(q));
  if(!runs.length)put(root,"p","","Aucune histoire correspondante dans les éléments chargés.");
  for(const r of runs){const b=put(root,"button","run-item"+(r.id===s.run?.id?" active":""));b.type="button";put(b,"strong","",r.title||r.topic||"Histoire sans titre");put(b,"small","",(states[r.status]||"Inconnu")+" · "+date(r.created_at));b.addEventListener("click",()=>openRun(r.id));}
+ renderCards(runs);
  $("count").textContent=s.runs.length+(s.next?"+":"");$("total").textContent=$("count").textContent;
  $("pending").textContent=s.runs.filter(r=>["waiting_validation","changes_requested"].includes(r.status)).length;
  $("approved").textContent=s.runs.filter(r=>r.status==="approved").length;$("more").hidden=!s.next;
+}
+function renderCards(runs){
+ const root=$("storyCards");root.replaceChildren();
+ if(!runs.length){put(root,"p","empty-panel","Aucune histoire dans les éléments chargés. Créez votre premier récit.");return;}
+ for(const r of runs){
+  const b=put(root,"button","story-tile");b.type="button";
+  put(b,"span","story-tile-art","✧");
+  const meta=put(b,"span","story-tile-content");
+  put(meta,"strong","",r.title||r.topic||"Histoire sans titre");
+  put(meta,"small","",states[r.status]||"Statut inconnu");
+  put(meta,"small","",date(r.created_at));
+  put(meta,"span","story-tile-more","Explorer l’histoire →");
+  b.addEventListener("click",()=>openRun(r.id));
+ }
+}
+function showWorkspace(view){
+ $("library").hidden=view!=="library";
+ $("conception").hidden=view!=="conception";
+ $("detail").hidden=view!=="detail";
+ $("empty").hidden=true;
+ $("home").classList.toggle("selected",view!=="conception");
+ $("conceptionNav").classList.toggle("selected",view==="conception");
+}
+function showConception(){
+ s.openRequest++;s.run=null;
+ showWorkspace("conception");$("crumb").textContent="Conception";
+ if(location.hash!=="#conception")history.pushState(null,"","#conception");
+ closeNav();
 }
 async function pollRun(){
  if(s.pollBusy||!s.csrf||!s.run||!["queued","running"].includes(s.run.status)||
@@ -74,11 +103,13 @@ async function openRun(id){
  try{const result=await api("/studio/api/runs/"+id);if(request!==s.openRequest||!s.csrf)return;
  s.run=result;s.tab="storyboard";s.reviews=[];s.nextReview=null;
  const target="#run/"+id;if(location.hash!==target)history.pushState(null,"",target);
- $("empty").hidden=true;$("detail").hidden=false;render();renderList();closeNav();$("detail").scrollIntoView({behavior:"smooth",block:"start"});}
+ showWorkspace("detail");render();renderList();closeNav();$("detail").scrollIntoView({behavior:"smooth",block:"start"});}
  catch(e){if(request===s.openRequest)alertUser(message(e),true);}
 }
 function render(){
  if(!s.run)return;const r=s.run,title=r.storyboard?.title||r.brief?.topic||"Sans titre";
+ $("editStory").disabled=!r.storyboard || !["waiting_validation","changes_requested"].includes(r.status);
+ $("editStory").title=$("editStory").disabled?"Révision autorisée uniquement pendant la validation du storyboard.":"";
  $("storyTitle").textContent=title;$("crumb").textContent=title;
  $("storyMeta").textContent=(r.brief?.topic||"Brief indisponible")+" · "+date(r.created_at);
  $("status").textContent=states[r.status]||"Inconnu";$("status").className="pill "+r.status;
@@ -353,18 +384,18 @@ async function create(ev){
   alertUser(failed?"Cette génération a échoué et reste historisée. Une nouvelle tentative utilisera une nouvelle clé.":message(e)+" La même clé sera conservée tant que l'issue de la requête reste incertaine.",true);
  }finally{b.disabled=false;b.textContent="Générer le storyboard →";}
 }
-function home(push=true){s.openRequest++;s.run=null;$("detail").hidden=true;$("empty").hidden=false;$("crumb").textContent="Bibliothèque";if(push&&location.hash)history.pushState(null,"",location.pathname+location.search);renderList();closeNav();}
+function home(push=true){s.openRequest++;s.run=null;showWorkspace("library");$("crumb").textContent="Histoires";if(push&&location.hash)history.pushState(null,"",location.pathname+location.search);renderList();closeNav();}
 function bind(){
  $("loginForm").addEventListener("submit",login);$("logout").addEventListener("click",logout);
- for(const id of ["sideCreate","heroCreate","emptyCreate"])$(id).addEventListener("click",()=>{closeNav();$("newDialog").showModal();});
- $("home").addEventListener("click",()=>home());window.addEventListener("popstate",()=>{const id=location.hash.slice(5);if(location.hash.startsWith("#run/")&&uuid.test(id))openRun(id);else home(false);});$("openId").addEventListener("click",()=>$("idDialog").showModal());
+ for(const id of ["sideCreate","heroCreate","emptyCreate","libraryCreate"])$(id).addEventListener("click",()=>{closeNav();$("newDialog").showModal();});
+ $("home").addEventListener("click",()=>home());$("conceptionNav").addEventListener("click",showConception);window.addEventListener("popstate",()=>{const id=location.hash.slice(5);if(location.hash==="#conception")showConception();else if(location.hash.startsWith("#run/")&&uuid.test(id))openRun(id);else home(false);});$("openId").addEventListener("click",()=>$("idDialog").showModal());
  $("idForm").addEventListener("submit",e=>{e.preventDefault();const id=$("runId").value.trim();if(!uuid.test(id))return alertUser("Identifiant UUID invalide.",true);$("idDialog").close();openRun(id);});
  document.querySelectorAll(".close").forEach(b=>b.addEventListener("click",()=>b.closest("dialog").close()));
  document.querySelectorAll("dialog").forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close();}));
  $("newForm").addEventListener("submit",create);$("reviewForm").addEventListener("submit",sendReview);$("reviewAction").addEventListener("change",toggleReview);
  $("menu").addEventListener("click",()=>{const x=$("sidebar").classList.toggle("open");$("menu").setAttribute("aria-expanded",String(x));});
  $("filter").addEventListener("input",renderList);$("more").addEventListener("click",()=>list(false));$("refresh").addEventListener("click",refresh);$("reconcile").addEventListener("click",reconcile);
- $("quickReview").addEventListener("click",()=>openReview("storyboard"));
+ $("quickReview").addEventListener("click",()=>openReview("storyboard"));$("editStory").addEventListener("click",()=>{if(!$("editStory").disabled)openReview("storyboard","revise");});
  const tabs=[...document.querySelectorAll("[data-tab]")];
  tabs.forEach((b,i)=>{b.addEventListener("click",()=>tab(b.dataset.tab));b.addEventListener("keydown",e=>{if(!["ArrowRight","ArrowLeft","Home","End"].includes(e.key))return;e.preventDefault();const position=e.key==="Home"?0:e.key==="End"?tabs.length-1:(i+(e.key==="ArrowRight"?1:tabs.length-1))%tabs.length;const next=tabs[position];next.focus();tab(next.dataset.tab);});});
 }
