@@ -1,5 +1,15 @@
 # État du projet
 
+## MEDIA-003 — chaîne 80/20 et export vidéo, 16 octobre 2026
+
+Base inspectée : 25e5d4aff298fc30c85012c75de4fc0d116821c5. Régression GitHub
+38771830917 réussie ; livraison 38771922089 skipped, aucune installation
+actuelle déduite. CLI hors ligne d'export MP4 vertical, voix WAV facultative,
+SRT et dossier reproductible ajoutée. Tests FFmpeg réels sur médias synthétiques,
+sans preuve artistique, GPU ni accès PC. Voir docs/MEDIA_003_EPISODE_EXPORT.md
+pour la matrice des sept priorités, les limites et les commandes de recette.
+Pas de migration, configuration runtime ou activation PC pendant ce travail.
+
 ## Lot 2 — provenance et recette images, 15 octobre 2026
 
 Travail sur PR #87 : reçus de génération (empreintes, paramètres, personnages,
@@ -353,3 +363,4 @@ Voir `docs/REPOSITORY_SETUP.md` ; provenance et blocage consignés dans le journ
 ## EDIT-001 — incrément validation humaine, 12 octobre 2026
 
 API accept/reject/revise et historique paginé développés sur branche isolée; contrôle concurrent, décisions immuables, snapshots Qwen préservés et scénario/scènes courants cohérents. Aucun nouvel appel modèle ni migration métier. Tests sur base jetable : RED routes absentes, borne excessive et résultat périmé confirmés; 121 tests sans skip après correction. Revue textuelle indépendante réalisée, contrôle final des schémas ajouté; CI, livraison de ce SHA et revue à consigner après vérification. L'interface, les comptes SaaS et l'évaluation éditoriale réelle restent ouverts. Aucun critère produit accepté automatiquement.
+
