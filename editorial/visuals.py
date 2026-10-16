@@ -201,8 +201,9 @@ def save_png(tenant, run_id, scene_id, data):
             with recovery.open("xb") as handle:
                 handle.write(data)
             reference = put_file(recovery, tenant, run_id, scene_id, "image")
-            recovery.unlink()
-            return reference
+            # The API removes this recovery file only after PostgreSQL confirms
+            # the storage reference. A lost DB acknowledgement must preserve it.
+            return reference, recovery
         except (MediaStorageError, OSError):
             raise ImageUnavailable("image_storage_result_uncertain") from None
     path = media_location(tenant, run_id, scene_id)
