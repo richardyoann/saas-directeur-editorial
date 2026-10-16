@@ -53,7 +53,8 @@ def assert_current_main(sha):
 def assert_ci_success(sha):
     """Refuse an untested SHA even for a manual GitHub dispatch."""
     token = os.environ["GITHUB_TOKEN"]
-    for workflow in ("regression.yml", "security-deps.yml"):
+    for workflow in ("regression.yml", "security-deps.yml",
+                     "ci-policy.yml", "secret-scan.yml"):
         query = urlencode({"head_sha": sha, "branch": "main", "event": "push",
                            "status": "success", "per_page": 15})
         request = urllib.request.Request(

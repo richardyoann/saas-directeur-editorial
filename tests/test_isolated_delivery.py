@@ -91,9 +91,11 @@ class IsolatedPCReleaseTests(unittest.TestCase):
              patch("deploy_local.urllib.request.urlopen",
                    side_effect=[io.BytesIO(success), io.BytesIO(success)]) as get:
             d.assert_ci_success(SHA)
-            self.assertEqual(get.call_count, 2)
+            self.assertEqual(get.call_count, 4)
             self.assertIn("regression.yml", get.call_args_list[0].args[0].full_url)
             self.assertIn("security-deps.yml", get.call_args_list[1].args[0].full_url)
+            self.assertIn("ci-policy.yml", get.call_args_list[2].args[0].full_url)
+            self.assertIn("secret-scan.yml", get.call_args_list[3].args[0].full_url)
         with patch.dict(os.environ, {"GITHUB_TOKEN": "dummy"}), \
              patch("deploy_local.urllib.request.urlopen",
                    return_value=io.BytesIO(json.dumps({"workflow_runs": [{
