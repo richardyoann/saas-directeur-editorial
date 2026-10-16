@@ -29,11 +29,11 @@ def client():
     from botocore.config import Config
     from editorial.visuals import private_image_url
     endpoint = os.getenv("MEDIA_S3_ENDPOINT", "")
-    access, secret = secret("MEDIA_S3_ACCESS_KEY"), secret("MEDIA_S3_SECRET_KEY")
-    if not private_image_url(endpoint) or not access or not secret:
+    access, secret_key = secret("MEDIA_S3_ACCESS_KEY"), secret("MEDIA_S3_SECRET_KEY")
+    if not private_image_url(endpoint) or not access or not secret_key:
         raise MediaStorageError("media_configuration_invalid")
     return boto3.client("s3", endpoint_url=endpoint,
-                        aws_access_key_id=access, aws_secret_access_key=secret,
+                        aws_access_key_id=access, aws_secret_access_key=secret_key,
                         region_name="us-east-1",
                         config=Config(signature_version="s3v4", connect_timeout=5,
                                       read_timeout=120, retries={"total_max_attempts": 1},

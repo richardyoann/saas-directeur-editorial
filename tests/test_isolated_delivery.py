@@ -89,7 +89,7 @@ class IsolatedPCReleaseTests(unittest.TestCase):
         }]}).encode()
         with patch.dict(os.environ, {"GITHUB_TOKEN": "dummy"}), \
              patch("deploy_local.urllib.request.urlopen",
-                   side_effect=[io.BytesIO(success), io.BytesIO(success)]) as get:
+                   side_effect=[io.BytesIO(success) for _ in range(4)] as get:
             d.assert_ci_success(SHA)
             self.assertEqual(get.call_count, 4)
             self.assertIn("regression.yml", get.call_args_list[0].args[0].full_url)
