@@ -129,9 +129,11 @@ async function approveDelivery(pr){
  if(!window.confirm(summary))return;
  const confirmation=window.prompt('Saisissez exactement AUTORISER PC pour confirmer le lancement sur votre PC :');
  if(confirmation!=="AUTORISER PC")return;
+ const approvalSecret=window.prompt("Saisissez votre code de validation PC configuré sur le serveur :");
+ if(!approvalSecret)return;
  try{
   const response=await api("/studio/api/conception/pulls/"+pr.number+"/deliver","POST",
-   {confirm:confirmation,sha:pr.merge_commit_sha});
+   {confirm:confirmation,sha:pr.merge_commit_sha,approval_secret:approvalSecret});
   alertUser(response.message||"Demande de livraison transmise.");
   await loadConception();
  }catch(e){alertUser(message(e),true);}
@@ -215,7 +217,7 @@ async function openRun(id){
 }
 function render(){
  if(!s.run)return;const r=s.run,title=r.storyboard?.title||r.brief?.topic||"Sans titre";
- $("editStory").disabled=!r.storyboard || !["waiting_validation","changes_requested"].includes(r.status);
+ $("editStory").disabled=!r.storyboard || !["waiting_validation","changes_requested","approved"].includes(r.status);
  $("editStory").title=$("editStory").disabled?"Révision autorisée uniquement pendant la validation du storyboard.":"";
  $("storyTitle").textContent=title;$("crumb").textContent=title;
  $("storyMeta").textContent=(r.brief?.topic||"Brief indisponible")+" · "+date(r.created_at);
@@ -232,7 +234,7 @@ function tab(name){
 }
 function empty(text){$("panel").replaceChildren();put($("panel"),"div","empty-panel",text);}
 function decisions(root,step){
- if(!["waiting_validation","changes_requested"].includes(s.run.status))return;
+ if(!["waiting_validation","changes_requested","approved"].includes(s.run.status))return;
  const bar=put(root,"div","review-buttons");
  for(const [action,label] of [["accept","Accepter"],["reject","Demander des changements"],["revise","Réviser"]]){
   const b=put(bar,"button","btn "+(action==="accept"?"primary":"secondary"),label);b.type="button";b.addEventListener("click",()=>openReview(step,action));
@@ -500,7 +502,10 @@ function buildEditor(){
   editField(root,"edit-synopsis","Synopsis",result.synopsis,{multiline:true,rows:3});
   const profiles=put(root,"fieldset","edit-scene");
   put(profiles,"legend","","Personnages et fiches");
-  (result.cast||[]).forEach((person,i)=>{
+  const allNames=[...new Set([...(result.cast||[]).map(p=>p.name),...(result.scenes||[]).flatMap(sc=>sc.characters||[])])];
+  const editableCast=allNames.map(name=>(result.cast||[]).find(p=>p.name===name)||{name,appearance:"",personality:"",role:""});
+  if(editableCast.length>12)put(profiles,"p","warning","Maximum 12 profils. Réduisez les personnages du scénario avant d'enregistrer.");
+  editableCast.slice(0,12).forEach((person,i)=>{
    const p="edit-person-"+i+"-";
    editField(profiles,p+"name","Personnage "+(i+1),person.name,{max:200});
    editField(profiles,p+"appearance","Apparence",person.appearance,{multiline:true,max:4000});
@@ -557,10 +562,11 @@ function revisedOutput(){
   throw Error("La durée totale des scènes doit être de "+s.run.brief.duration_seconds+" secondes.");
  if(scenes.some(x=>x.colors.length<1||x.colors.length>8||x.characters.length>12))
   throw Error("Chaque scène accepte de 1 à 8 couleurs et au maximum 12 personnages.");
- const cast=(s.run.storyboard?.cast||[]).map((person,i)=>{const p="edit-person-"+i+"-";return {
+ const cast=[...document.querySelectorAll('[id^="edit-person-"][id$="-name"]')].map((input,i)=>{const p="edit-person-"+i+"-";return {
   name:$(p+"name").value.trim(),appearance:$(p+"appearance").value.trim(),
   personality:$(p+"personality").value.trim(),role:$(p+"role").value.trim()
  };});
+ if(cast.length>12)throw Error("Maximum 12 profils de personnages.");
  return {title:$("edit-title").value.trim(),synopsis:$("edit-synopsis").value.trim(),cast,scenes};
 }
 function openReview(step,action="accept"){
