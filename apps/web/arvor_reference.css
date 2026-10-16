@@ -166,3 +166,24 @@ h1,h2,h3,h4{color:#264436;font-family:Georgia,serif;font-weight:500}
 /* WCAG AA contrast for descriptive labels on the pale surfaces. */
 .story-tile-content small,.arvor-entry-text small,.arvor-admin-row-text small,
 .arvor-stat span,.arvor-placeholder,.arvor-hint{color:#526756}
+
+/* Prototype validé : bibliothèque sobre et immersive, sans images fictives. */
+:root{--navy:#173d31;--teal:#234b3b;--sand:#d9c18a;--arvor-paper:#fafbf8}
+.sidebar{background:#173d31}.sidebar .wordmark b{font-size:32px}
+.hero{min-height:148px}.hero h1{font-size:clamp(35px,3.3vw,48px)}
+.hero .hero-row{top:30px}
+.story-cards{gap:20px}
+.story-tile{border-radius:9px;overflow:hidden;min-height:390px}
+.story-tile-art{height:206px;min-height:206px}
+.story-tile-content{align-items:stretch;position:relative;min-height:180px}
+.story-tile-content strong{font-size:clamp(19px,1.65vw,27px);line-height:1.25}
+.story-tile-content .arvor-story-badge{align-self:flex-end;border-radius:3px;background:#eef2e9;color:#54705a;font-size:10px;padding:5px 9px}
+.story-tile-content .arvor-story-badge[data-status="approved"]{background:#e8f3e6;color:#38754c}
+.story-tile-content .arvor-story-badge[data-status="failed"]{background:#faeae6;color:#9a5447}
+.story-tile-content .arvor-story-badge[data-status="waiting_validation"]{background:#f4eedb;color:#887039}
+.story-tile-content .arvor-synopsis{font-size:12px;color:#697f70;line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.story-tile-content .arvor-updated{padding-top:10px;border-top:1px solid #e8ede5}
+.arvor-story-filters{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 20px}
+.arvor-story-filters button{border:0;border-radius:5px;background:transparent;padding:10px 13px;color:#677e6d;font-size:12px;cursor:pointer}
+.arvor-story-filters button.active,.arvor-story-filters button:hover{background:#e8efe4;color:#264936}
+.arvor-story-filters button:focus-visible{outline:3px solid #a9914a;outline-offset:2px}

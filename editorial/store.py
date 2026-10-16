@@ -226,7 +226,10 @@ class PostgresStore:
                 "SELECT entity_id, content->'brief'->>'topic', "
                 "content->'storyboard'->>'title', content->>'status', "
                 "content->>'created_at', content->>'updated_at', "
-                "content->>'review_revision' FROM po_entity "
+                "content->>'review_revision', content->'storyboard'->>'synopsis', "
+                "content->'storyboard'->'scenes'->0->>'landscape', "
+                "jsonb_array_length(COALESCE(content->'storyboard'->'scenes','[]'::jsonb)) "
+                "FROM po_entity "
                 "WHERE tenant_id=%s AND kind='treatment' "
                 "AND content->>'type'='editorial_run' AND NOT deleted "
             )
@@ -238,12 +241,15 @@ class PostgresStore:
             params.append(limit + 1)
             rows = conn.execute(query, params).fetchall()
             summaries = []
-            for run_id, topic, title, status, created_at, updated_at, revision in rows[:limit]:
+            for run_id, topic, title, status, created_at, updated_at, revision, synopsis, landscape, scene_count in rows[:limit]:
                 summaries.append({
                     "id": str(run_id), "topic": topic or "",
                     "title": title or "", "status": status or "unknown",
                     "created_at": created_at, "updated_at": updated_at,
                     "review_revision": int(revision) if revision is not None else 0,
+                    "synopsis": (synopsis or "")[:400],
+                    "landscape": (landscape or "")[:200],
+                    "scene_count": scene_count,
                 })
             return {
                 "runs": summaries,
