@@ -16,7 +16,7 @@ from editorial.api import create_router, get_identity
 from apps.api.studio import router as studio_router
 from editorial.worker_guard import worker_online
 from apps.api.request_limits import RequestLimits
-\n# Existing process variables take precedence; never rewrite the environment file.
+# Existing process variables take precedence; never rewrite the environment file.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 @asynccontextmanager
