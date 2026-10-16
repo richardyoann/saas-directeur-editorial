@@ -49,13 +49,15 @@ def render(manifest, destination):
     if manifest.stat().st_size > 128000:
         raise ValueError("manifest_too_large")
     data = json.loads(manifest.read_text(encoding="utf-8"))
-    if data.get("schema_version") != 1 or data.get("approved") is not True:
+    if not isinstance(data, dict) or type(data.get("schema_version")) is not int or data.get("schema_version") != 1 or data.get("approved") is not True:
         raise ValueError("approved_manifest_required")
     scenes = data.get("scenes")
     if not isinstance(scenes, list) or not 1 <= len(scenes) <= 6:
         raise ValueError("scene_count_invalid")
     assets, total = [], 0
     for scene in scenes:
+        if not isinstance(scene, dict):
+            raise ValueError("scene_invalid")
         duration = scene.get("duration_seconds")
         narration = scene.get("narration")
         if type(duration) is not int or not 1 <= duration <= 180:

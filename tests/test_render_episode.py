@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 import wave
 
 spec = importlib.util.spec_from_file_location("render_episode", Path(__file__).resolve().parents[1] / "scripts/render_episode.py")
@@ -42,6 +43,15 @@ class EpisodeExportTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "destination_exists"):
             module.render(self.manifest, self.root / "export")
         self.assertEqual((self.root / "export/keep").read_text(), "original")
+
+    def test_failed_render_cleans_only_new_destination(self):
+        (self.root / "scene.png").write_bytes(b"invalid PNG")
+        self.save()
+        with patch.object(module.shutil, "which", return_value="ffmpeg"), patch.object(module, "run", side_effect=ValueError("media_command_failed")):
+            with self.assertRaisesRegex(ValueError, "media_command_failed"):
+                module.render(self.manifest, self.root / "export")
+        self.assertFalse((self.root / "export").exists())
+        self.assertEqual((self.root / "scene.png").read_bytes(), b"invalid PNG")
 
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg export prerequisite absent")
     def test_real_mp4_audio_subtitles_and_reproducible_folder(self):
