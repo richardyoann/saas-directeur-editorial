@@ -185,14 +185,30 @@ function adminTable(title,cols,rows){
  return `<section class="panel"><h3>${escapeHtml(title)}</h3><div class="admin-table-wrap"><table class="mini-table"><thead><tr>${cols.map(x=>`<th>${escapeHtml(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map(x=>`<td>${escapeHtml(x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!rows.length?'<p>Aucune donnée disponible dans les résultats chargés.</p>':''}</section>`;
 }
 function renderCalendar(){
- const mon=state.month,days=new Date(mon.getFullYear(),mon.getMonth()+1,0).getDate(),offset=(new Date(mon.getFullYear(),mon.getMonth(),1).getDay()+6)%7;
- const week=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];let dateList=[];
- if(state.calendarMode==='Jour'){dateList=[new Date(mon)]}
- else if(state.calendarMode==='Semaine'){let start=new Date(mon);start.setDate(start.getDate()-(start.getDay()+6)%7);for(let i=0;i<7;i++){const d=new Date(start);d.setDate(d.getDate()+i);dateList.push(d)}}
- else{for(let i=0;i<offset;i++)dateList.push(null);for(let n=1;n<=days;n++)dateList.push(new Date(mon.getFullYear(),mon.getMonth(),n));while(dateList.length%7)dateList.push(null)}
- const eventDate=new Date(2026,9,16);
- const toDay=d=>d?`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`:'';
- return `<section class="panel"><div class="calendar-toolbar"><div class="cal-nav">${btn('','left','small','data-cal="prev"')}<strong>${mon.toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</strong>${btn('','arrow','small','data-cal="next"')}</div><div class="filter-tabs">${['Mois','Semaine','Jour'].map(v=>`<button class="filter-btn ${v===state.calendarMode?'active':''}" data-calendar-mode="${v}">${v}</button>`).join('')}</div></div><div class="calendar">${state.calendarMode==='Jour'?'':week.map(t=>`<div class="cal-week">${t}</div>`).join('')}${dateList.map(d=>`<div class="cal-day ${!d?'off':''}">${d?d.getDate():''}${toDay(d)===toDay(eventDate)?'<span class="cal-event">Exemple : revue du projet</span>':''}</div>`).join('')}</div><p class="muted" style="font-size:11px;margin-top:13px">Un calendrier réel pourra être alimenté par les événements GitHub et les livraisons validées.</p></section>`;
+ const month=state.month;
+ const events=[];
+ for(const p of adminData?.pull_requests||[]){
+  if(p.created_at)events.push({date:p.created_at,text:'PR #'+p.number+' ouverte'});
+  if(p.merged_at)events.push({date:p.merged_at,text:'PR #'+p.number+' fusionnée'});
+ }
+ for(const d of adminData?.deliveries||[])if(d.updated_at&&d.conclusion==='success')
+  events.push({date:d.updated_at,text:'Livraison vérifiée '+(d.sha||'').slice(0,8)});
+ for(const c of commitsData?.commits||[])if(c.when)events.push({date:c.when,text:'Commit '+(c.sha||'').slice(0,8)});
+ const days=[];
+ if(state.calendarMode==='Jour')days.push(new Date(month));
+ else if(state.calendarMode==='Semaine'){
+  const d=new Date(month);d.setDate(d.getDate()-((d.getDay()+6)%7));
+  for(let n=0;n<7;n++){days.push(new Date(d));d.setDate(d.getDate()+1)}
+ }else{
+  const d=new Date(month.getFullYear(),month.getMonth(),1);
+  d.setDate(d.getDate()-((d.getDay()+6)%7));
+  const end=new Date(month.getFullYear(),month.getMonth()+1,0);
+  while(d<=end||days.length%7){days.push(new Date(d));d.setDate(d.getDate()+1)}
+ }
+ const key=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+ return `<section class="panel"><div class="calendar-toolbar"><div class="cal-nav">${btn('','left','small','data-cal="prev"')}<strong>${month.toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</strong>${btn('','arrow','small','data-cal="next"')}</div><div class="filter-tabs">${['Mois','Semaine','Jour'].map(v=>`<button class="filter-btn ${v===state.calendarMode?'active':''}" data-calendar-mode="${v}">${v}</button>`).join('')}</div></div>
+ <div class="calendar">${state.calendarMode==='Jour'?'':['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(x=>`<div class="cal-week">${x}</div>`).join('')}${days.map(d=>`<div class="cal-day">${d.getDate()}${events.filter(e=>key(new Date(e.date))===key(d)).slice(0,4).map(e=>`<span class="cal-event">${escapeHtml(e.text)}</span>`).join('')}</div>`).join('')}</div>
+ <p class="muted">Événements datés renvoyés par GitHub. Historique potentiellement partiel.</p></section>`;
 }
 function bindContent(){
  $$('[data-action="new"]').forEach(x=>x.addEventListener('click',()=>openEditor('new')));
