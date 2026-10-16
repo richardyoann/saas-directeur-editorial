@@ -108,3 +108,16 @@ une sauvegarde indépendante. Lire [reprise](mco/MINIO_MEDIA_RECOVERY.md).
 
 Référence du contrat S3 :
 https://boto3.amazonaws.com/v1/documentation/api/1.37.32/reference/services/s3/bucket/put_object.html
+
+
+## Correctif de reprise après revue — 16 octobre 2026
+
+Le PNG de secours d'une image transférée vers MinIO reste désormais sur disque
+jusqu'à l'acquittement de `finish_image` par PostgreSQL. Une erreur ou un
+acquittement perdu conserve donc le PNG et la référence objet pour
+réconciliation, sans régénération. Après confirmation SQL, le PNG redondant est
+supprimé au mieux ; un échec de nettoyage ne remet pas en cause l'image validée.
+
+La restauration d'un épisode refuse tout journal qui ne respecte pas, pour
+chaque asset, l'ordre unique `started → stored → recorded`. Un journal tronqué,
+orphelin, dupliqué ou désordonné exige une réconciliation préalable.
