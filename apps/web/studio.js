@@ -48,7 +48,14 @@ function renderCards(runs){
  if(!runs.length){put(root,"p","empty-panel","Aucune histoire dans les éléments chargés. Créez votre premier récit.");return;}
  for(const r of runs){
   const b=put(root,"button","story-tile");b.type="button";
-  put(b,"span","story-tile-art","✧");
+  b.dataset.runId=r.id;
+  const artwork=put(b,"span","story-tile-art","✧");
+  // The private image is displayed only if it actually exists. Never show
+  // demo artwork as a generated output or leak a MinIO object URL.
+  const image=new Image();
+  image.loading="lazy";image.alt="Illustration de la première scène";
+  image.addEventListener("load",()=>{artwork.replaceChildren(image);});
+  image.src="/studio/api/runs/"+encodeURIComponent(r.id)+"/scenes/1/image";
   const meta=put(b,"span","story-tile-content");
   put(meta,"strong","",r.title||r.topic||"Histoire sans titre");
   put(meta,"small","",states[r.status]||"Statut inconnu");
