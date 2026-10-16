@@ -20,10 +20,10 @@ function adminTabs(){
  const root=$("conception");if($("arvorAdminTabs"))return;
  const bar=make("div",null,"arvor-admin-tabs");bar.id="arvorAdminTabs";
  ["Vue d’ensemble","Epics & stories","Pull requests","Commits","Agenda"].forEach((label,i)=>{const b=add(bar,"button",label);b.type="button";b.addEventListener("click",()=>{[...bar.children].forEach(x=>x.classList.remove("active"));b.classList.add("active");renderAdmin(i);});});
- root.insertBefore(bar,$("conceptionContent"));bar.firstChild.classList.add("active");
+ root.insertBefore(bar,$("conceptionContent"));$("conceptionContent").hidden=true;const panel=make("div");panel.id="arvorAdminContent";$("conceptionContent").after(panel);bar.firstChild.classList.add("active");
 }
 async function renderAdmin(view){
- const root=$("conceptionContent");root.replaceChildren();add(root,"p","Lecture des données GitHub…");
+ const root=$("arvorAdminContent");root.replaceChildren();add(root,"p","Lecture des données GitHub…");
  try{
  const r=await fetch("/studio/api/conception",{credentials:"same-origin",cache:"no-store"});if(!r.ok)throw Error("GitHub non configuré / inaccessible");const d=await r.json();root.replaceChildren();
  const epics=d.epics||[],prs=d.pull_requests||[],deliveries=d.deliveries||[];
