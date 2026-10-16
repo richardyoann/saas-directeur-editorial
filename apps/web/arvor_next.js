@@ -231,10 +231,15 @@ function bindContent(){
 function bindLibraryOpen(){ $$('[data-open]').forEach(x=>{const b=x.cloneNode(true);x.replaceWith(b);b.addEventListener('click',()=>navigate('stories',b.dataset.open))});$$('#library-grid [data-action="new"]').forEach(x=>{const b=x.cloneNode(true);x.replaceWith(b);b.addEventListener('click',()=>openEditor('new'))}) }
 function fields(rows){$('#editor-fields').innerHTML=rows.map(([k,label,value,kind,choices])=>`<div class="field"><label for="edit-${k}">${escapeHtml(label)}</label>${kind==='select'?`<select id="edit-${k}" name="${k}">${choices.map(c=>`<option value="${escapeAttr(c)}" ${value===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select>`:kind==='textarea'?`<textarea id="edit-${k}" name="${k}" rows="4" required>${escapeHtml(value||'')}</textarea>`:`<input id="edit-${k}" name="${k}" value="${escapeAttr(value||'')}" ${kind==='number'?'type="number" min="1" max="180"':'type="text"'} required maxlength="300">`}</div>`).join('');}
 function openEditor(mode){
+ if(mode==='add-scene'){showToast('Le nombre de scènes est fixé par le brief initial. Révisez les scènes existantes.');return}
+ const current=story(state.storyId);
+ if(mode!=='new'&&(!current?.run?.storyboard||!['approved','waiting_validation','changes_requested'].includes(current.rawStatus))){
+  showToast('Révision indisponible avant la génération du storyboard.');return
+ }
  const s=story(state.storyId),sc=s?.scenes[state.sceneIndex];editorAction=mode;
  let rows=[];let title='';let kick='ÉDITION LOCALE';
  if(mode==='new'){title='Créer une histoire';rows=[['topic','Sujet de la légende','','textarea'],['duration_seconds','Durée totale (s)',60,'number'],['scene_count','Nombre de scènes',3,'number']];}
- if(mode==='story'){title='Modifier le récit';rows=[['title','Titre de l’histoire',s.title,'text'],['place','Lieu / univers',s.place,'text'],['summary','Synopsis',s.summary,'textarea'],['status','Statut',s.status,'select',['Brouillon','En écriture','À relire','Validée']]];}
+ if(mode==='story'){title='Modifier le récit';rows=[['title','Titre de l’histoire',s.title,'text'],['place','Lieu / univers',s.place,'text'],['summary','Synopsis',s.summary,'textarea']];}
  if(mode==='scene'||mode==='add-scene'){title=mode==='scene'?'Modifier la scène':'Nouvelle scène';const v=mode==='scene'?sc:{};rows=[['title','Titre',v.title,'text'],['duration','Durée (secondes)',v.duration||20,'number'],['narration','Narration',v.narration,'textarea'],['landscape','Décor',v.landscape,'textarea'],['shot','Plan / cadrage',v.shot,'text'],['emotion','Émotion',v.emotion,'text'],['sound','Sons et voix',v.sound,'text'],['colors','Palette',v.colors,'text'],['prompt','Prompt d’image',v.prompt,'textarea']];}
  $('#editor-title').textContent=title;$('#editor-kicker').textContent=kick;fields(rows);$('#editor').showModal();
  $('#editor-fields input, #editor-fields textarea, #editor-fields select')?.focus();
