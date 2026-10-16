@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -38,7 +39,19 @@ async def lifespan(application: FastAPI):
             del application.state.internal_client
 
 
-app = FastAPI(title="Directeur éditorial IA", version="0.1.0", lifespan=lifespan)
+# Keep the private API contract out of public documentation by default.
+# Enable explicitly only in a trusted development environment.
+_ENABLE_DOCS = os.getenv("EDITORIAL_ENABLE_API_DOCS", "false").lower() == "true"
+app = FastAPI(
+    title="Directeur éditorial IA", version="0.1.0", lifespan=lifespan,
+    docs_url="/docs" if _ENABLE_DOCS else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if _ENABLE_DOCS else None,
+)
+_READY_TTL_SECONDS = 2.0
+_ready_lock = asyncio.Lock()
+_ready_cache = {"until": 0.0, "key": None, "ok": False}
+
 app.add_middleware(RequestLimits)
 
 
@@ -97,25 +110,42 @@ def _worker_ready():
         return False
 
 
-@app.get("/ready")
+@app.get("/ready", include_in_schema=False)
 async def ready(client: httpx.AsyncClient = Depends(get_llm_client)):
-    """Readiness of DB and configured LLM, not proof of a running worker."""
-    base = os.getenv("LLM_BASE_URL", "").rstrip("/")
-    database_ok = await asyncio.to_thread(_database_ready)
-    model_ok = False
-    if base.startswith(("http://", "https://")):
-        try:
-            response = await client.get(base + "/health", timeout=2.0)
-            model_ok = response.status_code == 200
-        except (httpx.HTTPError, ValueError):
-            pass
-    worker_ok = True
-    if os.getenv("EDITORIAL_ASYNC_ENABLED", "").lower() == "true":
-        worker_ok = database_ok and await asyncio.to_thread(_worker_ready)
-    ok = database_ok and model_ok and worker_ok
-    from fastapi.responses import JSONResponse
-    return JSONResponse({"ready": ok}, status_code=200 if ok else 503)
+    """Cached private readiness: avoid opening DB + probing LLM per request.
 
+    This cache is process-local; deploy behind the trusted local reverse proxy
+    or restrict the route to loopback. It never exposes dependency details.
+    """
+    base = os.getenv("LLM_BASE_URL", "").rstrip("/")
+    async_mode = os.getenv("EDITORIAL_ASYNC_ENABLED", "").lower() == "true"
+    key = (os.getenv("PO_DATABASE_URL", ""), base, async_mode,
+           os.getenv("EDITORIAL_TENANT_ID", ""))
+    async with _ready_lock:
+        current = time.monotonic()
+        if _ready_cache["key"] != key or current >= _ready_cache["until"]:
+            database_ok = await asyncio.to_thread(_database_ready)
+            model_ok = False
+            if base.startswith(("http://", "https://")):
+                try:
+                    response = await client.get(base + "/health", timeout=2.0)
+                    model_ok = response.status_code == 200
+                except (httpx.HTTPError, ValueError):
+                    pass
+            worker_ok = not async_mode
+            if async_mode:
+                worker_ok = database_ok and await asyncio.to_thread(_worker_ready)
+            _ready_cache.update(
+                ok=bool(database_ok and model_ok and worker_ok),
+                key=key,
+                until=time.monotonic() + _READY_TTL_SECONDS,
+            )
+        ok = _ready_cache["ok"]
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        {"ready": ok}, status_code=200 if ok else 503,
+        headers={"Cache-Control": "no-store"},
+    )
 
 @app.post("/ai/generate")
 async def generate(
