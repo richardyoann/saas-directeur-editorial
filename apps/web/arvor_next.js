@@ -59,6 +59,21 @@ async function loginPrivate(e){
  }catch(err){$('#login-error').textContent=err.message}finally{button.disabled=false}
 }
 $('#login-form').addEventListener('submit',loginPrivate);
+async function loadJournal(){await fetchStories();render()}
+async function loadAdmin(){
+ try{
+  const parts=await Promise.allSettled([
+   api('/studio/api/conception'),
+   api('/studio/api/conception/commits?limit=70'),
+   api('/studio/api/conception/ci?limit=80')
+  ]);
+  if(parts[0].status!=='fulfilled')throw parts[0].reason;
+  adminData=parts[0].value;
+  commitsData=parts[1].status==='fulfilled'?parts[1].value:null;
+  ciData=parts[2].status==='fulfilled'?parts[2].value:null;
+  render();
+ }catch(err){adminData=null;$('#content').innerHTML='<div class="api-error">'+escapeHtml(err.message)+' — configuration de lecture GitHub requise.</div>'}
+}
 function closeMobile(){$('#sidebar').classList.remove('open');$('#shade').classList.remove('open')}
 function mapRun(run){
  const board=run.storyboard||{};
