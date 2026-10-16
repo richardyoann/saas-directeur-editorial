@@ -151,6 +151,13 @@ function renderMedia(st){
  +`<div class="panel"><h3>Illustrations</h3><div class="item-grid">${images||'<p>Images absentes du catalogue.</p>'}</div></div>
  <div class="panel"><h3>Catalogue des médias</h3>${records||'<p>Aucune voix, vidéo ou sous-titre répertorié.</p>'}</div>`;
 }
+async function loadMedia(){
+ const id=state.storyId;if(!id)return;
+ try{
+  const [visuals,media]=await Promise.all([api('/studio/api/runs/'+encodeURIComponent(id)+'/visuals'),api('/studio/api/runs/'+encodeURIComponent(id)+'/media')]);
+  if(state.storyId===id&&state.panel==='media'){mediaData={visuals,media};render()}
+ }catch(e){showToast('Catalogue indisponible : '+e.message)}
+}
 function renderAtelierPanel(s){
  const k=state.panel;
  if(k==='overview')return panelHeader('LA TRAME DE VOTRE RÉCIT','Une histoire, tout un univers.','Un aperçu clair de votre narration, de vos scènes et de votre distribution.')+`<div class="panel-grid"><div><section class="panel"><div class="eyebrow">SYNOPSIS</div><h3 style="margin-top:9px">L’essentiel du récit</h3><p>${escapeHtml(s.summary)}</p>${btn('Modifier le synopsis','edit','small','data-action="edit-story"')}</section><section class="panel"><div class="section-head"><div><div class="eyebrow">DÉCOUPAGE</div><h3 style="margin:7px 0">Le fil des scènes</h3></div>${btn('Ajouter une scène','plus','small','data-action="add-scene"')}</div>${sceneRows(s)}</section></div><div><section class="panel"><div class="eyebrow">FICHE ÉDITORIALE</div><h3 style="margin:9px 0">Repères</h3>${[['Univers',s.place],['Statut',s.status],['Scènes',s.scenes.length],['Dernière édition',formatDay(s.updated)]].map(([n,v])=>`<div class="mini-row"><b>${n}</b><span>${escapeHtml(v)}</span></div>`).join('')}</section><section class="panel"><div class="eyebrow">DISTRIBUTION</div><h3 style="margin:9px 0">Personnages</h3>${s.characters.map(p=>`<div class="mini-row"><b>${escapeHtml(p.name)}</b><span>${escapeHtml(p.role)}</span></div>`).join('')||'<p>Personnages à créer.</p>'}</section></div></div>`;
@@ -160,7 +167,7 @@ function renderAtelierPanel(s){
   return panelHeader('SCÉNOGRAPHIE','Les scènes','Travaillez le récit plan par plan.',btn('Ajouter une scène','plus','small','data-action="add-scene"'))+`<section class="panel">${sceneRows(s)}</section>`+(sc?`<section class="panel"><div class="section-head"><div><div class="eyebrow">SCÈNE ${String(state.sceneIndex+1).padStart(2,'0')}</div><h3 style="margin:8px 0">${escapeHtml(sc.title)}</h3><p>${sc.duration} secondes · ${escapeHtml(sc.landscape)}</p></div>${btn('Modifier','edit','small','data-action="edit-scene"')}</div><div class="property-grid">${[['Narration',sc.narration],['Décor & atmosphère',sc.landscape],['Plan / cadrage',sc.shot],['Émotion',sc.emotion],['Sons / voix',sc.sound],['Palette',sc.colors],['Personnages',sc.characters.join(', ')],['Prompt image',sc.prompt]].map(([k,v])=>`<div class="property"><small>${k}</small><p>${escapeHtml(v||'À définir')}</p></div>`).join('')}</div></section>`:'<div class="empty-state">Ajoutez votre première scène.</div>');
  }
  if(k==='characters')return panelHeader('CONTINUITÉ NARRATIVE','Les personnages','Gardez une identité cohérente d’une scène à l’autre.')+(s.characters.length?`<div class="person-grid">${s.characters.map(p=>`<article class="person"><div class="initial">${escapeHtml(p.name[0])}</div><h3>${escapeHtml(p.name)}</h3><p><b>${escapeHtml(p.role)}</b></p><p style="margin-top:13px">${escapeHtml(p.appearance)}</p></article>`).join('')}</div>`:'<div class="empty-state">Aucun personnage enregistré.</div>');
- if(k==='media')return panelHeader('PRODUCTION','Médias et illustrations','Images, voix et vidéos reliées à vos scènes.')+`<div class="empty-state">${ico('image')}<h3>Vos créations auront leur place ici.</h3><p>Dans cette démonstration, seules les images de référence des deux récits sont présentées. Aucun rendu Qwen, image, voix ou vidéo n’est simulé comme une production réelle.</p></div>`;
+ if(k==='media')return renderMedia(s);
  const map={landscapes:['PAYSAGES','Décors et paysages','landscape'],colors:['DIRECTION ARTISTIQUE','Palettes de couleurs','colors'],shots:['MISE EN SCÈNE','Plans et cadrages','shot'],emotions:['ÉMOTIONS','Intentions émotionnelles','emotion'],sounds:['BANDE SON','Voix et ambiances','sound']};
  if(map[k]){const [ey,title,field]=map[k];return panelHeader(ey,title,'Retrouvez ces éléments dans leur contexte narratif.')+`<div class="item-grid">${s.scenes.map((sc,i)=>`<article class="item-card"><span class="eyebrow">SCÈNE ${String(i+1).padStart(2,'0')}</span><strong>${escapeHtml(sc.title)}</strong><p>${escapeHtml(sc[field]||'À définir')}</p>${btn('Voir la scène','arrow','small','data-scene="'+i+'"')}</article>`).join('')||'<div class="empty-state">Aucun élément.</div>'}</div>`}
  return '';
@@ -227,7 +234,7 @@ function bindContent(){
  $$('[data-action="add-scene"]').forEach(x=>x.addEventListener('click',()=>openEditor('add-scene')));
  $$('[data-action="export"]').forEach(x=>x.addEventListener('click',exportStory));
  $$('[data-open]').forEach(x=>x.addEventListener('click',()=>navigate('stories',x.dataset.open)));
- $$('[data-panel]').forEach(x=>x.addEventListener('click',()=>{state.panel=x.dataset.panel;render()}));
+ $$('[data-panel]').forEach(x=>x.addEventListener('click',()=>{state.panel=x.dataset.panel;mediaData=null;render();if(state.panel==='media')loadMedia()}));
  $$('[data-scene]').forEach(x=>x.addEventListener('click',()=>{state.sceneIndex=Number(x.dataset.scene);state.panel='scenes';render()}));
  $$('[data-filter]').forEach(x=>x.addEventListener('click',()=>{state.filter=x.dataset.filter;render()}));
  if($('#story-search')){libraryCards();bindLibraryOpen();$('#story-search').addEventListener('input',e=>{state.query=e.target.value;libraryCards();bindLibraryOpen()})}
