@@ -194,14 +194,7 @@ function openEditor(mode){
  $('#editor-title').textContent=title;$('#editor-kicker').textContent=kick;fields(rows);$('#editor').showModal();
  $('#editor-fields input, #editor-fields textarea, #editor-fields select')?.focus();
 }
-function saveEditor(e){e.preventDefault();const entries=Object.fromEntries(new FormData($('#editor-form')).entries());const s=story(state.storyId);
- if(editorAction==='new'){
-  const id='new-'+Date.now().toString(36);const created={id,title:entries.title.trim(),place:entries.place.trim(),summary:entries.summary.trim(),status:'Brouillon',updated:today(),cover:'none',characters:[],scenes:[]};stories.unshift(created);log('creation','Nouvelle histoire : '+created.title,'Histoire créée dans le prototype local.');$('#editor').close();navigate('stories',id);showToast('Histoire créée dans le prototype.');return;
- }
- if(editorAction==='story'){Object.assign(s,{title:entries.title.trim(),place:entries.place.trim(),summary:entries.summary.trim(),status:entries.status,updated:today()});log('revision','Histoire modifiée : '+s.title,'Synopsis et fiche éditoriale mis à jour.');}
- else{const next={...entries,duration:Number(entries.duration),characters:editorAction==='scene'?s.scenes[state.sceneIndex].characters:[]};if(editorAction==='scene'){s.scenes[state.sceneIndex]={...s.scenes[state.sceneIndex],...next};}else{s.scenes.push(next);state.sceneIndex=s.scenes.length-1;state.panel='scenes';}s.updated=today();log('revision',(editorAction==='scene'?'Scène modifiée : ':'Scène ajoutée : ')+next.title,'Éléments narratifs enregistrés dans le prototype local.');}
- persist();$('#editor').close();render();showToast('Modifications enregistrées localement.');
-}
+async function saveEditor(e){e.preventDefault();const input=Object.fromEntries(new FormData($('#editor-form')).entries());await saveRemoteEditor(input)}
 function exportStory(){const s=story(state.storyId);if(!s)return;const blob=new Blob([JSON.stringify({format:'arvor-story-demo-v1',exported_at:new Date().toISOString(),story:s},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='arvor-'+s.id+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Export JSON préparé.');}
 $$('[data-route]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.route)));
 $('#side-create').addEventListener('click',()=>{closeMobile();openEditor('new')});
