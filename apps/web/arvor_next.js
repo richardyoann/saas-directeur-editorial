@@ -60,6 +60,21 @@ async function loginPrivate(e){
 }
 $('#login-form').addEventListener('submit',loginPrivate);
 function closeMobile(){$('#sidebar').classList.remove('open');$('#shade').classList.remove('open')}
+function mapRun(run){
+ const board=run.storyboard||{};
+ const item=mapSummary(run);
+ item.title=board.title||run.brief?.topic||item.title;
+ item.summary=board.synopsis||item.summary;
+ item.run=run;
+ item.characters=board.cast||[];
+ item.scenes=(board.scenes||[]).map(scene=>({
+ title:scene.title,duration:scene.duration_seconds,narration:scene.narration,
+ landscape:scene.landscape,shot:scene.shot,emotion:scene.emotion,sound:scene.sound,
+ colors:(scene.colors||[]).join(', '),characters:scene.characters||[],prompt:scene.image_prompt
+ }));
+ item.sceneCount=item.scenes.length;
+ return item;
+}
 function navigate(route,storyId=null,panel='overview'){
  state.route=route;state.storyId=storyId;state.panel=panel;state.sceneIndex=0;
  closeMobile();render();window.scrollTo({top:0,behavior:'auto'});
