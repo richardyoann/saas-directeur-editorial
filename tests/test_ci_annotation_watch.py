@@ -27,7 +27,7 @@ class CIAnnotationWatchTests(unittest.TestCase):
 
     def test_duplicate_run_updates_old_issue(self):
         annotation = [{"annotation_level": "warning", "message": "deprecation"}]
-        old = {"number": 15, "state": "open", "body": "outdated"}
+        old = {"number": 15, "state": "open", "body": watch.marker(RUN["id"]) + "\noutdated"}
         with patch.object(watch, "api", side_effect=[JOBS, annotation, [old], old]) as mocked:
             status = watch.monitor(RUN, REPO, "token")
         self.assertIn("Deduplicated", status)
