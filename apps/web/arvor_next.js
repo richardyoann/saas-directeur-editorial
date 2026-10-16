@@ -17,6 +17,34 @@ const persist=()=>{};
 const story=id=>stories.find(s=>s.id===id);
 const showToast=msg=>{const el=$('#toast');el.textContent=msg;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.hidden=true,4200)};
 const log=()=>{};
+
+const statusLabels={queued:'En écriture',running:'En écriture',waiting_validation:'À relire',approved:'Validée',changes_requested:'À retravailler',failed:'Échec'};
+const mapSummary=r=>({id:r.id,title:r.title||r.topic||'Histoire sans titre',
+ summary:r.synopsis||'',place:r.landscape||'',status:statusLabels[r.status]||'En écriture',
+ rawStatus:r.status,created:r.created_at,updated:r.updated_at||r.created_at,sceneCount:r.scene_count||0,
+ cover:/broc[eé]liande|for[eê]t/i.test(r.title||r.topic||'')?'forest':/\bys\b/i.test(r.title||r.topic||'')?'sea':'none',
+ characters:[],scenes:[]});
+async function api(path,method='GET',payload,extra={}){
+ const headers={...extra};
+ if(method!=='GET'&&csrf)headers['X-CSRF-Token']=csrf;
+ if(payload!==undefined)headers['Content-Type']='application/json';
+ let response;
+ try{response=await fetch(path,{method,headers,credentials:'same-origin',cache:'no-store',body:payload===undefined?undefined:JSON.stringify(payload)})}
+ catch{throw Error('Le serveur local est inaccessible.')}
+ const body=await response.json().catch(()=>null);
+ if(!response.ok){if(response.status===401){csrf=null;document.querySelector('#studio-shell').hidden=true;document.querySelector('#login-screen').hidden=false}
+ const err=Error(typeof body?.detail==='string'?body.detail:'HTTP '+response.status);err.status=response.status;throw err}
+ return body;
+}
+async function fetchStories(more=false){
+ if(!more){stories=[];nextCursor=null}
+ const result=await api('/studio/api/runs?limit=50'+(nextCursor?'&before='+encodeURIComponent(nextCursor):''));
+ const known=new Set(stories.map(x=>x.id));
+ for(const row of result.runs||[])if(!known.has(row.id)){stories.push(mapSummary(row));known.add(row.id)}
+ nextCursor=result.next_before||null;
+ events=stories.map(x=>({id:x.id,date:x.created,type:'creation',title:x.title,detail:'Histoire enregistrée · '+x.status}));
+ render();
+}
 function closeMobile(){$('#sidebar').classList.remove('open');$('#shade').classList.remove('open')}
 function navigate(route,storyId=null,panel='overview'){
  state.route=route;state.storyId=storyId;state.panel=panel;state.sceneIndex=0;
