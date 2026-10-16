@@ -114,3 +114,11 @@ Ubuntu WSL et Qwen/Vulkan réel.
 - 15/10/2026 : conception et tests proposés sur branche CI-002. Les SHA,
   IDs de runs et résultats seront consignés dans la PR après vraie exécution.
 - Le prochain merge `main` ne vaut pas acceptation du produit ni Go MEP.
+
+
+## OPS-CI-WARN — avertissements même sur CI verte
+
+Voir [CI_WARNING_MONITORING.md](CI_WARNING_MONITORING.md) : surveillance des
+annotations GitHub Checks, Issues dédupliquées, politique de SHA épinglés,
+Dependabot. La création d'une Issue ne prouve ni CVE ni notification email.
+Aucun nouvel accord de fusion ou de MEP ne résulte de ce contrôle.
