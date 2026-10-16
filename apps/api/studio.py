@@ -329,6 +329,20 @@ def _github_read_token():
 
 
 
+def epic_checklist_progress(body: str | None):
+    """Count explicit Markdown checkboxes; never invent progress from ticket status."""
+    if not isinstance(body, str):
+        return {"checklist_total": 0, "checklist_done": 0, "progress_pct": None}
+    marks = re.findall(r"(?m)^\\s*[-*]\\s+\\[([ xX])\\]\\s+", body)
+    total = len(marks)
+    done = sum(mark.lower() == "x" for mark in marks)
+    return {
+        "checklist_total": total,
+        "checklist_done": done,
+        "progress_pct": round(done * 100 / total) if total else None,
+    }
+
+
 @router.get("/api/conception")
 async def conception_data(request: Request):
     session(request)
@@ -399,6 +413,7 @@ async def conception_data(request: Request):
             "state": item.get("state"), "created_at": item.get("created_at"),
             "closed_at": item.get("closed_at"),
             "url": item.get("html_url"),
+            **epic_checklist_progress(item.get("body")),
         })
     prs = [{
         "number": item.get("number"), "title": item.get("title"),
