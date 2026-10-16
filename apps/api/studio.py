@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import time
 from dataclasses import dataclass
@@ -275,8 +276,20 @@ async def review(request: Request, run_id: UUID, step: Literal["analysis", "stor
 
 # Read-only GitHub cockpit. Calls are server-side, same-origin and session
 # protected. Tokens are never returned to the browser or stored in story entities.
-GH_REPO = "richardyoann/saas-directeur-editorial"
-GH_API = "https://api.github.com/repos/" + GH_REPO
+_REPO_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+
+
+def github_repository():
+    # Explicit server-side config: never accept a repository from client data.
+    repo = os.getenv("EDITORIAL_GITHUB_REPOSITORY", "")
+    if not _REPO_PATTERN.fullmatch(repo):
+        raise HTTPException(503, "Dépôt GitHub privé non configuré.")
+    return repo
+
+
+def github_api():
+    return "https://api.github.com/repos/" + github_repository()
+
 
 
 async def _gh(method: str, suffix: str, *, token: str, payload: dict | None = None):
@@ -290,7 +303,7 @@ async def _gh(method: str, suffix: str, *, token: str, payload: dict | None = No
     try:
         async with httpx.AsyncClient(timeout=12.0, trust_env=False) as client:
             response = await client.request(
-                method, GH_API + suffix, headers=headers, json=payload
+                method, github_api() + suffix, headers=headers, json=payload
             )
     except (httpx.HTTPError, TimeoutError):
         raise HTTPException(502, "GitHub indisponible.") from None
@@ -327,6 +340,44 @@ async def conception_data(request: Request):
     )
     if not isinstance(issues, list) or not isinstance(pulls, list) or not isinstance(delivery, dict):
         raise HTTPException(502, "Données GitHub invalides.")
+    # Bound server-side pagination; never silently pretend these lists are complete.
+    async def extend_list(items, path, page_size):
+        incomplete = False
+        page = 1
+        while len(items) == page * page_size and page < 3:
+            page += 1
+            next_page = await _gh("GET", path + "&page=" + str(page), token=token)
+            if not isinstance(next_page, list):
+                raise HTTPException(502, "Pagination GitHub invalide.")
+            items.extend(next_page)
+            if len(next_page) < page_size:
+                break
+        if len(items) >= page_size * 3:
+            incomplete = True
+        return incomplete
+
+    partial_issues, partial_pulls, partial_deliveries = await asyncio.gather(
+        extend_list(issues, "/issues?state=all&per_page=100", 100),
+        extend_list(pulls, "/pulls?state=all&per_page=70", 70),
+        # The endpoint's envelope is different: fetch extra run pages below.
+        asyncio.sleep(0, result=False),
+    )
+    runs = delivery.get("workflow_runs", [])
+    if not isinstance(runs, list):
+        raise HTTPException(502, "Livraisons GitHub invalides.")
+    page = 1
+    while len(runs) == page * 70 and page < 3:
+        page += 1
+        extra = await _gh(
+            "GET", "/actions/workflows/local-delivery.yml/runs?per_page=70&page=" + str(page),
+            token=token,
+        )
+        if not isinstance(extra, dict) or not isinstance(extra.get("workflow_runs"), list):
+            raise HTTPException(502, "Pagination des livraisons invalide.")
+        runs.extend(extra["workflow_runs"])
+        if len(extra["workflow_runs"]) < 70:
+            break
+    partial_deliveries = len(runs) >= 210
     epics = []
     for item in issues:
         if not isinstance(item, dict) or "pull_request" in item:
@@ -353,10 +404,16 @@ async def conception_data(request: Request):
         "status": item.get("status"), "conclusion": item.get("conclusion"),
         "created_at": item.get("created_at"), "updated_at": item.get("updated_at"),
         "url": item.get("html_url"),
-    } for item in delivery.get("workflow_runs", []) if isinstance(item, dict)]
+    } for item in runs if isinstance(item, dict)]
     return no_store(JSONResponse({
         "epics": epics, "pull_requests": prs, "deliveries": jobs,
-        "delivery_control_enabled": False
+        "delivery_control_enabled": False,
+        "source_truncated": {
+            "issues": partial_issues,
+            "pull_requests": partial_pulls,
+            "deliveries": partial_deliveries,
+        },
+        "repository_url": "https://github.com/" + github_repository()
     }))
 
 
