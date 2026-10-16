@@ -51,7 +51,7 @@ class GitHubConceptionTests(unittest.IsolatedAsyncioTestCase):
             return [
                 {"number": 2, "title": "[EPIC-001] Qwen", "state": "open",
                  "created_at": "2026-10-01T08:00:00Z",
-                 "body": "- [x] Scénario validé\\n- [ ] Images à créer"},
+                 "body": "- [x] Scénario validé" + chr(10) + "- [ ] Images à créer"},
                 {"number": 3, "title": "Task", "state": "open"},
                 {"number": 4, "title": "Fake", "pull_request": {}},
             ]
