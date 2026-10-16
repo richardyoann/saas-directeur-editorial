@@ -140,6 +140,17 @@ function renderAtelier(){
 }
 const panelHeader=(label,title,desc,act='')=>`<div class="section-head"><div><div class="eyebrow">${label}</div><h2>${title}</h2><p>${desc}</p></div>${act}</div>`;
 function sceneRows(s){return `<div class="scene-list">${s.scenes.map((sc,i)=>`<button class="scene-row" type="button" data-scene="${i}"><span class="scene-index">${String(i+1).padStart(2,'0')}</span><span><b>${escapeHtml(sc.title)}</b><small>${escapeHtml(sc.landscape)} · ${sc.duration} s</small></span><span class="arrow">${ico('arrow')}</span></button>`).join('')||'<p class="muted">Aucune scène pour le moment.</p>'}</div>`}
+function renderMedia(st){
+ const visuals=mediaData?.visuals?.scenes||[],catalog=mediaData?.media?.media||[];
+ const images=visuals.map(item=>`<article class="item-card"><div class="eyebrow">SCÈNE ${item.scene_number}</div>
+  <strong>${escapeHtml(item.title)}</strong>
+  ${item.image_status==='ready'?`<img style="width:100%;border-radius:7px" loading="lazy" alt="Illustration privée" src="/studio/api/runs/${encodeURIComponent(st.id)}/scenes/${item.scene_number}/image">`:'<p>Image non générée ou indisponible.</p>'}
+  <small>${escapeHtml(item.image_status)}</small></article>`).join('');
+ const records=catalog.map(x=>`<div class="mini-row"><b>${escapeHtml(x.kind)}</b><span>${Number(x.size_bytes)||0} octets · SHA256 ${escapeHtml((x.sha256||'').slice(0,16))}…</span></div>`).join('');
+ return panelHeader('PRODUCTION','Images et médias','Uniquement les fichiers réellement associés à cette histoire.')
+ +`<div class="panel"><h3>Illustrations</h3><div class="item-grid">${images||'<p>Images absentes du catalogue.</p>'}</div></div>
+ <div class="panel"><h3>Catalogue des médias</h3>${records||'<p>Aucune voix, vidéo ou sous-titre répertorié.</p>'}</div>`;
+}
 function renderAtelierPanel(s){
  const k=state.panel;
  if(k==='overview')return panelHeader('LA TRAME DE VOTRE RÉCIT','Une histoire, tout un univers.','Un aperçu clair de votre narration, de vos scènes et de votre distribution.')+`<div class="panel-grid"><div><section class="panel"><div class="eyebrow">SYNOPSIS</div><h3 style="margin-top:9px">L’essentiel du récit</h3><p>${escapeHtml(s.summary)}</p>${btn('Modifier le synopsis','edit','small','data-action="edit-story"')}</section><section class="panel"><div class="section-head"><div><div class="eyebrow">DÉCOUPAGE</div><h3 style="margin:7px 0">Le fil des scènes</h3></div>${btn('Ajouter une scène','plus','small','data-action="add-scene"')}</div>${sceneRows(s)}</section></div><div><section class="panel"><div class="eyebrow">FICHE ÉDITORIALE</div><h3 style="margin:9px 0">Repères</h3>${[['Univers',s.place],['Statut',s.status],['Scènes',s.scenes.length],['Dernière édition',formatDay(s.updated)]].map(([n,v])=>`<div class="mini-row"><b>${n}</b><span>${escapeHtml(v)}</span></div>`).join('')}</section><section class="panel"><div class="eyebrow">DISTRIBUTION</div><h3 style="margin:9px 0">Personnages</h3>${s.characters.map(p=>`<div class="mini-row"><b>${escapeHtml(p.name)}</b><span>${escapeHtml(p.role)}</span></div>`).join('')||'<p>Personnages à créer.</p>'}</section></div></div>`;
