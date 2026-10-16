@@ -388,7 +388,9 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#side-create").click()
         expect(self.page.locator("#editor")).to_be_visible()
         self.page.locator("#editor-cancel").click()
-        expect(self.page.locator(".story-card")).to_have_count(1)
+        self.assertEqual(self.page.locator(".story-card").count(), 1,
+            "UI: " + self.page.locator("#content").inner_text()[:500]
+            + " / Auth: " + self.page.locator("#login-error").inner_text())
         self.page.locator(".story-card [data-open]").click()
         expect(self.page.locator(".outline")).to_be_visible()
         self.page.locator('[data-panel="scenes"]').click()
