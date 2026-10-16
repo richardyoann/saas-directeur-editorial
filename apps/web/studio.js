@@ -69,7 +69,11 @@ function showWorkspace(view){
 }
 function safeGithubLink(root,label,path){
  const b=put(root,"a","btn secondary small-btn",label+" ↗");
- b.href="https://github.com/richardyoann/saas-directeur-editorial/"+path;
+ const base=s.conception?.repository_url||"";
+ if(!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(base)){
+  b.removeAttribute("href");b.setAttribute("aria-disabled","true");return b;
+ }
+ b.href=base+"/"+path;
  b.target="_blank";b.rel="noopener noreferrer";
  return b;
 }
