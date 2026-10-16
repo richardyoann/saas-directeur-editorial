@@ -526,6 +526,8 @@ class PostgresStore:
                     or any(s["status"] != "success" for s in run["steps"])
                     or decision.expected_revision != run.get("review_revision", 0)):
                 raise RunConflict()
+            if run["status"] == "approved" and decision.action != "revise":
+                raise RunConflict()
             if step == "storyboard" and run.get("storyboard_stale") and decision.action == "accept":
                 raise RunConflict()
             parsed = None
