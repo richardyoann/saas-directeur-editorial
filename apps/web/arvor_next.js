@@ -298,7 +298,15 @@ async function saveRemoteEditor(input){
  }catch(error){showToast('Enregistrement refusé : '+error.message)}
 }
 async function saveEditor(e){e.preventDefault();const input=Object.fromEntries(new FormData($('#editor-form')).entries());await saveRemoteEditor(input)}
-function exportStory(){const s=story(state.storyId);if(!s)return;const blob=new Blob([JSON.stringify({format:'arvor-story-demo-v1',exported_at:new Date().toISOString(),story:s},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='arvor-'+s.id+'.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Export JSON préparé.');}
+function exportStory(){
+ const st=story(state.storyId);if(!st?.run?.storyboard){showToast('Aucun scénario généré à exporter.');return}
+ const data={format:'arvor-storyboard-v1',exported_at:new Date().toISOString(),run_id:st.id,
+  status:st.rawStatus,review_revision:st.run.review_revision,brief:st.run.brief,storyboard:st.run.storyboard};
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),link=document.createElement('a');
+ link.href=url;link.download='arvor-'+st.id+'.json';document.body.append(link);link.click();link.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Export du storyboard courant préparé.');
+}
 $$('[data-route]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.route)));
 $('#side-create').addEventListener('click',()=>{closeMobile();openEditor('new')});
 $('#mobile-toggle').addEventListener('click',()=>{$('#sidebar').classList.toggle('open');$('#shade').classList.toggle('open')});
@@ -306,7 +314,7 @@ $('#shade').addEventListener('click',closeMobile);
 $('#editor-close').addEventListener('click',()=>$('#editor').close());
 $('#editor-cancel').addEventListener('click',()=>$('#editor').close());
 $('#editor-form').addEventListener('submit',saveEditor);
-$('#help').addEventListener('click',()=>showToast('Prototype autonome : aucun accès à PostgreSQL, Qwen, MinIO ou GitHub.'));
+$('#help').addEventListener('click',()=>showToast('Atelier privé connecté à vos services. Les créations nécessitent votre validation.'));
 window.addEventListener('keydown',e=>{if(e.key==='Escape')closeMobile();if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();navigate('stories');$('#story-search')?.focus()}});
 launch();
 })();
