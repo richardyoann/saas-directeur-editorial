@@ -81,7 +81,7 @@ function dateKey(value){
 function calendarEvents(data){
  const result=[];
  for(const epic of data.epics||[]){
-  if(epic.created_at)result.push({when:epic.created_at,kind:"dev",title:"Epic #"+epic.number+" · démarrage",id:epic.number});
+  if(epic.created_at)result.push({when:epic.created_at,kind:"dev",title:"Epic #"+epic.number+" · ticket créé",id:epic.number});
   if(epic.closed_at)result.push({when:epic.closed_at,kind:"validation",title:"Epic #"+epic.number+" · clôture",id:epic.number});
  }
  for(const pr of data.pull_requests||[]){
@@ -89,7 +89,7 @@ function calendarEvents(data){
   if(pr.merged_at)result.push({when:pr.merged_at,kind:"validation",title:"PR #"+pr.number+" · fusion",id:pr.number});
  }
  for(const d of data.deliveries||[]){
-  if(d.conclusion==="success"&&d.updated_at)result.push({when:d.updated_at,kind:"prod",title:"PC · déploiement validé "+(d.sha||"").slice(0,8),id:d.id});
+  if(d.conclusion==="success"&&d.updated_at)result.push({when:d.updated_at,kind:"prod",title:"PC · contrôle technique réussi "+(d.sha||"").slice(0,8),id:d.id});
  }
  return result;
 }
@@ -101,7 +101,7 @@ function calendarView(root,data){
  const next=put(header,"button","btn secondary small-btn","→");next.type="button";
  previous.addEventListener("click",()=>{s.calendarMonth=new Date(s.calendarMonth.getFullYear(),s.calendarMonth.getMonth()-1,1);renderConception();});
  next.addEventListener("click",()=>{s.calendarMonth=new Date(s.calendarMonth.getFullYear(),s.calendarMonth.getMonth()+1,1);renderConception();});
- const legend=put(wrap,"p","calendar-legend","● Développement   ● En validation   ● Production PC confirmée");
+ const legend=put(wrap,"p","calendar-legend","● Ticket produit   ● Revue de code   ● Contrôle PC réussi");
  const dayNames=put(wrap,"div","calendar-days");
  ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].forEach(day=>put(dayNames,"strong","",day));
  const cells=put(wrap,"div","calendar-days calendar-cells");
@@ -124,22 +124,6 @@ function calendarView(root,data){
   }
  }
 }
-async function approveDelivery(pr){
- if(!pr.merge_commit_sha || !/^[a-f0-9]{40}$/.test(pr.merge_commit_sha))return;
- const summary="Autoriser la livraison PC de la PR #"+pr.number+
-  " au SHA "+pr.merge_commit_sha+" ?\nL'action vérifie la régression et la tête de main.";
- if(!window.confirm(summary))return;
- const confirmation=window.prompt('Saisissez exactement AUTORISER PC pour confirmer le lancement sur votre PC :');
- if(confirmation!=="AUTORISER PC")return;
- const approvalSecret=window.prompt("Saisissez votre code de validation PC configuré sur le serveur :");
- if(!approvalSecret)return;
- try{
-  const response=await api("/studio/api/conception/pulls/"+pr.number+"/deliver","POST",
-   {confirm:confirmation,sha:pr.merge_commit_sha,approval_secret:approvalSecret});
-  alertUser(response.message||"Demande de livraison transmise.");
-  await loadConception();
- }catch(e){alertUser(message(e),true);}
-}
 function renderConception(){
  const data=s.conception;
  const root=$("conceptionContent");root.replaceChildren();
@@ -159,14 +143,10 @@ function renderConception(){
   put(card,"span","pill",pr.merged_at?"Fusionnée":pr.draft?"Brouillon":pr.state==="open"?"En validation":"Fermée");
   put(card,"small","","SHA : "+(pr.merge_commit_sha||pr.sha||"non disponible").slice(0,12));
   safeGithubLink(card,pr.draft?"Ouvrir brouillon":"Examiner la PR","pull/"+pr.number);
-  if(pr.merged_at&&data.delivery_control_enabled){
-   const b=put(card,"button","btn primary small-btn","Autoriser la livraison PC");
-   b.type="button";b.addEventListener("click",()=>approveDelivery(pr));
-  }
  }
  put(root,"h3","","Calendrier de réalisation (événements enregistrés)");
  calendarView(root,data);
- put(root,"p","tip","Dates réelles uniquement : ouverture d'epic (dev), PR (validation) et workflow PC réussi (production). Aucun pourcentage d'avancement sans liens de tâches fiables.");
+ put(root,"p","tip","Dates réelles uniquement : création d'epic, événements de PR et contrôle PC réussi. Un workflow vert est une preuve technique, pas une preuve de mise en production.");
  const reload=put(root,"button","btn secondary","↻ Actualiser GitHub");
  reload.type="button";reload.addEventListener("click",loadConception);
 }

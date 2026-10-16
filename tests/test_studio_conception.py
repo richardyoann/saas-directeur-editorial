@@ -20,8 +20,7 @@ class GitHubConceptionTests(unittest.IsolatedAsyncioTestCase):
             "EDITORIAL_WEB_PASSWORD": "w" * 48,
             "EDITORIAL_API_TOKEN": "t" * 48,
             "EDITORIAL_GITHUB_READ_TOKEN": "r" * 48,
-            "EDITORIAL_GITHUB_WRITE_TOKEN": "g" * 48,
-            "EDITORIAL_GITHUB_APPROVAL_SECRET": "s" * 48,
+            # Even a stale opt-in must never re-enable Studio writes.
             "EDITORIAL_GITHUB_DELIVERY_WRITE_ENABLED": "true",
         })
         self.env.start()
@@ -93,57 +92,18 @@ class GitHubConceptionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(data["epics"][0]["number"], 2)
             self.assertEqual(data["pull_requests"][0]["number"], 92)
             self.assertEqual(data["deliveries"][0]["id"], 123)
+            self.assertIs(data["delivery_control_enabled"], False)
             self.assertNotIn("token", response.text.lower())
             self.assertIn("no-store", response.headers["cache-control"])
 
-    async def test_deployment_requires_csrf_approval_secret_and_opt_in(self):
-        headers = await self.login()
-        url = "/studio/api/conception/pulls/92/deliver"
-        body = {"confirm": "AUTORISER PC", "sha": SHA,
-                "approval_secret": "s" * 48}
-        with patch.object(studio, "_gh", side_effect=self.fake_gh):
-            self.assertEqual((await self.client.post(url, json=body)).status_code, 403)
-            self.assertEqual((await self.client.post(
-                url, json=body, headers={"X-CSRF-Token": headers["X-CSRF-Token"]}
-            )).status_code, 403)
-            self.assertEqual((await self.client.post(
-                url, json={**body, "confirm": "ok"}, headers=headers
-            )).status_code, 422)
-            self.assertEqual((await self.client.post(
-                url, json={**body, "approval_secret": "wrong"}, headers=headers
-            )).status_code, 403)
-            with patch.dict(os.environ, {"EDITORIAL_GITHUB_DELIVERY_WRITE_ENABLED": "false"}):
-                self.assertEqual((await self.client.post(
-                    url, json=body, headers=headers
-                )).status_code, 403)
-        self.assertFalse(any(call[0] == "PATCH" for call in self.calls))
-
-    async def test_never_deploy_old_sha_or_failed_regression(self):
+    async def test_delivery_endpoint_is_fail_closed_and_has_no_github_side_effect(self):
         headers = await self.login()
         url = "/studio/api/conception/pulls/92/deliver"
         payload = {"confirm": "AUTORISER PC", "sha": SHA,
                    "approval_secret": "s" * 48}
         with patch.object(studio, "_gh", side_effect=self.fake_gh):
-            self.head_sha = "c" * 40
-            old = await self.client.post(url, json=payload, headers=headers)
-            self.assertEqual(old.status_code, 409)
-            self.head_sha = SHA
-            self.regression_success = False
-            failed = await self.client.post(url, json=payload, headers=headers)
-            self.assertEqual(failed.status_code, 409)
-        self.assertFalse(any(call[0] == "PATCH" for call in self.calls))
-
-    async def test_successful_request_keeps_exact_sha_and_no_merge(self):
-        headers = await self.login()
-        with patch.object(studio, "_gh", side_effect=self.fake_gh):
-            result = await self.client.post(
-                "/studio/api/conception/pulls/92/deliver",
-                json={"confirm": "AUTORISER PC", "sha": SHA,
-                      "approval_secret": "s" * 48}, headers=headers
-            )
-        self.assertEqual(result.status_code, 200, result.text)
-        self.assertEqual(result.json()["requested"], True)
-        mutations = [x for x in self.calls if x[0] in {"PATCH", "POST"}]
-        self.assertEqual([x[0] for x in mutations], ["PATCH", "POST"])
-        self.assertEqual(mutations[0][3]["value"], SHA)
-        self.assertEqual(mutations[1][3]["inputs"]["approved_sha"], SHA)
+            for _ in range(2):
+                response = await self.client.post(url, json=payload, headers=headers)
+                self.assertEqual(response.status_code, 403)
+                self.assertIn("non déclenchable depuis Studio", response.json()["detail"])
+        self.assertEqual(self.calls, [])

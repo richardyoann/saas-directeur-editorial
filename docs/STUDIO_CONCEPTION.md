@@ -17,10 +17,10 @@
 ### Conception
 - Epics et états depuis les issues GitHub portant `[EPIC-` ou `Epic`.
 - PR et statut courant depuis l'API privée GitHub.
-- Calendrier navigable calculé à partir d'événements datés : ouverture d'epic = développement ; ouverture/fusion PR = validation ; workflow PC réussi = production.
+- Calendrier navigable calculé à partir d'événements datés : création d'epic, ouverture/fusion de PR et contrôle technique PC réussi. Ces événements ne prétendent pas prouver une mise en production.
 - Les pourcentages d'avancement ne sont pas inventés en l'absence de correspondances fiables entre issues et epics.
-- Bouton d'autorisation de livraison disponible pour une PR **déjà fusionnée**, avec confirmation explicite et deuxième secret.
-- La revue de PR et sa fusion restent dans GitHub (les auteurs ne peuvent pas approuver leur propre PR sur GitHub). Le bouton **n'approuve ni ne fusionne** le code.
+- Le cockpit est strictement en lecture seule pour GitHub. Il n'écrit aucune variable Actions et ne déclenche aucun workflow.
+- La revue, la fusion et l'autorisation d'une livraison restent hors de Studio. La livraison utilise le mécanisme exact-SHA documenté dans `docs/AUTONOMOUS_DELIVERY.md`.
 
 ## Configuration privée
 
@@ -28,22 +28,13 @@ Les variables sont illustrées dans `.env.example` et doivent rester dans la con
 
 ```dotenv
 EDITORIAL_GITHUB_READ_TOKEN=<private fine-grained token with issues/pull-requests/actions read>
-EDITORIAL_GITHUB_DELIVERY_WRITE_ENABLED=false
-EDITORIAL_GITHUB_WRITE_TOKEN=<separate tightly scoped server-only token>
-EDITORIAL_GITHUB_APPROVAL_SECRET=<random secret >=32 chars and distinct from web password>
 ```
 
 Le token de lecture est indispensable au cockpit du dépôt privé. Sans token, le serveur répond 503 et l'interface explique que la configuration est requise.
 
-Ne pas activer les écritures avant la validation du mécanisme avec un token limité au dépôt et autorisé à modifier les variables GitHub Actions et déclencher les workflows. Le code refuse toute autorisation de production sans :
-1. Session HTTPS/localhost valide et origine + protection CSRF.
-2. Confirmation `AUTORISER PC` et secret de production distinct du mot de passe de connexion.
-3. `EDITORIAL_GITHUB_DELIVERY_WRITE_ENABLED=true` et variable GitHub `LOCAL_PC_ENABLED=true`.
-4. PR déjà fusionnée sur `main`, SHA de fusion exact de 40 caractères et identique à la tête courante de `main`.
-5. `regression.yml` terminée avec succès en événement `push` sur `main` pour le SHA exact.
-6. Écriture de `LOCAL_PC_APPROVED_SHA`, puis `workflow_dispatch` de `local-delivery.yml` sur le SHA. Lancement **demandé** n'est pas preuve de livraison réussie.
+Le point de terminaison historique `POST /studio/api/conception/pulls/{pr}/deliver` est conservé uniquement pour compatibilité et répond toujours 403 après les contrôles de session, d'origine et de CSRF. Cette mise en échec explicite empêche tout état ambigu après timeout, double requête ou validation concurrente. Studio ne doit recevoir aucun token GitHub en écriture.
 
-En cas d'échec de déclenchement, une restauration de la valeur d'approbation précédente est tentée. Confirmer l'état de GitHub Actions avant toute nouvelle demande, car un incident réseau peut rendre le résultat incertain.
+Une livraison privée est autorisée uniquement par le mécanisme exact-SHA décrit dans `docs/AUTONOMOUS_DELIVERY.md`, après revue documentée et CI réussie. Un lancement demandé, un workflow ignoré ou un contrôle technique vert ne constituent jamais à eux seuls une preuve de livraison métier.
 
 ## Contrôles de recette
 
@@ -57,7 +48,7 @@ python -m py_compile apps/api/studio.py editorial/api.py editorial/store.py
 STUDIO_BROWSER_TESTS=yes python -m unittest discover -s browser_checks -p 'test_studio_browser.py' -v
 ```
 
-Parcours fonctionnels à vérifier : liste tuiles → histoire → scène → composant → fiche personnage ; création et relecture ; édition d'une version approuvée → nouvelle version en attente → validation ; calendrier PR et release ; déconnexion ; mobile ; jeton GitHub absent ; mauvais SHA ; régression rouge ; deuxième facteur incorrect ; workflow indisponible.
+Parcours fonctionnels à vérifier : liste tuiles → histoire → scène → composant → fiche personnage ; création et relecture ; édition d'une version approuvée → nouvelle version en attente → validation ; calendrier PR et contrôles PC ; déconnexion ; mobile ; jeton GitHub absent ; endpoint de livraison Studio refusé sans aucun effet GitHub.
 
 ## Limites actuelles
 
@@ -65,5 +56,5 @@ Parcours fonctionnels à vérifier : liste tuiles → histoire → scène → co
 - Le brief (topic, public, durée...) est consultable mais non modifiable directement après création ; la durée du storyboard reste contrainte par le brief initial.
 - Pas de lecteur audio/vidéo MinIO ni d'upload de voix/vidéo par l'interface : seules les métadonnées auditées sont exposées.
 - GitHub fournit les états d'issue mais pas de progression fiable en pourcentage sans un modèle explicite de dépendances.
-- L'app ne fusionne pas les PR. L'autorisation PC n'est opérationnelle que si les variables et permissions serveur sont préparées.
+- L'app ne fusionne pas les PR et ne déclenche aucune livraison. L'autorisation PC reste un processus exact-SHA externe au Studio.
 - Une PR en brouillon ne doit pas être fusionnée ou livrée avant régression réussie et décision humaine.
