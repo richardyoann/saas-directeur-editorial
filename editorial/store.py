@@ -258,8 +258,12 @@ class PostgresStore:
 
     def begin_step(self, tenant, actor, run_id, step, prompt):
         with self.connect() as conn:
-            row = conn.execute("SELECT version,content FROM po_entity WHERE tenant_id=%s AND kind='treatment' AND entity_id=%s FOR UPDATE", (tenant, run_id)).fetchone()
-            if not row:
+            row = conn.execute(
+                "SELECT version,content FROM po_entity "
+                "WHERE tenant_id=%s AND kind='treatment' AND entity_id=%s "
+                "AND NOT deleted FOR UPDATE", (tenant, run_id)
+            ).fetchone()
+            if not row or row[1].get("type") != "editorial_run":
                 raise RunMissing()
             version, run = row
             expected = "analysis" if not run["steps"] else "storyboard"
@@ -285,8 +289,12 @@ class PostgresStore:
         # One transaction covers the exact prompt/output snapshot, treatment,
         # domain objects, run transition, audit rows, and Slack outbox references.
         with self.connect() as conn:
-            row = conn.execute("SELECT version,content FROM po_entity WHERE tenant_id=%s AND kind='treatment' AND entity_id=%s FOR UPDATE", (tenant, run_id)).fetchone()
-            if not row:
+            row = conn.execute(
+                "SELECT version,content FROM po_entity "
+                "WHERE tenant_id=%s AND kind='treatment' AND entity_id=%s "
+                "AND NOT deleted FOR UPDATE", (tenant, run_id)
+            ).fetchone()
+            if not row or row[1].get("type") != "editorial_run":
                 raise RunMissing()
             version, run = row
             if run.get("status") != "running" or step in [x["name"] for x in run["steps"]]:
@@ -307,7 +315,19 @@ class PostgresStore:
                          "finish_reason": response.get("finish_reason"), "parameters": {"max_tokens": 2048, "stream": False,
                          "temperature": 0.1, "response_format": "json_object", "system_prompt_version": "1.2.0"},
                          "started_at": run["current_step"]["started_at"], "finished_at": now()}
-            self._write(conn, tenant, actor, run_id, "treatment", treatment_id, treatment, 1)
+            # The step treatment already exists after begin_step. Preserve its
+            # actual optimistic-lock version instead of assuming version 1.
+            treatment_row = conn.execute(
+                "SELECT version,content FROM po_entity "
+                "WHERE tenant_id=%s AND kind='treatment' AND entity_id=%s "
+                "AND NOT deleted FOR UPDATE", (tenant, treatment_id)
+            ).fetchone()
+            if (not treatment_row or treatment_row[1].get("run_id") != str(run_id)
+                    or treatment_row[1].get("step") != step
+                    or treatment_row[1].get("status") != "running"):
+                raise RunConflict()
+            self._write(conn, tenant, actor, run_id, "treatment", treatment_id,
+                        treatment, treatment_row[0])
             self._write(conn, tenant, actor, run_id, "result", result_id,
                         {"run_id": str(run_id), "type": "editorial_step_snapshot", "order": len(run["steps"]),
                          "prompt_id": str(prompt_id), "treatment_id": str(treatment_id),

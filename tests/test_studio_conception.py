@@ -20,6 +20,7 @@ class GitHubConceptionTests(unittest.IsolatedAsyncioTestCase):
             "EDITORIAL_WEB_PASSWORD": "w" * 48,
             "EDITORIAL_API_TOKEN": "t" * 48,
             "EDITORIAL_GITHUB_READ_TOKEN": "r" * 48,
+            "EDITORIAL_GITHUB_REPOSITORY": "richardyoann/saas-directeur-editorial",
             # Even a stale opt-in must never re-enable Studio writes.
             "EDITORIAL_GITHUB_DELIVERY_WRITE_ENABLED": "true",
         })
