@@ -53,3 +53,31 @@ class ArchiveEpisodeTests(unittest.TestCase):
                     module.archive(root, uuid4())
             self.assertIn('"state": "stored"', (root / "minio-archive.jsonl").read_text())
             self.assertTrue((root / "episode.mp4").exists())
+
+
+    def test_restore_requires_ordered_recorded_state_for_every_asset(self):
+        from uuid import UUID
+        tenant, run_id, asset_id = uuid4(), uuid4(), uuid4()
+        started = {"state": "started", "tenant": str(tenant),
+                   "run_id": str(run_id), "asset_id": str(asset_id),
+                   "kind": "video", "file": "episode.mp4"}
+        stored = {"state": "stored", "asset_id": str(asset_id),
+                  "storage": {"backend": "minio"}}
+        recorded = {"state": "recorded", "asset_id": str(asset_id)}
+        cases = {
+            "missing_recorded": [started, stored],
+            "orphan_recorded": [recorded],
+            "duplicate_recorded": [started, stored, recorded, recorded],
+            "wrong_order": [stored, started, recorded],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, events in cases.items():
+                journal = root / f"{name}.jsonl"
+                journal.write_text(
+                    "".join(json.dumps(event) + "\n" for event in events),
+                    encoding="utf-8")
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    restore_module.restore(
+                        journal, root / f"restore-{name}",
+                        UUID(str(tenant)), UUID(str(run_id)))
