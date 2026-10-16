@@ -54,6 +54,23 @@ class DeletedOrWrongRunTests(unittest.TestCase):
         self.assertIn("AND NOT deleted FOR UPDATE", db.queries[0])
 
 
+class DatabaseSchemaReadinessTests(unittest.TestCase):
+    def test_database_needs_all_business_tables(self):
+        mod = importlib.import_module("apps.api.main")
+        with patch.dict(os.environ, {"PO_DATABASE_URL": "postgresql://test@localhost/test"}):
+            with patch("psycopg.connect") as connect:
+                connection = connect.return_value.__enter__.return_value
+                connection.execute.return_value.fetchone.return_value = (
+                    True, True, True, False,
+                )
+                self.assertFalse(mod._database_ready())
+                connection.execute.return_value.fetchone.return_value = (
+                    True, True, True, True,
+                )
+                self.assertTrue(mod._database_ready())
+                self.assertIn("to_regclass", connection.execute.call_args.args[0])
+
+
 class ReadinessTests(unittest.IsolatedAsyncioTestCase):
     async def test_readiness_is_cached_and_hides_dependency_details(self):
         mod = importlib.import_module("apps.api.main")
