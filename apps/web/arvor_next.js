@@ -205,6 +205,19 @@ async function createRemote(input){
  $('#editor').close();await fetchStories();await navigate('stories',run.id);
  showToast('Histoire enregistrée. Vérifiez et validez les propositions de l’IA.');
 }
+function revisionDocument(run){
+ const board=run.storyboard||{};
+ return {
+ title:board.title||'',synopsis:board.synopsis||'',
+ cast:(board.cast||[]).map(x=>({name:x.name,appearance:x.appearance,personality:x.personality,role:x.role})),
+ scenes:(board.scenes||[]).map(x=>({
+  title:x.title,duration_seconds:x.duration_seconds,narration:x.narration,
+  visual_description:x.visual_description,characters:x.characters||[],
+  landscape:x.landscape,colors:x.colors||[],shot:x.shot,emotion:x.emotion,
+  sound:x.sound,image_prompt:x.image_prompt
+ }))
+ };
+}
 async function saveRemoteEditor(input){
  try{
   if(editorAction==='new')await createRemote(input);
