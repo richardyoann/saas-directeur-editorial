@@ -10,7 +10,7 @@ const escapeHtml=(value)=>String(value??'').replace(/[&<>"']/g, c=>({'&':'&amp;'
 const escapeAttr=escapeHtml;
 const formatDay=iso=>{const d=new Date(iso||0);return iso&&!isNaN(d.getTime())?d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'—';};
 const today=()=>new Date().toISOString().slice(0,10);
-let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null;
+let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null;
 const state={route:'stories',storyId:null,panel:'overview',sceneIndex:0,filter:'Toutes',query:'',journalFilter:'Tout',journalQuery:'',adminTab:'Vue d’ensemble',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarMode:'Mois'};
 let editorAction=null,toastTimer;
 const persist=()=>{};
