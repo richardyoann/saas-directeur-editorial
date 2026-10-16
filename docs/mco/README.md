@@ -6,6 +6,7 @@
 
 | Besoin | Document |
 | --- | --- |
+| Livraison : casse de LOCAL_PC_ENABLED et JSON Python 3.14 | [Incident du 16/10](INCIDENT_2026-10-16_LIVRAISON_JSON.md) |
 | Transfert MinIO incertain et reprise des médias | [MinIO médias](MINIO_MEDIA_RECOVERY.md) |
 | Résultat image incertain, timeout et fichier privé conservé | [Runbook images](IMAGE_GENERATION_RECOVERY.md) |
 | Comprendre l'incident du 14–15/10/2026 (symptômes, causes, corrections, preuves) | [INC-2026-10-14 — remise en service PC](INCIDENT_2026-10-14_REMISE_EN_SERVICE_PC.md) |

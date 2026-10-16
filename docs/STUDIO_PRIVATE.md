@@ -85,5 +85,8 @@ mot de passe contenant un surrogate isolé : HTTP 422 ; CSRF non ASCII invalide 
 
 Aucune nouvelle variable ni modification de démarrage. Pour un futur upload,
 concevoir une route et des limites dédiées avant de relever ce plafond.
+La profondeur JSON est limitée explicitement à 128 conteneurs imbriqués
+(objets/tableaux), indépendamment du décodeur de Python. Le même contrôle
+s'applique au middleware et au décodage Studio, y compris sans Content-Type.
 Vérifier tests/test_qa_lot1.py puis la CI complète sur DB jetable.
 La [revue Lot 1](QA_LOT1_2026-10-15.md) distingue les correctifs de la recette PC.
