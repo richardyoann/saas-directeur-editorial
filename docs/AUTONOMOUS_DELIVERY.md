@@ -207,3 +207,11 @@ L'incrément EDIT-001 ajoute les routes review/reviews au code API; aucune nouve
 ## REL-002 : isolation des données et verrou du commit
 
 Le workflow de livraison corrigé utilise une base de recette PostgreSQL jetable, et les contrôles actifs du SaaS sont limités à des lectures (plus authentification/logout de session volatile). Il impose désormais `LOCAL_PC_APPROVED_SHA` égal au SHA autorisé et `LOCAL_PC_ENABLED=true` ; un déclenchement manuel par SHA exact est prévu. Le contrat des deux preuves CI, les prérequis, le rollback et l'absence d'installation d'un moteur d'images sont expliqués dans [REL_002_SAFE_DELIVERY.md](REL_002_SAFE_DELIVERY.md). Ne pas appliquer les étapes historiques qui activeraient le seul flag `LOCAL_PC_ENABLED` sans le nouveau verrou. Une autorisation sur l'ancien SHA ne couvre pas le commit correctif.
+
+
+## REL-003 — accord depuis la conversation
+
+La voie optionnelle [REL_003_CHAT_APPROVAL.md](REL_003_CHAT_APPROVAL.md)
+remplace la mise à jour répétée du SHA global par une branche technique créée
+après accord humain sur la version présentée. LOCAL_PC_ENABLED reste requis.
+Aucune activation automatique ni livraison n'est annoncée par cette préparation.
