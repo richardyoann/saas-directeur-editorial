@@ -333,7 +333,7 @@ def epic_checklist_progress(body: str | None):
     """Count explicit Markdown checkboxes; never invent progress from ticket status."""
     if not isinstance(body, str):
         return {"checklist_total": 0, "checklist_done": 0, "progress_pct": None}
-    marks = re.findall(r"(?m)^\\s*[-*]\\s+\\[([ xX])\\]\\s+", body)
+    marks = re.findall(r"(?m)^\s*[-*]\s+\[([ xX])\]\s+", body)
     total = len(marks)
     done = sum(mark.lower() == "x" for mark in marks)
     return {
