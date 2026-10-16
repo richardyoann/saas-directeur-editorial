@@ -366,13 +366,21 @@ async def approve_pc_delivery(request: Request, pr_number: int):
     if pr_number < 1 or pr_number > 1_000_000:
         raise HTTPException(422, "Numéro PR invalide.")
     data = await body(request)
-    if data.get("confirm") != "AUTORISER PC" or set(data) != {"confirm", "sha"}:
+    if data.get("confirm") != "AUTORISER PC" or set(data) != {"confirm", "sha", "approval_secret"}:
         raise HTTPException(422, "Confirmation explicite requise.")
     expected = data.get("sha")
     import re
     if not isinstance(expected, str) or re.fullmatch(r"[a-f0-9]{40}", expected) is None:
         raise HTTPException(422, "SHA exact requis.")
+    approval_secret = os.getenv("EDITORIAL_GITHUB_APPROVAL_SECRET", "")
+    submitted_secret = data.get("approval_secret")
+    if (len(approval_secret) < 32 or not isinstance(submitted_secret, str)
+            or not hmac.compare_digest(submitted_secret, approval_secret)):
+        raise HTTPException(403, "Code de validation PC requis.")
     token = _github_write_token()
+    enabled = await _gh("GET", "/actions/variables/LOCAL_PC_ENABLED", token=token)
+    if enabled.get("value") != "true":
+        raise HTTPException(409, "Livraison PC désactivée dans GitHub.")
     pr = await _gh("GET", f"/pulls/{pr_number}", token=token)
     if (pr.get("state") != "closed" or not pr.get("merged_at")
             or (pr.get("base") or {}).get("ref") != "main"
@@ -396,10 +404,19 @@ async def approve_pc_delivery(request: Request, pr_number: int):
     # GitHub repository Actions variable used by the existing local-delivery
     # workflow. A limited-permission token, role policy and explicit opt-in
     # are deployment prerequisites; no browser token can reach this endpoint.
+    old_approval = await _gh("GET", "/actions/variables/LOCAL_PC_APPROVED_SHA", token=token)
     await _gh("PATCH", "/actions/variables/LOCAL_PC_APPROVED_SHA",
               token=token, payload={"name": "LOCAL_PC_APPROVED_SHA", "value": expected})
-    await _gh("POST", "/actions/workflows/local-delivery.yml/dispatches",
-              token=token, payload={"ref": "main", "inputs": {"approved_sha": expected}})
+    try:
+        await _gh("POST", "/actions/workflows/local-delivery.yml/dispatches",
+                  token=token, payload={"ref": "main", "inputs": {"approved_sha": expected}})
+    except HTTPException:
+        # A failed dispatch must not leave this new SHA authorized for a
+        # later workflow_run event. Revert conservatively when possible.
+        await _gh("PATCH", "/actions/variables/LOCAL_PC_APPROVED_SHA",
+                  token=token, payload={"name": "LOCAL_PC_APPROVED_SHA",
+                                        "value": old_approval.get("value", "")})
+        raise
     return no_store(JSONResponse({
         "requested": True, "pr_number": pr_number, "sha": expected,
         "message": "Livraison demandée. Vérifier le résultat du runner PC dans GitHub Actions."
