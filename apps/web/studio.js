@@ -3,6 +3,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const s = {csrf:null,runs:[],next:null,run:null,tab:"storyboard",pending:null,step:"storyboard",reviews:[],nextReview:null,openRequest:0,pollBusy:false,conception:null,calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1)};
+let storyFilter="all";
 const uuid=/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const states={queued:"En attente",waiting_validation:"À valider",changes_requested:"À retravailler",approved:"Approuvé",running:"En cours",failed:"Échec"};
 const names={analysis:"Analyse",storyboard:"Storyboard"};
@@ -38,11 +39,17 @@ function renderList(){
  const runs=s.runs.filter(r=>[r.title,r.topic].filter(Boolean).join(" ").toLocaleLowerCase("fr").includes(q));
  if(!runs.length)put(root,"p","","Aucune histoire correspondante dans les éléments chargés.");
  for(const r of runs){const b=put(root,"button","run-item"+(r.id===s.run?.id?" active":""));b.type="button";put(b,"strong","",r.title||r.topic||"Histoire sans titre");put(b,"small","",(states[r.status]||"Inconnu")+" · "+date(r.created_at));b.addEventListener("click",()=>openRun(r.id));}
- renderCards(runs);
+ const groups={all:()=>true,draft:r=>r.status==="failed",writing:r=>["running","queued","changes_requested"].includes(r.status),review:r=>r.status==="waiting_validation",approved:r=>r.status==="approved"};
+ renderCards(runs.filter(groups[storyFilter]||groups.all));
  $("count").textContent=s.runs.length+(s.next?"+":"");$("total").textContent=$("count").textContent;
  $("pending").textContent=s.runs.filter(r=>["waiting_validation","changes_requested"].includes(r.status)).length;
  $("approved").textContent=s.runs.filter(r=>r.status==="approved").length;$("more").hidden=!s.next;
 }
+document.querySelectorAll("[data-story-filter]").forEach(button=>button.addEventListener("click",()=>{
+ storyFilter=button.dataset.storyFilter;
+ document.querySelectorAll("[data-story-filter]").forEach(item=>{const active=item===button;item.classList.toggle("active",active);item.setAttribute("aria-pressed",String(active));});
+ renderList();
+}));
 function renderCards(runs){
  const root=$("storyCards");root.replaceChildren();
  if(!runs.length){put(root,"p","empty-panel","Aucune histoire dans les éléments chargés. Créez votre premier récit.");return;}
@@ -57,9 +64,13 @@ function renderCards(runs){
   image.addEventListener("load",()=>{artwork.replaceChildren(image);});
   image.src="/studio/api/runs/"+encodeURIComponent(r.id)+"/scenes/1/image";
   const meta=put(b,"span","story-tile-content");
+  const badge=put(meta,"span","arvor-story-badge",states[r.status]||"Statut inconnu");
+  badge.dataset.status=r.status||"unknown";
+  if(r.landscape)put(meta,"small","arvor-place","⌖ "+r.landscape);
   put(meta,"strong","",r.title||r.topic||"Histoire sans titre");
-  put(meta,"small","",states[r.status]||"Statut inconnu");
-  put(meta,"small","",date(r.created_at));
+  if(r.synopsis)put(meta,"span","arvor-synopsis",r.synopsis);
+  if(Number.isInteger(r.scene_count))put(meta,"small","arvor-scene-count",r.scene_count+" scène"+(r.scene_count>1?"s":""));
+  put(meta,"small","arvor-updated","Modifiée le "+date(r.updated_at||r.created_at));
   put(meta,"span","story-tile-more","Explorer l’histoire →");
   b.addEventListener("click",()=>openRun(r.id));
  }
