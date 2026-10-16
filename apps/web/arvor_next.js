@@ -194,6 +194,17 @@ function openEditor(mode){
  $('#editor-title').textContent=title;$('#editor-kicker').textContent=kick;fields(rows);$('#editor').showModal();
  $('#editor-fields input, #editor-fields textarea, #editor-fields select')?.focus();
 }
+async function createRemote(input){
+ const brief={topic:(input.topic||'').trim(),genre:'legend',duration_seconds:Number(input.duration_seconds),
+ scene_count:Number(input.scene_count),audience:'Grand public',tone:'Narratif et accessible',sources:[]};
+ if(!brief.topic||brief.duration_seconds<15||brief.duration_seconds>180||brief.scene_count<1||brief.scene_count>6)throw Error('Brief invalide : 15 à 180 secondes et 1 à 6 scènes.');
+ const fingerprint=JSON.stringify(brief);
+ if(!pendingCreation||pendingCreation.fingerprint!==fingerprint)pendingCreation={fingerprint,key:crypto.randomUUID()};
+ const run=await api('/studio/api/runs','POST',brief,{'Idempotency-Key':pendingCreation.key});
+ if(!['queued','running'].includes(run.status))pendingCreation=null;
+ $('#editor').close();await fetchStories();await navigate('stories',run.id);
+ showToast('Histoire enregistrée. Vérifiez et validez les propositions de l’IA.');
+}
 async function saveRemoteEditor(input){
  try{
   if(editorAction==='new')await createRemote(input);
