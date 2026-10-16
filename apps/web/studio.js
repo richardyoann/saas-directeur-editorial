@@ -321,7 +321,21 @@ function sceneDetail(sceneIndex){
  }
  const image=put(root,"article","card");
  put(image,"h4","","Illustration et médias associés");
- put(image,"p","","Les images sont accessibles dans l'onglet Personnages & images. Les autres médias ne sont affichés que si leur existence est confirmée.");
+ put(image,"p","","Les images sont accessibles dans l'onglet Personnages & images. Les autres médias sont répertoriés uniquement s'ils sont enregistrés pour cette histoire.");
+ const listing=put(image,"div","media-catalog","Recherche des fichiers de production…");
+ api("/studio/api/runs/"+s.run.id+"/media").then(data=>{
+  if(!listing.isConnected)return;
+  listing.replaceChildren();
+  if(!(data.media||[]).length){
+   put(listing,"p","tip","Aucun fichier de voix, vidéo ou sous-titres archivé dans le catalogue de cette histoire.");return;
+  }
+  for(const item of data.media){
+   const card=put(listing,"div","media-catalog-entry");
+   put(card,"strong","",({voice:"Voix",video:"Vidéo",image:"Image",manifest:"Manifeste",subtitles:"Sous-titres"})[item.kind]||"Média");
+   put(card,"p","","Taille : "+(item.size_bytes??"—")+" octets · Empreinte SHA256 : "+(item.sha256||"—"));
+   put(card,"small","",date(item.created_at));
+  }
+ }).catch(e=>{if(listing.isConnected)listing.textContent=message(e);});
  const media=put(image,"button","btn secondary","Afficher les images privées");
  media.type="button";media.addEventListener("click",()=>tab("visuals"));
 }
