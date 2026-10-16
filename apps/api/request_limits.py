@@ -5,6 +5,27 @@ import json
 
 MAX_REQUEST_BYTES = 256000
 REQUEST_BODY_TIMEOUT = 15
+MAX_JSON_DEPTH = 128
+
+
+class JSONTooDeep(ValueError):
+    """JSON container depth exceeds the application contract."""
+
+
+def load_bounded_json(raw):
+    """Enforce the same depth contract even with a non-recursive decoder."""
+    value = json.loads(raw)
+    pending = [(value, 1)]
+    while pending:
+        item, depth = pending.pop()
+        if not isinstance(item, (dict, list)):
+            continue
+        if depth > MAX_JSON_DEPTH:
+            raise JSONTooDeep("JSON nesting too deep")
+        children = item.values() if isinstance(item, dict) else item
+        pending.extend((child, depth + 1) for child in children
+                       if isinstance(child, (dict, list)))
+    return value
 
 
 class RequestLimits:
@@ -30,12 +51,12 @@ class RequestLimits:
         except TimeoutError:
             return await self.reject(send, 408)
         # FastAPI decodes JSON before resolving authentication dependencies.
-        # Keep excessive nesting from escaping its decoder as an HTTP 500.
+        # Enforce a stable limit; decoder recursion differs by Python version.
         if any(key.lower() == b"content-type" and b"application/json" in value.lower()
                for key, value in scope.get("headers", [])):
             try:
-                json.loads(body)
-            except RecursionError:
+                load_bounded_json(body)
+            except (JSONTooDeep, RecursionError):
                 return await self.reject(send, 422)
             except (ValueError, UnicodeDecodeError):
                 pass  # Route/framework keeps its existing malformed-JSON response.

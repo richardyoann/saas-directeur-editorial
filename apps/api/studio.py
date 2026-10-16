@@ -15,6 +15,7 @@ from uuid import UUID
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
+from apps.api.request_limits import load_bounded_json
 
 router = APIRouter(prefix="/studio", include_in_schema=False)
 ASSETS = Path(__file__).resolve().parents[1] / "web"
@@ -90,7 +91,7 @@ async def body(request):
     if len(raw) > 64000:
         raise HTTPException(413, "Requête trop volumineuse.")
     try:
-        value = json.loads(raw)
+        value = load_bounded_json(raw)
     except (ValueError, UnicodeDecodeError, RecursionError):
         raise HTTPException(422, "JSON invalide.") from None
     if not isinstance(value, dict):

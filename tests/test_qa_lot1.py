@@ -8,10 +8,34 @@ from uuid import uuid4
 import httpx
 
 from apps.api.main import app
-from apps.api.request_limits import MAX_REQUEST_BYTES, RequestLimits
+from apps.api.request_limits import (MAX_REQUEST_BYTES, MAX_JSON_DEPTH,
+                                     JSONTooDeep, RequestLimits, load_bounded_json)
 from apps.api.studio import failures, sessions
 from editorial.api import get_store
 from editorial.visuals import ImagePromptTooLong, ImageUnavailable, image_gate, render_png
+
+
+class JSONDepthTests(unittest.TestCase):
+    def test_exact_container_depth_boundary(self):
+        raw = '[' * MAX_JSON_DEPTH + '0' + ']' * MAX_JSON_DEPTH
+        self.assertIsInstance(load_bounded_json(raw), list)
+        with self.assertRaises(JSONTooDeep):
+            load_bounded_json('[' + raw + ']')
+
+    def test_non_recursive_decoder_result_is_still_bounded(self):
+        value = 0
+        for _ in range(15000):
+            value = [value]
+        with patch('apps.api.request_limits.json.loads', return_value=value):
+            with self.assertRaises(JSONTooDeep):
+                load_bounded_json(b'[]')
+
+    def test_object_depth_and_brackets_inside_strings(self):
+        self.assertEqual(load_bounded_json('{"text":"[[[\\\"}]]"}'),
+                         {"text": '[[["}]]'})
+        raw = '{"x":' * (MAX_JSON_DEPTH + 1) + '0' + '}' * (MAX_JSON_DEPTH + 1)
+        with self.assertRaises(JSONTooDeep):
+            load_bounded_json(raw)
 
 
 class RequestLimitTests(unittest.IsolatedAsyncioTestCase):
