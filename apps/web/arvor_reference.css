@@ -1,0 +1,18 @@
+:root{--navy:#193e32;--teal:#27513f;--sand:#cab783}
+.sidebar{background:#193e32}.sidebar .wordmark b{font-family:Georgia,serif;font-size:29px;letter-spacing:0;text-transform:lowercase}
+.nav-item.selected{background:#345e4d}.btn.primary{background:#244e3e;color:white}
+h1,h2,h3{color:#284839}.overline{color:#789577}
+.arvor-journal-list{margin:22px 0;border:1px solid #dce5d9;border-radius:8px;background:white}
+.arvor-journal-row{display:flex;gap:15px;align-items:center;width:100%;background:white;border:0;border-bottom:1px solid #e1e7dd;padding:20px;text-align:left}
+.arvor-journal-row>span:nth-child(2){flex:1;display:grid;gap:6px}.arvor-journal-row small{color:#69806c}
+.arvor-journal-icon{padding:8px;border-radius:50%;background:#e9f0e8}
+.arvor-admin-tabs{display:flex;gap:12px;margin:20px 0;border-bottom:1px solid #dae3d7;flex-wrap:wrap}
+.arvor-admin-tabs button{border:0;background:none;padding:12px;color:#59765d}
+.arvor-admin-tabs .active{border-bottom:2px solid #315943;font-weight:bold}
+.arvor-admin-row,.arvor-calendar-event{display:flex;align-items:center;gap:14px;padding:15px;border-bottom:1px solid #e1e7dd;background:white}
+.arvor-admin-row>div{flex:1}.arvor-admin-row small{display:block;color:#718473}
+.arvor-state{padding:5px 9px;border-radius:5px;background:#edf0eb;font-size:12px}
+.arvor-state.ok,.arvor-calendar-event.ok{background:#e5f1df;color:#356e33}
+.arvor-state.ko,.arvor-calendar-event.ko{background:#fbe6e2;color:#a32f28}
+.arvor-calendar-tools{display:flex;gap:8px;margin:15px 0}.arvor-calendar-tools button{padding:8px 14px;background:#e9efe6;border:1px solid #d7e2d4}
+@media(max-width:650px){.arvor-admin-row{flex-wrap:wrap}}
