@@ -105,7 +105,7 @@ async def index(request: Request):
     return no_store(FileResponse(ASSETS / "studio.html", media_type="text/html"))
 
 @router.get("/assets/{name}")
-async def asset(request: Request, name: Literal["studio.css", "studio.js"]):
+async def asset(request: Request, name: Literal["studio.css", "studio.js", "arvor_reference.js", "arvor_reference.css"]):
     transport(request)
     return no_store(FileResponse(ASSETS / name, media_type="text/css" if name.endswith(".css") else "text/javascript"))
 
