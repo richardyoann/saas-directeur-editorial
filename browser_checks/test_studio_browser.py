@@ -405,7 +405,10 @@ class StudioBrowserJourneys(unittest.TestCase):
         expect(self.page.locator(".story-banner h1")).to_have_text("La légende du vent")
         self.page.locator('[data-action="edit-story"]').first.click()
         self.page.locator("#edit-summary").fill("Une histoire de vent et de mémoire")
-        self.page.locator("#editor-form button[type=submit]").click()
+        with self.page.expect_response("**/studio/api/runs/*/steps/storyboard/review") as response_info:
+            self.page.locator("#editor-form button[type=submit]").click()
+        result = response_info.value
+        self.assertEqual(result.status, 200, result.text()[:500])
         self.page.wait_for_timeout(300)
         self.assertIn("Une histoire de vent", self.page.locator(".story-banner").inner_text(),
                       "Révision: " + self.page.locator("#toast").inner_text())
