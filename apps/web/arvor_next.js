@@ -45,6 +45,20 @@ async function fetchStories(more=false){
  events=stories.map(x=>({id:x.id,date:x.created,type:'creation',title:x.title,detail:'Histoire enregistrée · '+x.status}));
  render();
 }
+
+async function launch(){
+ try{const session=await api('/studio/session');if(!session.authenticated)return;
+ csrf=session.csrf;$('#login-screen').hidden=true;$('#studio-shell').hidden=false;await fetchStories();}
+ catch(e){$('#login-error').textContent=e.message}
+}
+async function loginPrivate(e){
+ e.preventDefault();const button=$('#login-submit');button.disabled=true;
+ try{const result=await api('/studio/session','POST',{password:$('#login-password').value});
+ csrf=result.csrf;$('#login-password').value='';$('#login-screen').hidden=true;$('#studio-shell').hidden=false;
+ $('#login-error').textContent='';await fetchStories();
+ }catch(err){$('#login-error').textContent=err.message}finally{button.disabled=false}
+}
+$('#login-form').addEventListener('submit',loginPrivate);
 function closeMobile(){$('#sidebar').classList.remove('open');$('#shade').classList.remove('open')}
 function navigate(route,storyId=null,panel='overview'){
  state.route=route;state.storyId=storyId;state.panel=panel;state.sceneIndex=0;
@@ -173,5 +187,5 @@ $('#editor-cancel').addEventListener('click',()=>$('#editor').close());
 $('#editor-form').addEventListener('submit',saveEditor);
 $('#help').addEventListener('click',()=>showToast('Prototype autonome : aucun accès à PostgreSQL, Qwen, MinIO ou GitHub.'));
 window.addEventListener('keydown',e=>{if(e.key==='Escape')closeMobile();if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();navigate('stories');$('#story-search')?.focus()}});
-render();
+launch();
 })();
