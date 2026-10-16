@@ -429,7 +429,7 @@ class PostgresStore:
             return scene_id, asset_id
 
     def finish_image(self, tenant, actor, run_id, scene_id, *, width=None, height=None,
-                     error_code=None, duration_seconds=None, png_sha256=None, byte_count=None):
+                     error_code=None, duration_seconds=None, png_sha256=None, byte_count=None, storage=None):
         """Finalize exact reserved record; never overwrite an earlier asset."""
         with self.connect() as conn:
             asset_id = self._visual_id(scene_id)
@@ -452,10 +452,12 @@ class PostgresStore:
                           finished_at=now(), error_code=error_code,
                           duration_seconds=duration_seconds,
                           outcome_uncertain=error_code in {
-                              "image_provider_timeout", "image_provider_response_uncertain"})
+                              "image_provider_timeout", "image_provider_response_uncertain", "image_storage_result_uncertain"})
             if not error_code:
                 record.update(width=width, height=height, mime_type="image/png",
                               png_sha256=png_sha256, byte_count=byte_count)
+                if storage:
+                    record["storage"] = storage
             self._write(conn, tenant, actor, run_id, "result", asset_id, record, version)
             return {"scene_number": record["scene_number"], "status": record["status"],
                     "width": record.get("width"), "height": record.get("height"),
@@ -475,7 +477,7 @@ class PostgresStore:
                 counts[scene_id] = count
             return counts
 
-    def image_asset(self, tenant, run_id, scene_number):
+    def image_asset(self, tenant, run_id, scene_number, include_storage=False):
         with self.connect() as conn:
             row = conn.execute(
                 "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
@@ -493,7 +495,22 @@ class PostgresStore:
             ).fetchone()
             if not asset or asset[0].get("status") != "ready" or asset[0].get("scenario_id") != run["scenario_id"]:
                 raise RunMissing()
-            return scene_id
+            return (scene_id, asset[0].get("storage")) if include_storage else scene_id
+
+    def record_media(self, tenant, actor, run_id, asset_id, reference):
+        """Archive metadata, audit and outbox atomically; bytes stay in MinIO."""
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
+                "AND entity_id=%s AND NOT deleted FOR UPDATE", (tenant, run_id)).fetchone()
+            if not row or row[0].get("type") != "editorial_run":
+                raise RunMissing()
+            if row[0].get("status") != "approved" or row[0].get("storyboard_stale"):
+                raise RunConflict()
+            self._write(conn, tenant, actor, run_id, "result", asset_id,
+                        {"type": "production_media", "run_id": str(run_id),
+                         "scenario_id": row[0]["scenario_id"], "storage": reference,
+                         "created_at": now()}, 0)
 
     def review(self, tenant, actor, run_id, step, decision):
         decision = ReviewDecision.model_validate(decision)
@@ -579,3 +596,4 @@ class PostgresStore:
                 "ORDER BY (content->>'revision')::integer DESC LIMIT %s",
                 (tenant, str(run_id), before_revision, before_revision, limit+1)).fetchall()
             return [row[0] for row in rows]
+
