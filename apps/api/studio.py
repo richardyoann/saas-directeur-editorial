@@ -210,6 +210,10 @@ async def reviews(request: Request, run_id: UUID, limit: int = Query(20, ge=1, l
     if before_revision is not None: path += f"&before_revision={before_revision}"
     return await relay(request, "GET", path)
 
+@router.get("/api/runs/{run_id}/media")
+async def media_catalog(request: Request, run_id: UUID):
+    return await relay(request, "GET", f"/editorial/runs/{run_id}/media")
+
 @router.get("/api/runs/{run_id}/visuals")
 async def visual_plan(request: Request, run_id: UUID):
     return await relay(request, "GET", f"/editorial/runs/{run_id}/visuals")
