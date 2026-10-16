@@ -93,6 +93,7 @@ function mapRun(run){
  colors:(scene.colors||[]).join(', '),characters:scene.characters||[],prompt:scene.image_prompt
  }));
  item.sceneCount=item.scenes.length;
+ item.place=item.scenes[0]?.landscape||item.place;
  return item;
 }
 async function navigate(route,storyId=null,panel='overview'){
