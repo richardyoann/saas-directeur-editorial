@@ -106,10 +106,17 @@ async def index(request: Request):
     transport(request)
     return no_store(FileResponse(ASSETS / "studio.html", media_type="text/html"))
 
-@router.get("/assets/{name}")
-async def asset(request: Request, name: Literal["studio.css", "studio.js", "arvor_reference.css", "arvor_reference.js"]):
+@router.get("/next")
+async def next_studio(request: Request):
+    """Preview of approved clean UI. Existing /studio remains unchanged."""
     transport(request)
-    return no_store(FileResponse(ASSETS / name, media_type="text/css" if name.endswith(".css") else "text/javascript"))
+    return no_store(FileResponse(ASSETS / "arvor_next.html", media_type="text/html"))
+
+
+@router.get("/assets/{name}")
+async def asset(request: Request, name: Literal["studio.css", "studio.js", "arvor_reference.css", "arvor_reference.js", "arvor_next.css", "arvor_next.js", "arvor_forest.jpg", "arvor_sea.jpg"]):
+    transport(request)
+    return no_store(FileResponse(ASSETS / name, media_type="image/jpeg" if name.endswith(".jpg") else "text/css" if name.endswith(".css") else "text/javascript"))
 
 @router.get("/session")
 async def status(request: Request):
