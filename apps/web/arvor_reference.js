@@ -88,9 +88,13 @@ async function refreshJournal() {
 }
 function renderJournal() {
   if ($("journal").hidden) return;
-  journalHeader($("journalHeading"));
-  // Keep the active text field focused, not recreated on every keystroke.
-  // The heading is initialized once by ensureJournal below.
+  // The heading and search input are mounted once; typing keeps focus.
+  const tabs=$("journalHeading").querySelectorAll(".arvor-tabs button");
+  tabs.forEach((button,i)=>{
+    const current=["all","versions","prompts","treatments"][i]===view.journalFilter;
+    button.classList.toggle("active",current);
+    button.setAttribute("aria-pressed",String(current));
+  });
   const rows=$("journalBody");rows.replaceChildren();
   const q=view.journalText.trim().toLocaleLowerCase("fr");
   const filtered=view.journalRuns.filter(run=>
@@ -172,6 +176,7 @@ function ensureJournal() {
   const section=create("section","arvor-journal");
   section.id="journal";section.hidden=true;
   put(section,"div","arvor-section-heading").id="journalHeading";
+  journalHeader($("journalHeading"));
   put(section,"div","arvor-entry-list").id="journalBody";
   $("conception").before(section);
   button.addEventListener("click",()=>showJournal());
