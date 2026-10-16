@@ -44,9 +44,9 @@ h1,h2,h3,h4{color:#264436;font-family:Georgia,serif;font-weight:500}
 .metrics{grid-template-columns:repeat(3,minmax(0,1fr));gap:0;background:#edf1e9;border:1px solid #dfe5da;border-radius:7px;padding:12px 0;margin:6px 0 25px}
 .metric{padding:10px 24px;border:0;border-right:1px solid #d8e1d5;background:transparent;border-radius:0}
 .metric:last-child{border:0}
-.metric small{font-size:11px;color:#7c917d}
+.metric small{font-size:11px;color:#586c5a}
 .metric strong{font-family:Georgia,serif;font-size:30px;color:#274936;line-height:1.1;margin:4px 0}
-.metric span{font-size:10px;color:#8e9c8d}
+.metric span{font-size:11px;color:#556a59}
 .library-heading{margin:1.1rem 0 .5rem}
 .library-heading .overline{display:none}
 .library-heading h2{display:none}
@@ -162,3 +162,7 @@ h1,h2,h3,h4{color:#264436;font-family:Georgia,serif;font-weight:500}
  .arvor-weekday{min-width:80px}
  .arvor-calendar-grid{min-width:560px}
 }
+
+/* WCAG AA contrast for descriptive labels on the pale surfaces. */
+.story-tile-content small,.arvor-entry-text small,.arvor-admin-row-text small,
+.arvor-stat span,.arvor-placeholder,.arvor-hint{color:#526756}
