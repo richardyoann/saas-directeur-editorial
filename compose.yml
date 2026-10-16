@@ -1,20 +1,21 @@
+# All credentials are mounted from files outside Git; no defaults or plaintext.
+# Existing database/minio volumes are retained. See docs/SECRET_MANAGEMENT.md.
 services:
   postgres:
     image: postgres:16
     container_name: editorial-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: editorial
-      POSTGRES_USER: editorial
-      POSTGRES_PASSWORD: editorial_dev
+      POSTGRES_DB: ${ARVOR_POSTGRES_DB:-editorial}
+      POSTGRES_USER: ${ARVOR_POSTGRES_USER:-editorial}
+      POSTGRES_PASSWORD_FILE: /run/secrets/arvor_postgres_password
+    secrets: [arvor_postgres_password]
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   redis:
-    # Not required by the current PostgreSQL-backed worker.
-    # Opt in explicitly: docker compose --profile optional-redis up -d redis
     profiles: [optional-redis]
     image: redis:7-alpine
     container_name: editorial-redis
@@ -28,13 +29,22 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: editorial
-      MINIO_ROOT_PASSWORD: editorial_dev_password
+      MINIO_ROOT_USER_FILE: /run/secrets/arvor_minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/arvor_minio_root_password
+    secrets: [arvor_minio_root_user, arvor_minio_root_password]
     ports:
       - "127.0.0.1:9000:9000"
       - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
+
+secrets:
+  arvor_postgres_password:
+    file: ${ARVOR_POSTGRES_PASSWORD_FILE:?Provide an absolute host path outside Git}
+  arvor_minio_root_user:
+    file: ${ARVOR_MINIO_ROOT_USER_FILE:?Provide an absolute host path outside Git}
+  arvor_minio_root_password:
+    file: ${ARVOR_MINIO_ROOT_PASSWORD_FILE:?Provide an absolute host path outside Git}
 
 volumes:
   postgres_data:

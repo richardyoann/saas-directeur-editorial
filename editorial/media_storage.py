@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 from uuid import UUID
+from editorial.runtime_secrets import secret
 
 MAX_FILE_BYTES = 1024 * 1024 * 1024
 TYPES = {"image": ("png", "image/png"), "voice": ("wav", "audio/wav"),
@@ -28,7 +29,7 @@ def client():
     from botocore.config import Config
     from editorial.visuals import private_image_url
     endpoint = os.getenv("MEDIA_S3_ENDPOINT", "")
-    access, secret = os.getenv("MEDIA_S3_ACCESS_KEY", ""), os.getenv("MEDIA_S3_SECRET_KEY", "")
+    access, secret = secret("MEDIA_S3_ACCESS_KEY"), secret("MEDIA_S3_SECRET_KEY")
     if not private_image_url(endpoint) or not access or not secret:
         raise MediaStorageError("media_configuration_invalid")
     return boto3.client("s3", endpoint_url=endpoint,

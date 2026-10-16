@@ -33,3 +33,12 @@ docs/memory/
 .agents/
 # .codex/config.toml et les profils suivis sont versionnés volontairement.
 vendor/skills/
+
+# External credential files / private vault exports
+.secrets/
+secrets/
+credentials/
+*.secret
+*.credentials
+*.key
+*.pem
