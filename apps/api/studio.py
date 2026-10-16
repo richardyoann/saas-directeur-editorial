@@ -456,7 +456,7 @@ async def conception_commits(request: Request,
     return no_store(JSONResponse({
         "commits": [{
             "sha": item.get("sha"),
-            "message": ((item.get("commit") or {}).get("message") or "").split("\\n", 1)[0],
+            "message": " ".join(((item.get("commit") or {}).get("message") or "").splitlines()[:1]),
             "when": ((item.get("commit") or {}).get("committer") or {}).get("date"),
             "url": item.get("html_url"),
         } for item in data if isinstance(item, dict)],
