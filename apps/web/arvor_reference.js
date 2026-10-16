@@ -176,9 +176,9 @@ function ensureJournal() {
   const section=create("section","arvor-journal");
   section.id="journal";section.hidden=true;
   put(section,"div","arvor-section-heading").id="journalHeading";
-  journalHeader($("journalHeading"));
   put(section,"div","arvor-entry-list").id="journalBody";
   $("conception").before(section);
+  journalHeader($("journalHeading"));
   button.addEventListener("click",()=>showJournal());
   $("home").addEventListener("click",hideJournal);
   nav.addEventListener("click",hideJournal);
