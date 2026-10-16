@@ -387,6 +387,12 @@ class StudioBrowserJourneys(unittest.TestCase):
         expect(self.page.locator("#studio-shell")).to_be_visible()
         self.page.locator("#side-create").click()
         expect(self.page.locator("#editor")).to_be_visible()
+        self.page.locator("#editor-cancel").click()
+        expect(self.page.locator(".story-card")).to_have_count(1)
+        self.page.locator(".story-card [data-open]").click()
+        expect(self.page.locator(".outline")).to_be_visible()
+        self.page.locator('[data-panel="scenes"]').click()
+        expect(self.page.locator(".scene-row")).to_have_count(3)
 
     def test_accessible_tab_navigation_and_small_text_contrast(self):
         self.sign_in()
