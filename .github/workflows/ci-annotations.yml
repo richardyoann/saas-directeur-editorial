@@ -1,0 +1,38 @@
+name: CI annotation incident watch
+on:
+  workflow_run:
+    workflows:
+      - Full regression
+      - Dependency security audit
+      - Studio browser journeys
+      - Automated PR risk review
+      - Automated CI triage and release evidence
+      - Private PC delivery
+      - Chat approved PC delivery
+      - CI supply-chain guardrails
+    types: [completed]
+  schedule:
+    - cron: '7 7 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+  checks: read
+  issues: write
+jobs:
+  watch:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted main, never PR code with issue-write permission
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Inspect check-run annotations even on successful workflows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/ci_annotation_watch.py
+      - name: Unit-test warning classification and deduplication
+        run: python3 -m unittest tests.test_ci_annotation_watch -v
