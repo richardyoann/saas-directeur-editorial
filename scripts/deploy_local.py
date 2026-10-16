@@ -18,7 +18,11 @@ from urllib.parse import urlencode, urlsplit
 from uuid import UUID, uuid4, uuid5
 
 from dotenv import dotenv_values
-from live_api_check import check
+# Support both direct CLI invocation and import as scripts.deploy_local in tests.
+if __package__:
+    from .live_api_check import check
+else:
+    from live_api_check import check
 
 # Running scripts/deploy_local.py directly otherwise imports only scripts/.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
