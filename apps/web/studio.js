@@ -39,7 +39,7 @@ function renderList(){
  const runs=s.runs.filter(r=>[r.title,r.topic].filter(Boolean).join(" ").toLocaleLowerCase("fr").includes(q));
  if(!runs.length)put(root,"p","","Aucune histoire correspondante dans les éléments chargés.");
  for(const r of runs){const b=put(root,"button","run-item"+(r.id===s.run?.id?" active":""));b.type="button";put(b,"strong","",r.title||r.topic||"Histoire sans titre");put(b,"small","",(states[r.status]||"Inconnu")+" · "+date(r.created_at));b.addEventListener("click",()=>openRun(r.id));}
- const groups={all:()=>true,draft:r=>r.status==="failed",writing:r=>["running","queued","changes_requested"].includes(r.status),review:r=>r.status==="waiting_validation",approved:r=>r.status==="approved"};
+ const groups={all:()=>true,draft:r=>r.status==="changes_requested",writing:r=>["running","queued"].includes(r.status),review:r=>r.status==="waiting_validation",approved:r=>r.status==="approved"};
  renderCards(runs.filter(groups[storyFilter]||groups.all));
  $("count").textContent=s.runs.length+(s.next?"+":"");$("total").textContent=$("count").textContent;
  $("pending").textContent=s.runs.filter(r=>["waiting_validation","changes_requested"].includes(r.status)).length;
