@@ -502,7 +502,7 @@ function buildEditor(){
  }else{
   editField(root,"edit-title","Titre du storyboard",result.title,{max:200});
   editField(root,"edit-synopsis","Synopsis",result.synopsis,{multiline:true,rows:3});
-  const profiles=put(root,"fieldset","edit-scene");
+  const profiles=put(root,"fieldset","edit-profiles");
   put(profiles,"legend","","Personnages et fiches");
   const allNames=[...new Set([...(result.cast||[]).map(p=>p.name),...(result.scenes||[]).flatMap(sc=>sc.characters||[])])];
   const editableCast=allNames.map(name=>(result.cast||[]).find(p=>p.name===name)||{name,appearance:"",personality:"",role:""});
