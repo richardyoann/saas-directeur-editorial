@@ -521,7 +521,7 @@ class PostgresStore:
             if not row or row[1].get("type") != "editorial_run":
                 raise RunMissing()
             version, run = row
-            if (step not in {"analysis", "storyboard"} or run["status"] not in {"waiting_validation", "changes_requested"}
+            if (step not in {"analysis", "storyboard"} or run["status"] not in {"waiting_validation", "changes_requested", "approved"}
                     or run.get("current_step") or len(run.get("steps", [])) != 2
                     or any(s["status"] != "success" for s in run["steps"])
                     or decision.expected_revision != run.get("review_revision", 0)):
