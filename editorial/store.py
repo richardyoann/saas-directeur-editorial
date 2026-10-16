@@ -506,7 +506,7 @@ class PostgresStore:
                 "WHERE tenant_id=%s AND kind='result' "
                 "AND content->>'type'='production_media' "
                 "AND content->>'run_id'=%s AND NOT deleted "
-                "ORDER BY created_at DESC LIMIT 100",
+                "ORDER BY content->>'created_at' DESC, entity_id DESC LIMIT 100",
                 (tenant, str(run_id)),
             ).fetchall()
         return [
