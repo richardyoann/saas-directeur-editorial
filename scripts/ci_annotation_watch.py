@@ -138,9 +138,13 @@ def monitor(run, repo, token):
     previous = existing_issue(repo, run["id"], token)
     payload = body(run, repo, counts)
     if previous:
-        if previous.get("body") != payload or previous.get("state") != "open":
+        # A human-closed incident is acknowledged; a scheduled rescan must not
+        # reopen it repeatedly. A *new* run ID still creates a new incident.
+        if previous.get("state") == "closed":
+            return "Acknowledged closed CI issue #" + str(previous["number"])
+        if previous.get("body") != payload:
             api("PATCH", f"/repos/{repo}/issues/{previous['number']}", token,
-                {"body": payload, "state": "open"})
+                {"body": payload})
         return "Deduplicated CI issue #" + str(previous["number"])
     issue = api("POST", f"/repos/{repo}/issues", token, {
         "title": "[CI WARNING] " + run["name"] + " - run " + str(run["id"]),
