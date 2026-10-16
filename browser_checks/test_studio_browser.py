@@ -117,6 +117,27 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#submitReview").click()
         self.page.locator("#reviewDialog").wait_for(state="hidden")
 
+    def test_reference_journal_and_admin_navigation(self):
+        self.sign_in()
+        self.create("La lumière de Brocéliande")
+        self.page.locator("#home").click()
+        expect(self.page.locator("#count")).to_be_visible()
+        self.page.locator("#journalNav").click()
+        expect(self.page.locator("#journal")).to_be_visible()
+        expect(self.page.locator("#journal .arvor-entry-main")).to_have_count(1)
+        self.page.locator("#journal .arvor-entry-main").first.click()
+        expect(self.page.locator("#journal .arvor-entry-details")).to_be_visible()
+        self.page.locator("#conceptionNav").click()
+        expect(self.page.locator("#conception")).to_be_visible()
+        expect(self.page.locator("#arvorAdminTabs [role=tab]")).to_have_count(5)
+        self.page.locator("#arvorAdminTabs").get_by_role("tab",name="Agenda").click()
+        # No private GitHub token is injected into the browser test fixture.
+        # The UI reports the missing integration instead of inventing events.
+        expect(self.page.locator("#arvorAdminSurface")).to_be_visible()
+        self.page.locator("#home").click()
+        expect(self.page.locator("#library")).to_be_visible()
+        expect(self.page.locator("#count")).to_be_visible()
+
     def test_visual_character_to_private_image_after_approval(self):
         self.sign_in()
         run_id = self.create("Le marin d'Ys")
