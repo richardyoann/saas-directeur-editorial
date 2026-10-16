@@ -104,7 +104,7 @@ async function navigate(route,storyId=null,panel='overview'){
    const i=stories.findIndex(s=>s.id===storyId);
    if(i>=0)stories[i]=mapRun(run);
    if(state.storyId===storyId)render();
-  }catch(e){showToast(e.message);state.storyId=null;render()}
+  }catch(e){showToast(e.message);if(state.storyId===storyId){state.storyId=null;render()}}
  }
  if(route==='admin')await loadAdmin();
  if(route==='journal')await loadJournal();
@@ -138,6 +138,7 @@ function libraryCards(){
 const atelierMenu=[['overview','Vue d’ensemble','book'],['scenario','Scénario','file'],['scenes','Scènes','film'],['characters','Personnages','users'],['landscapes','Paysages','map'],['colors','Couleurs','palette'],['shots','Plans & cadrages','grid'],['emotions','Émotions','shield'],['sounds','Sons & voix','mic'],['media','Médias','image'],['history','Historique IA','clock']];
 function renderAtelier(){
  const s=story(state.storyId);if(!s)return '<div class="empty-state">Histoire introuvable.</div>';
+ if(!s.run)return '<div class="loading-view" role="status">Ouverture de l’histoire…</div>';
  const counts={scenes:s.scenes.length,characters:s.characters.length,landscapes:s.scenes.length,colors:s.scenes.length,shots:s.scenes.length,emotions:s.scenes.length,sounds:s.scenes.length};
  return `<div class="backline"><button type="button" data-action="library">${ico('left')} Toutes les histoires</button><div class="right-tools">${btn('Exporter','download','', 'data-action="export"')}${btn('Modifier','edit','primary','data-action="edit-story"')}</div></div>
  <section class="story-banner">${coverMarkup(s)}<div class="banner-content"><span class="eyebrow">ATELIER / HISTOIRE</span><h1>${escapeHtml(s.title)}</h1><p>${escapeHtml(s.summary)}</p><div class="mini-meta"><span>⌖ ${escapeHtml(s.place)}</span><span>${s.scenes.length} scène${s.scenes.length>1?'s':''}</span><span>${escapeHtml(s.status)}</span></div></div></section>
