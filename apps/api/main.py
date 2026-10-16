@@ -91,7 +91,15 @@ def _database_ready():
         return False
     try:
         with psycopg.connect(url, connect_timeout=2) as connection:
-            return connection.execute("SELECT 1").fetchone() == (1,)
+            # Read-only readiness must validate the application schema,
+            # not merely a reachable database port.
+            row = connection.execute(
+                "SELECT to_regclass('po_entity') IS NOT NULL, "
+                "to_regclass('po_audit') IS NOT NULL, "
+                "to_regclass('po_outbox') IS NOT NULL, "
+                "to_regclass('po_batch') IS NOT NULL"
+            ).fetchone()
+            return bool(row and all(row))
     except (psycopg.Error, OSError):
         return False
 
