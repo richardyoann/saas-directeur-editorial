@@ -107,7 +107,7 @@ async def index(request: Request):
     return no_store(FileResponse(ASSETS / "studio.html", media_type="text/html"))
 
 @router.get("/assets/{name}")
-async def asset(request: Request, name: Literal["studio.css", "studio.js"]):
+async def asset(request: Request, name: Literal["studio.css", "studio.js", "arvor_reference.css", "arvor_reference.js"]):
     transport(request)
     return no_store(FileResponse(ASSETS / name, media_type="text/css" if name.endswith(".css") else "text/javascript"))
 
@@ -378,6 +378,15 @@ async def conception_data(request: Request):
         if len(extra["workflow_runs"]) < 70:
             break
     partial_deliveries = len(runs) >= 210
+    issue_cards = [{
+        "number": item.get("number"),
+        "title": str(item.get("title") or ""),
+        "state": item.get("state"),
+        "created_at": item.get("created_at"),
+        "closed_at": item.get("closed_at"),
+        "url": item.get("html_url"),
+    } for item in issues
+      if isinstance(item, dict) and "pull_request" not in item]
     epics = []
     for item in issues:
         if not isinstance(item, dict) or "pull_request" in item:
@@ -406,7 +415,8 @@ async def conception_data(request: Request):
         "url": item.get("html_url"),
     } for item in runs if isinstance(item, dict)]
     return no_store(JSONResponse({
-        "epics": epics, "pull_requests": prs, "deliveries": jobs,
+        "epics": epics, "issues": issue_cards,
+        "pull_requests": prs, "deliveries": jobs,
         "delivery_control_enabled": False,
         "source_truncated": {
             "issues": partial_issues,
@@ -430,3 +440,48 @@ async def approve_pc_delivery(request: Request, pr_number: int):
         403,
         "Livraison PC non déclenchable depuis Studio : utilisez la validation exacte du SHA.",
     )
+
+
+@router.get("/api/conception/commits")
+async def conception_commits(request: Request,
+                            limit: int = Query(70, ge=1, le=100)):
+    """Actual main-branch commits; no synthetic PR-based commit history."""
+    session(request)
+    data = await _gh(
+        "GET", f"/commits?sha=main&per_page={limit}",
+        token=_github_read_token(),
+    )
+    if not isinstance(data, list):
+        raise HTTPException(502, "Historique GitHub invalide.")
+    return no_store(JSONResponse({
+        "commits": [{
+            "sha": item.get("sha"),
+            "message": " ".join(((item.get("commit") or {}).get("message") or "").splitlines()[:1]),
+            "when": ((item.get("commit") or {}).get("committer") or {}).get("date"),
+            "url": item.get("html_url"),
+        } for item in data if isinstance(item, dict)],
+        "partial": len(data) >= limit,
+    }))
+
+
+@router.get("/api/conception/ci")
+async def conception_ci(request: Request, limit: int = Query(80, ge=1, le=100)):
+    """CI evidence, not proof a release is live on the private PC."""
+    session(request)
+    data = await _gh(
+        "GET", f"/actions/workflows/regression.yml/runs?per_page={limit}",
+        token=_github_read_token(),
+    )
+    if not isinstance(data, dict) or not isinstance(data.get("workflow_runs"), list):
+        raise HTTPException(502, "Exécutions GitHub invalides.")
+    runs = data["workflow_runs"]
+    return no_store(JSONResponse({
+        "runs": [{
+            "id": item.get("id"), "sha": item.get("head_sha"),
+            "event": item.get("event"), "status": item.get("status"),
+            "conclusion": item.get("conclusion"),
+            "created_at": item.get("created_at"),
+            "url": item.get("html_url"),
+        } for item in runs if isinstance(item, dict)],
+        "partial": len(runs) >= limit,
+    }))

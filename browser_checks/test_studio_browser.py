@@ -117,6 +117,74 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#submitReview").click()
         self.page.locator("#reviewDialog").wait_for(state="hidden")
 
+    def test_reference_journal_and_admin_navigation(self):
+        self.sign_in()
+        self.create("La lumière de Brocéliande")
+        self.page.locator("#home").click()
+        expect(self.page.locator("#count")).to_be_visible()
+        self.page.locator("#journalNav").click()
+        expect(self.page.locator("#journal")).to_be_visible()
+        expect(self.page.locator("#journal .arvor-entry-main")).to_have_count(1)
+        self.page.locator("#journal .arvor-entry-main").first.click()
+        expect(self.page.locator("#journal .arvor-entry-details")).to_be_visible()
+        expect(self.page.locator("#journal .arvor-trace")).not_to_have_count(0)
+        self.page.locator("#conceptionNav").click()
+        expect(self.page.locator("#conception")).to_be_visible()
+        expect(self.page.locator("#arvorAdminTabs [role=tab]")).to_have_count(5)
+        self.page.locator("#arvorAdminTabs").get_by_role("tab",name="Agenda").click()
+        # No private GitHub token is injected into the browser test fixture.
+        # The UI reports the missing integration instead of inventing events.
+        expect(self.page.locator("#arvorAdminSurface")).to_be_visible()
+        self.page.locator("#home").click()
+        expect(self.page.locator("#library")).to_be_visible()
+        expect(self.page.locator("#count")).to_be_visible()
+
+    def test_admin_real_github_data_statuses_and_calendar_modes(self):
+        self.sign_in()
+        github_base = "https://github.com/richardyoann/saas-directeur-editorial"
+        sha = "a" * 40
+        overview = {
+            "repository_url": github_base,
+            "epics": [{"number": 93, "title": "Epic navigation", "state": "open",
+                        "created_at": "2026-10-16T10:00:00Z"}],
+            "issues": [{"number": 93, "title": "Epic navigation", "state": "open",
+                        "created_at": "2026-10-16T10:00:00Z"}],
+            "pull_requests": [{"number": 97, "title": "Nouvelle interface", "state": "closed",
+                               "draft": False, "merged_at": "2026-10-16T11:00:00Z",
+                               "created_at": "2026-10-16T09:00:00Z",
+                               "updated_at": "2026-10-16T11:00:00Z",
+                               "sha": sha, "merge_commit_sha": sha}],
+            "deliveries": [{"id": 7, "sha": sha, "created_at": "2026-10-16T11:00:00Z",
+                            "conclusion": "success", "status": "completed"}],
+            "source_truncated": {"issues": False, "pull_requests": False,
+                                 "deliveries": False},
+        }
+        commits = {"commits": [{"sha": sha, "message": "Correction de navigation",
+                               "when": "2026-10-16T10:00:00Z"}], "partial": False}
+        ci = {"runs": [{"id": 10, "sha": sha, "event": "push",
+                        "status": "completed", "conclusion": "failure",
+                        "created_at": "2026-10-16T12:00:00Z"}], "partial": False}
+
+        def mocked(route, data):
+            route.fulfill(status=200, content_type="application/json",
+                          body=json.dumps(data))
+
+        self.page.route("**/studio/api/conception", lambda route: mocked(route, overview))
+        self.page.route("**/studio/api/conception/commits?*", lambda route: mocked(route, commits))
+        self.page.route("**/studio/api/conception/ci?*", lambda route: mocked(route, ci))
+        self.page.locator("#conceptionNav").click()
+        expect(self.page.locator("#arvorAdminSurface .arvor-stat")).to_have_count(4)
+        self.page.locator("#arvorAdminTabs").get_by_role("tab", name="Pull requests").click()
+        expect(self.page.locator("#arvorAdminSurface")).to_contain_text("CI KO")
+        self.page.locator("#arvorAdminTabs").get_by_role("tab", name="Commits").click()
+        expect(self.page.locator("#arvorAdminSurface")).to_contain_text("Correction de navigation")
+        self.page.locator("#arvorAdminTabs").get_by_role("tab", name="Agenda").click()
+        expect(self.page.locator(".arvor-calendar-cell")).not_to_have_count(0)
+        self.page.get_by_role("button", name="Semaine").click()
+        expect(self.page.locator(".arvor-calendar-cell")).to_have_count(7)
+        self.page.get_by_role("button", name="Jour", exact=True).click()
+        expect(self.page.locator(".arvor-calendar-cell")).to_have_count(1)
+
     def test_visual_character_to_private_image_after_approval(self):
         self.sign_in()
         run_id = self.create("Le marin d'Ys")
