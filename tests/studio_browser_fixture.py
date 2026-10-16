@@ -179,6 +179,13 @@ def history(run_id: UUID, authorization: str = Header("")):
     ]}
 
 
+@app.get("/editorial/runs/{run_id}/media")
+def media_catalog(run_id: UUID, authorization: str = Header("")):
+    require_token(authorization)
+    get_record(run_id)
+    return {"run_id": str(run_id), "media": []}
+
+
 @app.get("/editorial/runs/{run_id}/visuals")
 def visuals(run_id: UUID, authorization: str = Header("")):
     require_token(authorization)
@@ -256,7 +263,7 @@ def review(run_id: UUID, step: str, decision: ReviewDecision,
     if step not in {"analysis", "storyboard"}:
         raise HTTPException(422)
     record = get_record(run_id)
-    if record["status"] not in {"waiting_validation", "changes_requested"} or (
+    if record["status"] not in {"waiting_validation", "changes_requested", "approved"} or (
         decision.expected_revision != record.get("review_revision", 0)
     ):
         raise HTTPException(409)

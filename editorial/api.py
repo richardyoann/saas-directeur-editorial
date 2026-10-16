@@ -168,6 +168,17 @@ def create_router(get_llm_client):
         except psycopg.Error:
             raise HTTPException(503, "Persistance éditoriale indisponible.") from None
 
+    @router.get("/runs/{run_id}/media")
+    async def list_media(run_id: UUID, identity: Identity = Depends(get_identity),
+                         store: PostgresStore = Depends(get_store)):
+        try:
+            return {"run_id": str(run_id),
+                    "media": await run_in_threadpool(store.list_media, identity.tenant, run_id)}
+        except RunMissing:
+            raise HTTPException(404, "Histoire introuvable.") from None
+        except psycopg.Error:
+            raise HTTPException(503, "Catalogue média indisponible.") from None
+
     @router.get("/runs/{run_id}/visuals")
     async def get_visuals(run_id: UUID, identity: Identity = Depends(get_identity),
                           store: PostgresStore = Depends(get_store)):

@@ -46,3 +46,39 @@ button,input,textarea,select,a,summary:focus-visible {
 .visual-card .btn{align-self:flex-start}
 .image-preview{width:100%;aspect-ratio:1/1;object-fit:contain;border-radius:9px;background:#eef5f2}
 .visual-placeholder{min-height:145px;background:#e5f0eb;border:1px dashed #cadecd;border-radius:9px;display:grid;place-items:center;color:#557b76;font-size:12px;text-align:center;padding:15px}
+
+/* Navigation métier : histoires et conception. */
+.library-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin:2rem 0 1.2rem}
+.library-heading h2,.conception h2{font-size:clamp(1.5rem,3vw,2.4rem);margin:.35rem 0}
+.story-cards,.conception-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:1.1rem;margin:1.3rem 0 2rem}
+.story-tile{text-align:left;border:1px solid #ded9d0;background:#fff;border-radius:18px;padding:0;overflow:hidden;cursor:pointer;color:inherit;display:flex;flex-direction:column;min-height:240px;box-shadow:0 3px 14px #00000009}
+.story-tile:hover,.story-tile:focus-visible{border-color:#a98055;box-shadow:0 8px 22px #00000016;transform:translateY(-2px)}
+.story-tile-art{display:grid;place-items:center;min-height:110px;background:linear-gradient(135deg,#c6d8d2,#e8e0d4);font-size:3rem;color:#36534d}
+.story-tile-content{display:flex;flex-direction:column;padding:1rem;gap:.45rem;flex:1}
+.story-tile-content strong{font-size:1.07rem}
+.story-tile-content small{color:#666}
+.story-tile-more{margin-top:auto;padding-top:.5rem;font-weight:700;color:#366158}
+.conception{padding-top:2rem}.conception-grid .card{margin:0;display:flex;flex-direction:column;align-items:flex-start;gap:.6rem}.conception-grid .card .btn{margin-top:auto}
+[hidden]{display:none!important}
+
+/* Progressive, accessible drill-down and release controls */
+.scene-element-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:.9rem;margin:1.3rem 0}
+.element-row{border:1px solid #d8d6d0;background:#fff;border-radius:12px;padding:.5rem}
+.element-link{width:100%;display:flex;flex-direction:column;gap:.5rem;text-align:left;border:0;background:transparent;color:inherit;cursor:pointer;padding:.75rem}
+.element-link strong{font-size:1.03rem}.element-link span{color:#59615c;font-size:.88rem;overflow-wrap:anywhere}
+.element-link:hover,.element-link:focus-visible{outline:2px solid #446e60;outline-offset:2px}
+.element-crumb{margin-bottom:1.1rem}
+.storyboard-section{margin:1.7rem 0}
+.conception-section{margin:2rem 0}
+.conception-item{display:flex;align-items:center;flex-wrap:wrap;gap:.8rem;padding:1rem 0;border-bottom:1px solid #dedad3}
+.conception-item strong{flex:1 1 340px}.conception-item small{color:#58615d}
+.conception-item .btn{white-space:normal}
+.calendar-toolbar{display:flex;align-items:center;justify-content:space-between;gap:.6rem}.calendar-toolbar h3{text-transform:capitalize}
+.calendar-legend{font-size:.84rem;color:#4b5d58;white-space:pre-wrap}
+.calendar-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.calendar-days>strong{font-size:.75rem;text-align:center;padding:.5rem .15rem}
+.calendar-cells{padding-top:.5rem}.calendar-cell{min-height:92px;border:1px solid #dedad3;border-radius:6px;padding:.35rem;overflow-wrap:anywhere}
+.calendar-cell>strong{font-size:.78rem}.calendar-empty{background:#f0f0ed}
+.calendar-event{font-size:.69rem;line-height:1.25;border-left:3px solid #9baaa5;padding:.2rem;margin-top:.25rem;background:#f2f5f3}
+.calendar-event.dev{border-left-color:#6786a7}.calendar-event.validation{border-left-color:#b59153}.calendar-event.prod{border-left-color:#357258}
+@media(max-width:660px){.calendar-cell{min-height:62px;padding:.15rem}.calendar-event{font-size:.58rem}.conception-item{align-items:flex-start}}

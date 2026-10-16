@@ -218,6 +218,10 @@ async def reviews(request: Request, run_id: UUID, limit: int = Query(20, ge=1, l
     if before_revision is not None: path += f"&before_revision={before_revision}"
     return await relay(request, "GET", path)
 
+@router.get("/api/runs/{run_id}/media")
+async def media_catalog(request: Request, run_id: UUID):
+    return await relay(request, "GET", f"/editorial/runs/{run_id}/media")
+
 @router.get("/api/runs/{run_id}/visuals")
 async def visual_plan(request: Request, run_id: UUID):
     return await relay(request, "GET", f"/editorial/runs/{run_id}/visuals")
@@ -266,3 +270,166 @@ async def image_view(request: Request, run_id: UUID, scene_number: int):
 async def review(request: Request, run_id: UUID, step: Literal["analysis", "storyboard"]):
     mutation(request)
     return await relay(request, "POST", f"/editorial/runs/{run_id}/steps/{step}/review", await body(request))
+
+
+# Production control: GitHub calls are exclusively server-side, same-origin and session
+# protected. Tokens are never returned to the browser or stored in story entities.
+GH_REPO = "richardyoann/saas-directeur-editorial"
+GH_API = "https://api.github.com/repos/" + GH_REPO
+
+
+async def _gh(method: str, suffix: str, *, token: str, payload: dict | None = None):
+    if len(token) < 32:
+        raise HTTPException(503, "Intégration GitHub privée non configurée.")
+    headers = {
+        "Authorization": "Bearer " + token,
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=12.0, trust_env=False) as client:
+            response = await client.request(
+                method, GH_API + suffix, headers=headers, json=payload
+            )
+    except (httpx.HTTPError, TimeoutError):
+        raise HTTPException(502, "GitHub indisponible.") from None
+    if response.status_code == 401:
+        raise HTTPException(503, "Jeton GitHub non valide.")
+    if response.status_code == 403:
+        raise HTTPException(503, "GitHub refuse les permissions requises.")
+    if response.status_code == 404:
+        raise HTTPException(404, "Ressource GitHub introuvable.")
+    if response.status_code >= 400:
+        raise HTTPException(502, "Opération GitHub refusée.")
+    if response.status_code == 204:
+        return {}
+    try:
+        return response.json()
+    except ValueError:
+        raise HTTPException(502, "Réponse GitHub invalide.") from None
+
+
+def _github_read_token():
+    return os.getenv("EDITORIAL_GITHUB_READ_TOKEN", "")
+
+
+def _github_write_token():
+    if os.getenv("EDITORIAL_GITHUB_DELIVERY_WRITE_ENABLED") != "true":
+        raise HTTPException(403, "Commandes de livraison PC désactivées.")
+    token = os.getenv("EDITORIAL_GITHUB_WRITE_TOKEN", "")
+    if len(token) < 32:
+        raise HTTPException(503, "Jeton de contrôle de livraison absent.")
+    return token
+
+
+@router.get("/api/conception")
+async def conception_data(request: Request):
+    session(request)
+    token = _github_read_token()
+    import asyncio
+    issues, pulls, delivery = await asyncio.gather(
+        _gh("GET", "/issues?state=all&per_page=100", token=token),
+        _gh("GET", "/pulls?state=all&per_page=70", token=token),
+        _gh("GET", "/actions/workflows/local-delivery.yml/runs?per_page=70", token=token),
+    )
+    if not isinstance(issues, list) or not isinstance(pulls, list) or not isinstance(delivery, dict):
+        raise HTTPException(502, "Données GitHub invalides.")
+    epics = []
+    for item in issues:
+        if not isinstance(item, dict) or "pull_request" in item:
+            continue
+        title = str(item.get("title") or "")
+        if not (title.startswith("[EPIC-") or title.startswith("Epic")):
+            continue
+        epics.append({
+            "number": item.get("number"), "title": title,
+            "state": item.get("state"), "created_at": item.get("created_at"),
+            "closed_at": item.get("closed_at"),
+            "url": item.get("html_url"),
+        })
+    prs = [{
+        "number": item.get("number"), "title": item.get("title"),
+        "state": item.get("state"), "draft": item.get("draft", False),
+        "merged_at": item.get("merged_at"), "created_at": item.get("created_at"),
+        "updated_at": item.get("updated_at"), "url": item.get("html_url"),
+        "sha": (item.get("head") or {}).get("sha"),
+        "merge_commit_sha": item.get("merge_commit_sha"),
+    } for item in pulls if isinstance(item, dict)]
+    jobs = [{
+        "id": item.get("id"), "sha": item.get("head_sha"),
+        "status": item.get("status"), "conclusion": item.get("conclusion"),
+        "created_at": item.get("created_at"), "updated_at": item.get("updated_at"),
+        "url": item.get("html_url"),
+    } for item in delivery.get("workflow_runs", []) if isinstance(item, dict)]
+    return no_store(JSONResponse({
+        "epics": epics, "pull_requests": prs, "deliveries": jobs,
+        "delivery_control_enabled": os.getenv("EDITORIAL_GITHUB_DELIVERY_WRITE_ENABLED") == "true"
+    }))
+
+
+@router.post("/api/conception/pulls/{pr_number}/deliver")
+async def approve_pc_delivery(request: Request, pr_number: int):
+    """Owner-only explicit approval of the immutable, already merged main SHA.
+
+    Never merge a PR or modify the code from this endpoint. Before dispatching,
+    require a successful push regression and an identical current main SHA.
+    """
+    mutation(request)
+    if pr_number < 1 or pr_number > 1_000_000:
+        raise HTTPException(422, "Numéro PR invalide.")
+    data = await body(request)
+    if data.get("confirm") != "AUTORISER PC" or set(data) != {"confirm", "sha", "approval_secret"}:
+        raise HTTPException(422, "Confirmation explicite requise.")
+    expected = data.get("sha")
+    import re
+    if not isinstance(expected, str) or re.fullmatch(r"[a-f0-9]{40}", expected) is None:
+        raise HTTPException(422, "SHA exact requis.")
+    approval_secret = os.getenv("EDITORIAL_GITHUB_APPROVAL_SECRET", "")
+    submitted_secret = data.get("approval_secret")
+    if (len(approval_secret) < 32 or not isinstance(submitted_secret, str)
+            or not hmac.compare_digest(submitted_secret, approval_secret)):
+        raise HTTPException(403, "Code de validation PC requis.")
+    token = _github_write_token()
+    enabled = await _gh("GET", "/actions/variables/LOCAL_PC_ENABLED", token=token)
+    if enabled.get("value") != "true":
+        raise HTTPException(409, "Livraison PC désactivée dans GitHub.")
+    pr = await _gh("GET", f"/pulls/{pr_number}", token=token)
+    if (pr.get("state") != "closed" or not pr.get("merged_at")
+            or (pr.get("base") or {}).get("ref") != "main"
+            or pr.get("merge_commit_sha") != expected):
+        raise HTTPException(409, "PR non fusionnée sur main ou SHA différent.")
+    branch = await _gh("GET", "/branches/main", token=token)
+    if (branch.get("commit") or {}).get("sha") != expected:
+        raise HTTPException(409, "Ce SHA n'est plus la tête de main.")
+    regression = await _gh(
+        "GET", f"/actions/workflows/regression.yml/runs?head_sha={expected}&per_page=30",
+        token=token,
+    )
+    verified = any(
+        x.get("head_sha") == expected and x.get("head_branch") == "main"
+        and x.get("event") == "push" and x.get("status") == "completed"
+        and x.get("conclusion") == "success"
+        for x in regression.get("workflow_runs", [])
+    )
+    if not verified:
+        raise HTTPException(409, "Régression complète réussie obligatoire.")
+    # GitHub repository Actions variable used by the existing local-delivery
+    # workflow. A limited-permission token, role policy and explicit opt-in
+    # are deployment prerequisites; no browser token can reach this endpoint.
+    old_approval = await _gh("GET", "/actions/variables/LOCAL_PC_APPROVED_SHA", token=token)
+    await _gh("PATCH", "/actions/variables/LOCAL_PC_APPROVED_SHA",
+              token=token, payload={"name": "LOCAL_PC_APPROVED_SHA", "value": expected})
+    try:
+        await _gh("POST", "/actions/workflows/local-delivery.yml/dispatches",
+                  token=token, payload={"ref": "main", "inputs": {"approved_sha": expected}})
+    except HTTPException:
+        # A failed dispatch must not leave this new SHA authorized for a
+        # later workflow_run event. Revert conservatively when possible.
+        await _gh("PATCH", "/actions/variables/LOCAL_PC_APPROVED_SHA",
+                  token=token, payload={"name": "LOCAL_PC_APPROVED_SHA",
+                                        "value": old_approval.get("value", "")})
+        raise
+    return no_store(JSONResponse({
+        "requested": True, "pr_number": pr_number, "sha": expected,
+        "message": "Livraison demandée. Vérifier le résultat du runner PC dans GitHub Actions."
+    }))

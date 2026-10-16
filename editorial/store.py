@@ -497,6 +497,30 @@ class PostgresStore:
                 raise RunMissing()
             return (scene_id, asset[0].get("storage")) if include_storage else scene_id
 
+    def list_media(self, tenant, run_id):
+        """Tenant-scoped production media catalog; never expose bucket/object keys."""
+        self.get(tenant, run_id)
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT entity_id, content FROM po_entity "
+                "WHERE tenant_id=%s AND kind='result' "
+                "AND content->>'type'='production_media' "
+                "AND content->>'run_id'=%s AND NOT deleted "
+                "ORDER BY content->>'created_at' DESC, entity_id DESC LIMIT 100",
+                (tenant, str(run_id)),
+            ).fetchall()
+        return [
+            {
+                "id": str(entity_id),
+                "kind": content.get("storage", {}).get("kind"),
+                "size_bytes": content.get("storage", {}).get("size"),
+                "sha256": content.get("storage", {}).get("sha256"),
+                "created_at": content.get("created_at"),
+            }
+            for entity_id, content in rows
+            if isinstance(content.get("storage"), dict)
+        ]
+
     def record_media(self, tenant, actor, run_id, asset_id, reference):
         """Archive metadata, audit and outbox atomically; bytes stay in MinIO."""
         with self.connect() as conn:
@@ -521,10 +545,12 @@ class PostgresStore:
             if not row or row[1].get("type") != "editorial_run":
                 raise RunMissing()
             version, run = row
-            if (step not in {"analysis", "storyboard"} or run["status"] not in {"waiting_validation", "changes_requested"}
+            if (step not in {"analysis", "storyboard"} or run["status"] not in {"waiting_validation", "changes_requested", "approved"}
                     or run.get("current_step") or len(run.get("steps", [])) != 2
                     or any(s["status"] != "success" for s in run["steps"])
                     or decision.expected_revision != run.get("review_revision", 0)):
+                raise RunConflict()
+            if run["status"] == "approved" and decision.action != "revise":
                 raise RunConflict()
             if step == "storyboard" and run.get("storyboard_stale") and decision.action == "accept":
                 raise RunConflict()

@@ -78,6 +78,55 @@ class HumanReviewTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(content["requires_human_validation"])
         self.assertEqual((await self.review(revision=2)).status_code, 409)
 
+    async def test_approved_story_can_be_edited_without_destroying_original(self):
+        self.assertEqual((await self.review()).status_code, 200)
+        self.assertEqual((await self.review("storyboard", revision=1)).status_code, 200)
+        original = self.current()
+        original_id = original["scenario_id"]
+        revised = copy.deepcopy(outputs()[1])
+        revised["scenes"][0]["narration"] = "Nouvelle narration après approbation"
+        response = await self.review("storyboard", "revise", 2,
+                                     comment="Nouvelle version", revised_output=revised)
+        self.assertEqual(response.status_code, 200)
+        updated = response.json()
+        self.assertEqual(updated["status"], "changes_requested")
+        self.assertNotEqual(updated["scenario_id"], original_id)
+        self.assertEqual(updated["review_revision"], 3)
+        with self.store.connect() as conn:
+            old = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='scenario' AND entity_id=%s",
+                (self.tenant, UUID(original_id))
+            ).fetchone()[0]
+        self.assertEqual(old["approved_by"], str(self.actor))
+        self.assertEqual((await self.review("storyboard", revision=3)).json()["status"], "approved")
+
+    async def test_private_media_catalog_excludes_minio_storage_keys(self):
+        self.assertEqual(self.store.list_media(self.tenant, self.run_id), [])
+        self.assertEqual((await self.review()).status_code, 200)
+        self.assertEqual((await self.review("storyboard", revision=1)).status_code, 200)
+        media_id = uuid4()
+        self.store.record_media(self.tenant, self.actor, self.run_id, media_id, {
+            "backend": "minio", "bucket": "private-bucket",
+            "key": "hidden-tenant-path", "kind": "video",
+            "size": 2048, "sha256": "e" * 64,
+        })
+        response = await self.client.get(
+            f"/editorial/runs/{self.run_id}/media", headers=self.headers
+        )
+        self.assertEqual(response.status_code, 200)
+        items = response.json()["media"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["id"], str(media_id))
+        self.assertEqual(items[0]["kind"], "video")
+        self.assertEqual(items[0]["size_bytes"], 2048)
+        self.assertNotIn("private-bucket", response.text)
+        self.assertNotIn("hidden-tenant-path", response.text)
+        with patch.dict(os.environ, {"EDITORIAL_TENANT_ID": str(uuid4())}):
+            denied = await self.client.get(
+                f"/editorial/runs/{self.run_id}/media", headers=self.headers
+            )
+        self.assertEqual(denied.status_code, 404)
+
     async def test_revise_preserves_snapshot_and_requires_explicit_acceptance(self):
         old = self.store.history(self.tenant, self.run_id)
         original_scenario = self.current()["scenario_id"]
