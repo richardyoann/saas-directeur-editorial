@@ -352,7 +352,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         expect(self.page.locator("#notice")).to_contain_text("nouvelle clé")
         self.assertEqual(self.page.locator("#status").inner_text(), "Échec")
         first = self.page.evaluate("location.hash.slice(5)")
-        self.page.locator("#heroCreate").click()
+        self.page.locator("#sideCreate").click()
         self.assertEqual(self.page.locator("#topic").input_value(), "Erreur IA simulée")
         self.page.locator("#submitNew").click()
         self.page.locator("#newDialog").wait_for(state="hidden")
