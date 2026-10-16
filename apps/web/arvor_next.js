@@ -127,9 +127,9 @@ function renderLibrary(){
  const sceneCount=editorialStories().reduce((a,s)=>a+(s.sceneCount||s.scenes.length),0),elementCount=editorialStories().filter(s=>s.status==='À relire').length;
  return `<div class="page-heading"><div><div class="eyebrow">L’IMAGINAIRE BRETON, EN MOUVEMENT</div><h1>Vos histoires commencent ici.</h1><p>Du premier murmure au dernier plan, imaginez et façonnez chaque détail.</p></div>${btn('Nouvelle histoire','plus','primary','data-action="new"')}</div>
  <section class="stats" aria-label="Statistiques de l’atelier">
- ${[["book",editorialStories().length,"Histoires dans l’atelier"],["film",sceneCount,"Scènes imaginées"],["layers",elementCount,"À valider"],["clock",events.length,"Traces de création"]].map(([ic,n,t])=>`<div class="stat"><div class="stat-icon">${ico(ic)}</div><div><span class="stat-number">${String(n).padStart(2,'0')}</span><span class="stat-label">${t}</span></div></div>`).join('')}</section>
+ ${[["book",editorialStories().length,"Histoires chargées"],["film",sceneCount,"Scènes imaginées"],["layers",elementCount,"À valider"],["clock",events.length,"Traces de création"]].map(([ic,n,t])=>`<div class="stat"><div class="stat-icon">${ico(ic)}</div><div><span class="stat-number">${String(n).padStart(2,'0')}</span><span class="stat-label">${t}</span></div></div>`).join('')}</section>
  <div class="toolbar"><div class="filter-tabs" role="group" aria-label="Filtrer par état">${['Toutes','En écriture','À relire','Validée','À retravailler','Échec'].map(v=>`<button type="button" class="filter-btn ${v===state.filter?'active':''}" data-filter="${v}" aria-pressed="${v===state.filter}">${v}</button>`).join('')}</div><label class="searchbox">${ico('search')}<input id="story-search" aria-label="Rechercher une histoire" placeholder="Rechercher une histoire…" value="${escapeAttr(state.query)}" autocomplete="off"></label></div>
- <div id="library-grid" class="story-grid"></div>`;
+ <div id="library-grid" class="story-grid"></div>${nextCursor?btn('Charger d’autres histoires','plus','small','data-action="more"'):''}`;
 }
 function libraryCards(){
  const el=$('#library-grid');if(!el)return;
@@ -247,7 +247,8 @@ function renderCalendar(){
  <p class="muted">Événements datés renvoyés par GitHub. Historique potentiellement partiel.</p></section>`;
 }
 function bindContent(){
- $$('[data-action="new"]').forEach(x=>x.addEventListener('click',()=>openEditor('new')));
+ $('[data-action="more"]').forEach(x=>x.addEventListener('click',()=>fetchStories(true).catch(e=>showToast(e.message))));
+ $('[data-action="new"]').forEach(x=>x.addEventListener('click',()=>openEditor('new')));
  $$('[data-action="library"]').forEach(x=>x.addEventListener('click',()=>navigate('stories')));
  $$('[data-action="edit-story"]').forEach(x=>x.addEventListener('click',()=>openEditor('story')));
  $$('[data-action="edit-scene"]').forEach(x=>x.addEventListener('click',()=>openEditor('scene')));
