@@ -60,3 +60,25 @@ button,input,textarea,select,a,summary:focus-visible {
 .story-tile-more{margin-top:auto;padding-top:.5rem;font-weight:700;color:#366158}
 .conception{padding-top:2rem}.conception-grid .card{margin:0;display:flex;flex-direction:column;align-items:flex-start;gap:.6rem}.conception-grid .card .btn{margin-top:auto}
 [hidden]{display:none!important}
+
+/* Progressive, accessible drill-down and release controls */
+.scene-element-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:.9rem;margin:1.3rem 0}
+.element-row{border:1px solid #d8d6d0;background:#fff;border-radius:12px;padding:.5rem}
+.element-link{width:100%;display:flex;flex-direction:column;gap:.5rem;text-align:left;border:0;background:transparent;color:inherit;cursor:pointer;padding:.75rem}
+.element-link strong{font-size:1.03rem}.element-link span{color:#59615c;font-size:.88rem;overflow-wrap:anywhere}
+.element-link:hover,.element-link:focus-visible{outline:2px solid #446e60;outline-offset:2px}
+.element-crumb{margin-bottom:1.1rem}
+.storyboard-section{margin:1.7rem 0}
+.conception-section{margin:2rem 0}
+.conception-item{display:flex;align-items:center;flex-wrap:wrap;gap:.8rem;padding:1rem 0;border-bottom:1px solid #dedad3}
+.conception-item strong{flex:1 1 340px}.conception-item small{color:#58615d}
+.conception-item .btn{white-space:normal}
+.calendar-toolbar{display:flex;align-items:center;justify-content:space-between;gap:.6rem}.calendar-toolbar h3{text-transform:capitalize}
+.calendar-legend{font-size:.84rem;color:#4b5d58;white-space:pre-wrap}
+.calendar-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.calendar-days>strong{font-size:.75rem;text-align:center;padding:.5rem .15rem}
+.calendar-cells{padding-top:.5rem}.calendar-cell{min-height:92px;border:1px solid #dedad3;border-radius:6px;padding:.35rem;overflow-wrap:anywhere}
+.calendar-cell>strong{font-size:.78rem}.calendar-empty{background:#f0f0ed}
+.calendar-event{font-size:.69rem;line-height:1.25;border-left:3px solid #9baaa5;padding:.2rem;margin-top:.25rem;background:#f2f5f3}
+.calendar-event.dev{border-left-color:#6786a7}.calendar-event.validation{border-left-color:#b59153}.calendar-event.prod{border-left-color:#357258}
+@media(max-width:660px){.calendar-cell{min-height:62px;padding:.15rem}.calendar-event{font-size:.58rem}.conception-item{align-items:flex-start}}
