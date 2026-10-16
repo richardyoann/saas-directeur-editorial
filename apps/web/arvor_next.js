@@ -75,9 +75,19 @@ function mapRun(run){
  item.sceneCount=item.scenes.length;
  return item;
 }
-function navigate(route,storyId=null,panel='overview'){
+async function navigate(route,storyId=null,panel='overview'){
  state.route=route;state.storyId=storyId;state.panel=panel;state.sceneIndex=0;
  closeMobile();render();window.scrollTo({top:0,behavior:'auto'});
+ if(route==='stories'&&storyId){
+  try{
+   const run=await api('/studio/api/runs/'+encodeURIComponent(storyId));
+   const i=stories.findIndex(s=>s.id===storyId);
+   if(i>=0)stories[i]=mapRun(run);
+   if(state.storyId===storyId)render();
+  }catch(e){showToast(e.message);state.storyId=null;render()}
+ }
+ if(route==='admin')await loadAdmin();
+ if(route==='journal')await loadJournal();
 }
 const btn=(text,icon,cls='',extra='')=>`<button type="button" class="button ${cls}" ${extra}>${icon?ico(icon):''}${escapeHtml(text)}</button>`;
 const statusClass=status=>({'En écriture':'writing','À relire':'review','Validée':'valid'}[status]||'');
