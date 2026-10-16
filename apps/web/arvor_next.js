@@ -1,7 +1,7 @@
 
 (() => {
 'use strict';
-// ARVOR / STUDIO: pending secure API adapter.
+// ARVOR / STUDIO: authenticated adapter being tested.
 const ASSETS={forest:'/studio/assets/arvor_forest.jpg',sea:'/studio/assets/arvor_sea.jpg'};
 const $=selector=>document.querySelector(selector);
 const $$=selector=>[...document.querySelectorAll(selector)];
