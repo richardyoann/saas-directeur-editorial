@@ -12,6 +12,7 @@ import ipaddress
 import os
 from pathlib import Path
 import struct
+import tempfile
 from urllib.parse import urlsplit
 from threading import BoundedSemaphore
 from uuid import UUID
@@ -191,6 +192,19 @@ def media_location(tenant: UUID, run_id: UUID, scene_id: UUID):
 
 def save_png(tenant, run_id, scene_id, data):
     validate_png(data)
+    if os.getenv("EDITORIAL_MEDIA_BACKEND", "filesystem") == "minio":
+        from editorial.media_storage import put_file, MediaStorageError
+        # Keep the generated PNG on an uncertain upload. It must not require
+        # another model call merely because storage lost its acknowledgement.
+        recovery = media_location(tenant, run_id, scene_id)
+        try:
+            with recovery.open("xb") as handle:
+                handle.write(data)
+            reference = put_file(recovery, tenant, run_id, scene_id, "image")
+            recovery.unlink()
+            return reference
+        except (MediaStorageError, OSError):
+            raise ImageUnavailable("image_storage_result_uncertain") from None
     path = media_location(tenant, run_id, scene_id)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, "O_NOFOLLOW"):
@@ -208,7 +222,18 @@ def save_png(tenant, run_id, scene_id, data):
     return path
 
 
-def load_png(tenant, run_id, scene_id):
+def load_png(tenant, run_id, scene_id, storage=None):
+    if storage:
+        from editorial.media_storage import get_file, MediaStorageError
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                path = get_file(storage, Path(directory) / "image.png", tenant,
+                                run_id, scene_id, "image", max_bytes=MAX_PNG_BYTES)
+                data = path.read_bytes()
+                validate_png(data)
+                return data
+        except (MediaStorageError, OSError):
+            raise ImageUnavailable("image_storage_unavailable") from None
     path = media_location(tenant, run_id, scene_id)
     if path.is_symlink() or not path.is_file():
         raise ImageUnavailable()
@@ -220,3 +245,19 @@ def load_png(tenant, run_id, scene_id):
         return data
     except OSError:
         raise ImageUnavailable() from None
+
+
+def media_preflight(tenant, run_id, scene_id):
+    backend = os.getenv("EDITORIAL_MEDIA_BACKEND", "filesystem")
+    if backend == "filesystem":
+        return media_location(tenant, run_id, scene_id)
+    if backend == "minio":
+        from editorial.media_storage import preflight, MediaStorageError
+        try:
+            media_location(tenant, run_id, scene_id)
+            preflight()
+            return None
+        except MediaStorageError:
+            raise ImageUnavailable("image_storage_unavailable") from None
+    raise ImageUnavailable("image_storage_configuration_invalid")
+

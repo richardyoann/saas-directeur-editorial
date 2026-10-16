@@ -1,5 +1,15 @@
 # État du projet
 
+## MEDIA-004 — stockage MinIO, 16 octobre 2026
+
+Backend optionnel pour nouvelles images, références JSONB avec audit/outbox,
+lecture compatible des anciennes images sur disque ; archivage CLI privé
+PNG/WAV/MP4 et restauration contrôlée ajoutés. Base inspectée :
+517a62dc3a7077f9b82e9ca82d2cfcb224899ae4. Voir docs/MEDIA_004_MINIO_STORAGE.md.
+Pas d'activation PC, de migration SQL, de transfert de médias historiques ni
+de suppression de source. Tests S3 simulés distincts de la recette MinIO réelle.
+Aucun gain de temps, infrastructure ou espace revendiqué sans mesure.
+
 ## MEDIA-003 — chaîne 80/20 et export vidéo, 16 octobre 2026
 
 Base inspectée : 25e5d4aff298fc30c85012c75de4fc0d116821c5. Régression GitHub
@@ -363,4 +373,5 @@ Voir `docs/REPOSITORY_SETUP.md` ; provenance et blocage consignés dans le journ
 ## EDIT-001 — incrément validation humaine, 12 octobre 2026
 
 API accept/reject/revise et historique paginé développés sur branche isolée; contrôle concurrent, décisions immuables, snapshots Qwen préservés et scénario/scènes courants cohérents. Aucun nouvel appel modèle ni migration métier. Tests sur base jetable : RED routes absentes, borne excessive et résultat périmé confirmés; 121 tests sans skip après correction. Revue textuelle indépendante réalisée, contrôle final des schémas ajouté; CI, livraison de ce SHA et revue à consigner après vérification. L'interface, les comptes SaaS et l'évaluation éditoriale réelle restent ouverts. Aucun critère produit accepté automatiquement.
+
 

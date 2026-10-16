@@ -17,7 +17,7 @@ from editorial.models import Brief, ReviewDecision
 from editorial.service import run_workflow
 from editorial.store import PostgresStore, RunConflict, RunMissing, ReviewInvalid
 from editorial.worker_guard import WorkerOffline
-from editorial.visuals import ImageUnavailable, image_gate, media_location, load_png, render_png, save_png, validate_png, private_image_url
+from editorial.visuals import ImageUnavailable, image_gate, media_preflight, load_png, render_png, save_png, validate_png, private_image_url
 
 security = HTTPBearer(auto_error=False)
 
@@ -186,7 +186,7 @@ def create_router(get_llm_client):
         # Images require a separate, explicitly configured provider. Qwen is
         # text-only here. One scene is initiated by an explicit user action.
         base = os.getenv("IMAGE_BASE_URL", "")
-        if not private_image_url(base) or not os.getenv("EDITORIAL_MEDIA_ROOT"):
+        if not private_image_url(base):
             raise HTTPException(503, "Générateur d'images privé non configuré.")
         if not image_gate.acquire(blocking=False):
             raise HTTPException(429, "Génération d'image occupée.",
@@ -200,7 +200,7 @@ def create_router(get_llm_client):
                     raise HTTPException(404, "Scène introuvable.")
                 scene = plan["scenes"][scene_number - 1]
                 # Refuse an unconfigured storage location before claiming the job.
-                await run_in_threadpool(media_location, identity.tenant, run_id, UUID(scene["scene_id"]))
+                await run_in_threadpool(media_preflight, identity.tenant, run_id, UUID(scene["scene_id"]))
                 scene_id, _ = await run_in_threadpool(
                     store.begin_image, identity.tenant, identity.actor,
                     run_id, scene_number, scene["prompt"], UUID(scene["scene_id"]))
@@ -223,7 +223,8 @@ def create_router(get_llm_client):
                         store.finish_image, identity.tenant, identity.actor,
                         run_id, scene_id, width=width, height=height,
                         duration_seconds=round(time.monotonic() - started, 6),
-                        png_sha256=hashlib.sha256(png).hexdigest(), byte_count=len(png)
+                        png_sha256=hashlib.sha256(png).hexdigest(), byte_count=len(png),
+                        storage=path if isinstance(path, dict) else None
                     ), status_code=201)
                 except (RunConflict, RunMissing, psycopg.Error):
                     # A DB commit can succeed even if its acknowledgement is lost.
@@ -237,7 +238,7 @@ def create_router(get_llm_client):
                                             duration_seconds=round(time.monotonic() - started, 6))
                 except (RunConflict, RunMissing, psycopg.Error):
                     raise HTTPException(503, "Résultat d'image incertain : intervention requise.") from None
-                if exc.code in {"image_provider_timeout", "image_provider_response_uncertain"}:
+                if exc.code in {"image_provider_timeout", "image_provider_response_uncertain", "image_storage_result_uncertain"}:
                     raise HTTPException(504 if exc.code == "image_provider_timeout" else 502,
                                         "Résultat d'image incertain : vérifiez le moteur avant toute reprise.") from None
                 raise HTTPException(502, "Génération d'image échouée, sans rejeu automatique.") from None
@@ -258,8 +259,9 @@ def create_router(get_llm_client):
                 png = None
                 if plan["approved"] and scene["image_status"] == "ready":
                     try:
-                        png = await run_in_threadpool(load_png, identity.tenant, run_id,
-                                                      UUID(scene["scene_id"]))
+                        scene_id, storage = await run_in_threadpool(store.image_asset, identity.tenant,
+                                                                    run_id, scene["scene_number"], True)
+                        png = await run_in_threadpool(load_png, identity.tenant, run_id, scene_id, storage)
                     except ImageUnavailable:
                         pass
                 checks.append(verify_scene(scene, png, counts.get(scene["scene_id"], 0)))
@@ -274,8 +276,8 @@ def create_router(get_llm_client):
                              identity: Identity = Depends(get_identity),
                              store: PostgresStore = Depends(get_store)):
         try:
-            scene_id = await run_in_threadpool(store.image_asset, identity.tenant, run_id, scene_number)
-            png = await run_in_threadpool(load_png, identity.tenant, run_id, scene_id)
+            scene_id, storage = await run_in_threadpool(store.image_asset, identity.tenant, run_id, scene_number, True)
+            png = await run_in_threadpool(load_png, identity.tenant, run_id, scene_id, storage)
             return Response(png, media_type="image/png", headers={
                 "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
                 "Content-Security-Policy": "default-src 'none'"
@@ -286,3 +288,4 @@ def create_router(get_llm_client):
             raise HTTPException(503, "Persistance éditoriale indisponible.") from None
 
     return router
+

@@ -6,6 +6,7 @@
 
 | Besoin | Document |
 | --- | --- |
+| Transfert MinIO incertain et reprise des médias | [MinIO médias](MINIO_MEDIA_RECOVERY.md) |
 | Résultat image incertain, timeout et fichier privé conservé | [Runbook images](IMAGE_GENERATION_RECOVERY.md) |
 | Comprendre l'incident du 14–15/10/2026 (symptômes, causes, corrections, preuves) | [INC-2026-10-14 — remise en service PC](INCIDENT_2026-10-14_REMISE_EN_SERVICE_PC.md) |
 | Diagnostiquer une panne aujourd'hui : commandes, tests, sauvegarde, mise en service | [RUNBOOK — diagnostic et reprise PC](RUNBOOK_DIAGNOSTIC_PC.md) |
@@ -112,3 +113,4 @@ La gravité est à adapter à l'impact réel : un `/ready=503` peut relever de P
 | Flag `LOCAL_PC_ENABLED` | Avant et après **chaque** livraison | `true` hors fenêtre approuvée = risque de MEP non autorisée. |
 
 **Responsabilités :** l'opérateur MCO valide les actions système, secrets et sauvegardes ; le responsable code revoit les correctifs ; le responsable éditorial valide le contenu produit. Une CI verte ne vaut pas recette utilisateur ni acceptation métier.
+
