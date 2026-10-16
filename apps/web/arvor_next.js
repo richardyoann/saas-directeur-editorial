@@ -13,10 +13,10 @@ const today=()=>new Date().toISOString().slice(0,10);
 let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null;
 const state={route:'stories',storyId:null,panel:'overview',sceneIndex:0,filter:'Toutes',query:'',journalFilter:'Tout',journalQuery:'',adminTab:'Vue d’ensemble',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarMode:'Mois'};
 let editorAction=null,toastTimer;
-const persist=()=>{try{localStorage.setItem(key,JSON.stringify({stories,events}))}catch{}};
+const persist=()=>{};
 const story=id=>stories.find(s=>s.id===id);
-const showToast=msg=>{const el=$('#toast');el.textContent=msg;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.hidden=true,2900)};
-const log=(type,title,detail)=>{events.unshift({id:Date.now()+Math.random(),date:today(),type,title,detail});persist()};
+const showToast=msg=>{const el=$('#toast');el.textContent=msg;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.hidden=true,4200)};
+const log=()=>{};
 function closeMobile(){$('#sidebar').classList.remove('open');$('#shade').classList.remove('open')}
 function navigate(route,storyId=null,panel='overview'){
  state.route=route;state.storyId=storyId;state.panel=panel;state.sceneIndex=0;
