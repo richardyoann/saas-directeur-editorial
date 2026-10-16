@@ -59,6 +59,11 @@ async function loginPrivate(e){
  }catch(err){$('#login-error').textContent=err.message}finally{button.disabled=false}
 }
 $('#login-form').addEventListener('submit',loginPrivate);
+$('#logout-next').addEventListener('click',async()=>{
+ try{await api('/studio/logout','POST');csrf=null;stories=[];adminData=null;
+ $('#studio-shell').hidden=true;$('#login-screen').hidden=false;}
+ catch(e){showToast('Déconnexion non confirmée : '+e.message)}
+});
 async function loadJournal(){await fetchStories();render()}
 async function loadAdmin(){
  try{
