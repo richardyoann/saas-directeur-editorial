@@ -46,3 +46,17 @@ button,input,textarea,select,a,summary:focus-visible {
 .visual-card .btn{align-self:flex-start}
 .image-preview{width:100%;aspect-ratio:1/1;object-fit:contain;border-radius:9px;background:#eef5f2}
 .visual-placeholder{min-height:145px;background:#e5f0eb;border:1px dashed #cadecd;border-radius:9px;display:grid;place-items:center;color:#557b76;font-size:12px;text-align:center;padding:15px}
+
+/* Navigation métier : histoires et conception. */
+.library-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin:2rem 0 1.2rem}
+.library-heading h2,.conception h2{font-size:clamp(1.5rem,3vw,2.4rem);margin:.35rem 0}
+.story-cards,.conception-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:1.1rem;margin:1.3rem 0 2rem}
+.story-tile{text-align:left;border:1px solid #ded9d0;background:#fff;border-radius:18px;padding:0;overflow:hidden;cursor:pointer;color:inherit;display:flex;flex-direction:column;min-height:240px;box-shadow:0 3px 14px #00000009}
+.story-tile:hover,.story-tile:focus-visible{border-color:#a98055;box-shadow:0 8px 22px #00000016;transform:translateY(-2px)}
+.story-tile-art{display:grid;place-items:center;min-height:110px;background:linear-gradient(135deg,#c6d8d2,#e8e0d4);font-size:3rem;color:#36534d}
+.story-tile-content{display:flex;flex-direction:column;padding:1rem;gap:.45rem;flex:1}
+.story-tile-content strong{font-size:1.07rem}
+.story-tile-content small{color:#666}
+.story-tile-more{margin-top:auto;padding-top:.5rem;font-weight:700;color:#366158}
+.conception{padding-top:2rem}.conception-grid .card{margin:0;display:flex;flex-direction:column;align-items:flex-start;gap:.6rem}.conception-grid .card .btn{margin-top:auto}
+[hidden]{display:none!important}
