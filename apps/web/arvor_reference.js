@@ -200,6 +200,7 @@ function row(root,title,detail,status,path,tone="neutral"){
   put(content,"small","",detail);
   pill(item,status,tone);
   if(path)repoLink(item,"Voir",path);
+  return item;
 }
 function selectTab(index){
   view.adminTab=index;
@@ -277,8 +278,18 @@ function renderAdmin() {
       const s=put(stats,"article","arvor-stat");put(s,"strong","",n);put(s,"span","",label);
     }
     put(root,"h3","","Avancement des epics");
-    for(const e of filtered(epics,x=>x.title).slice(0,12))
-      row(root,"#"+e.number+" · "+e.title,"Statut GitHub",e.state==="closed"?"Fermé":"Ouvert","issues/"+e.number,e.state==="closed"?"ok":"neutral");
+    for(const e of filtered(epics,x=>x.title).slice(0,12)){
+      const label=Number.isInteger(e.progress_pct)
+        ? e.checklist_done+"/"+e.checklist_total+" critères vérifiés · "+e.progress_pct+" %"
+        : "Sans checklist mesurable";
+      const item=row(root,"#"+e.number+" · "+e.title,label,
+        e.state==="closed"?"Fermé":"Ouvert","issues/"+e.number,e.state==="closed"?"ok":"neutral");
+      if(Number.isInteger(e.progress_pct)){
+        const progress=put(item,"progress","arvor-epic-progress");
+        progress.max=100;progress.value=e.progress_pct;
+        progress.setAttribute("aria-label","Avancement Epic #"+e.number+" : "+e.progress_pct+" %");
+      }
+    }
     put(root,"h3","","Dernières activités");
     for(const p of prs.slice(0,10))
       row(root,"PR #"+p.number+" · "+p.title,formatDate(p.updated_at),
