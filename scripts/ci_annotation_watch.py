@@ -16,6 +16,7 @@ WORKFLOWS = {
     "Full regression", "Dependency security audit", "Studio browser journeys",
     "Automated PR risk review", "Automated CI triage and release evidence",
     "Private PC delivery", "Chat approved PC delivery", "CI supply-chain guardrails",
+    "Secret exposure scan",
 }
 CHECK = re.compile(r"^https://api\.github\.com/repos/([^/]+/[^/]+)/check-runs/([0-9]+)$")
 SHA = re.compile(r"^[0-9a-f]{40}$")

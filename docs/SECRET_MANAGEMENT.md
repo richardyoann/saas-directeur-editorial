@@ -36,3 +36,13 @@ ou les logs n'est PAS exclue par ce changement : scan et rotation dédiés.
 Le SaaS public reste bloqué tant que comptes, RBAC, RLS et pentest
 n'ont pas été traités. Les identifiants du test PostgreSQL CI sont
 synthétiques et ne constituent pas des comptes d'exploitation.
+
+## Détection automatisée des fuites
+Le workflow Secret exposure scan exécute Gitleaks v3 épinglé à son SHA,
+sur PR, push main et chaque nuit. Il inspecte l'historique Git téléchargé
+et bloque le contrôle en cas de fuite reconnue. Les commentaires PR, résumés
+et artefacts de scan sont désactivés pour ne pas republier les données.
+La CI peut toujours contenir des détails dans ses logs privés ; réserver
+leur accès aux administrateurs. Le scan ne garantit pas l'absence de secrets
+dans les branches non téléchargées, le PC, les volumes ou anciens logs.
+Tout secret réellement divulgué doit être révoqué et remplacé hors Git.
