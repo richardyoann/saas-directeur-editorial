@@ -218,6 +218,28 @@ function revisionDocument(run){
  }))
  };
 }
+async function reviseRemote(input){
+ const st=story(state.storyId),run=st?.run;
+ if(!run?.storyboard||!['approved','waiting_validation','changes_requested'].includes(run.status))throw Error('Aucune version éditable.');
+ const board=revisionDocument(run);
+ if(editorAction==='story'){
+  board.title=(input.title||'').trim();board.synopsis=(input.summary||'').trim();
+  if(input.place?.trim()&&board.scenes.length)board.scenes[0].landscape=input.place.trim();
+ }else{
+  const scene=board.scenes[state.sceneIndex];if(!scene)throw Error('Scène introuvable.');
+  scene.title=input.title.trim();scene.duration_seconds=Number(input.duration);
+  scene.narration=input.narration.trim();scene.landscape=input.landscape.trim();
+  scene.shot=input.shot.trim();scene.emotion=input.emotion.trim();scene.sound=input.sound.trim();
+  scene.colors=(input.colors||'').split(',').map(x=>x.trim()).filter(Boolean);
+  scene.image_prompt=input.prompt.trim();
+ }
+ const duration=board.scenes.reduce((total,x)=>total+x.duration_seconds,0);
+ if(duration!==run.brief.duration_seconds)throw Error('La durée totale doit rester à '+run.brief.duration_seconds+' secondes.');
+ const payload={action:'revise',expected_revision:run.review_revision||0,comment:'Révision depuis le Studio Arvor',revised_output:board};
+ const saved=await api('/studio/api/runs/'+encodeURIComponent(st.id)+'/steps/storyboard/review','POST',payload);
+ stories[stories.findIndex(x=>x.id===st.id)]=mapRun(saved);
+ $('#editor').close();render();showToast('Nouvelle version enregistrée. Validation requise.');
+}
 async function saveRemoteEditor(input){
  try{
   if(editorAction==='new')await createRemote(input);
