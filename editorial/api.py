@@ -217,19 +217,28 @@ def create_router(get_llm_client):
             try:
                 png = await render_png(client, base, scene["prompt"])
                 width, height = validate_png(png)
-                path = await run_in_threadpool(save_png, identity.tenant, run_id, scene_id, png)
+                saved = await run_in_threadpool(save_png, identity.tenant, run_id, scene_id, png)
+                storage = saved[0] if isinstance(saved, tuple) else None
                 try:
-                    return JSONResponse(await run_in_threadpool(
+                    result = await run_in_threadpool(
                         store.finish_image, identity.tenant, identity.actor,
                         run_id, scene_id, width=width, height=height,
                         duration_seconds=round(time.monotonic() - started, 6),
                         png_sha256=hashlib.sha256(png).hexdigest(), byte_count=len(png),
-                        storage=path if isinstance(path, dict) else None
-                    ), status_code=201)
+                        storage=storage
+                    )
                 except (RunConflict, RunMissing, psycopg.Error):
                     # A DB commit can succeed even if its acknowledgement is lost.
-                    # Preserve the private file for explicit reconciliation.
+                    # Preserve the private recovery PNG for explicit reconciliation.
                     raise HTTPException(503, "État de l'image non confirmé : intervention requise.") from None
+                if isinstance(saved, tuple):
+                    try:
+                        await run_in_threadpool(saved[1].unlink)
+                    except OSError:
+                        # A redundant recovery file is safer than turning a
+                        # committed image into an ambiguous API failure.
+                        pass
+                return JSONResponse(result, status_code=201)
             except ImageUnavailable as exc:
                 try:
                     await run_in_threadpool(store.finish_image, identity.tenant,

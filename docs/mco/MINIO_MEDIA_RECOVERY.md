@@ -23,3 +23,13 @@ Ne pas coller de secrets, textes, noms métier ou journaux privés dans Slack.
 Consigner symptôme, preuve, hypothèse confirmée/supposée, correction, validation
 et limites suivant le modèle de l'index MCO. Aucune suppression automatique de
 source, d'objet, de volume ou de journal n'est fournie.
+
+
+## Garde-fous confirmés après revue — 16 octobre 2026
+
+- Ne supprimer le PNG local de récupération qu'après acquittement PostgreSQL de
+  la référence MinIO. Si `finish_image` échoue ou reste ambigu, conserver le
+  PNG et l'objet ; ne pas relancer la génération.
+- La restauration normale exige exactement `started → stored → recorded` pour
+  chaque asset. Tout événement absent, orphelin, dupliqué ou hors ordre bloque
+  la restauration jusqu'à réconciliation explicite.
