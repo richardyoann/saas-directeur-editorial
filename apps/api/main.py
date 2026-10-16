@@ -4,6 +4,7 @@ import time
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from pathlib import Path
+from uuid import UUID
 
 import httpx
 from dotenv import load_dotenv
@@ -15,9 +16,7 @@ from editorial.api import create_router, get_identity
 from apps.api.studio import router as studio_router
 from editorial.worker_guard import worker_online
 from apps.api.request_limits import RequestLimits
-from uuid import UUID
-
-# Existing process variables take precedence; never rewrite the environment file.
+\n# Existing process variables take precedence; never rewrite the environment file.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 @asynccontextmanager
