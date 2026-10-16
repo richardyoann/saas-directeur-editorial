@@ -62,6 +62,8 @@ function showWorkspace(view){
  $("conception").hidden=view!=="conception";
  $("detail").hidden=view!=="detail";
  $("empty").hidden=true;
+ document.querySelector(".hero").hidden=view!=="library";
+ document.querySelector(".metrics").hidden=view!=="library";
  $("home").classList.toggle("selected",view!=="conception");
  $("conceptionNav").classList.toggle("selected",view==="conception");
 }
@@ -247,10 +249,10 @@ function detailRow(root,label,value,onClick){
  put(b,"span","",String(value??"—"));
  b.addEventListener("click",onClick);
 }
-function detailHeader(root,category,title,back){
+function detailHeader(root,category,title,back,onBack=storyboard){
  const crumb=put(root,"div","element-crumb");
  const returnButton=put(crumb,"button","btn secondary small-btn","← "+back);
- returnButton.type="button";returnButton.addEventListener("click",storyboard);
+ returnButton.type="button";returnButton.addEventListener("click",onBack);
  put(root,"div","overline",category);put(root,"h3","",title);
 }
 function editElement(sceneIndex){
@@ -266,7 +268,7 @@ function editElement(sceneIndex){
 function elementValue(sceneIndex,key,label){
  const scene=s.run?.storyboard?.scenes?.[sceneIndex];if(!scene)return storyboard();
  const root=$("panel");root.replaceChildren();
- detailHeader(root,"SCÈNE "+(sceneIndex+1)+" / "+label,label,"Retour à l'histoire");
+ detailHeader(root,"SCÈNE "+(sceneIndex+1)+" / "+label,label,"Retour à la scène",()=>sceneDetail(sceneIndex));
  const a=put(root,"article","card");
  const value=scene[key];
  if(Array.isArray(value)){
