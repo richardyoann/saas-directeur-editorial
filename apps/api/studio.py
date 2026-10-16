@@ -54,7 +54,10 @@ def origin(request):
 def configured():
     password = os.getenv("EDITORIAL_WEB_PASSWORD", "")
     token = os.getenv("EDITORIAL_API_TOKEN", "")
-    return len(password) >= 32 and len(token) >= 32 and not hmac.compare_digest(password, token)
+    try:
+        return len(password) >= 32 and len(token) >= 32 and not hmac.compare_digest(password.encode(), token.encode())
+    except UnicodeEncodeError:
+        return False
 
 def cleanup():
     now = time.monotonic()
@@ -78,7 +81,7 @@ def session(request):
 def mutation(request):
     origin(request)
     key, item = session(request)
-    if not hmac.compare_digest(request.headers.get("x-csrf-token", ""), item.csrf):
+    if not hmac.compare_digest(request.headers.get("x-csrf-token", "").encode(), item.csrf.encode()):
         raise HTTPException(403, "Protection CSRF invalide.")
     return key
 
@@ -88,7 +91,7 @@ async def body(request):
         raise HTTPException(413, "Requête trop volumineuse.")
     try:
         value = json.loads(raw)
-    except (ValueError, UnicodeDecodeError):
+    except (ValueError, UnicodeDecodeError, RecursionError):
         raise HTTPException(422, "JSON invalide.") from None
     if not isinstance(value, dict):
         raise HTTPException(422, "Objet JSON attendu.")
@@ -126,6 +129,11 @@ async def login(request: Request):
         raise HTTPException(429, "Trop de tentatives, réessayez plus tard.")
     supplied = (await body(request)).get("password")
     password = os.environ["EDITORIAL_WEB_PASSWORD"]
+    if isinstance(supplied, str):
+        try:
+            supplied.encode("utf-8")
+        except UnicodeEncodeError:
+            raise HTTPException(422, "Mot de passe UTF-8 invalide.") from None
     if not isinstance(supplied, str) or not hmac.compare_digest(supplied.encode(), password.encode()):
         failures.setdefault(peer, []).append(time.monotonic())
         raise HTTPException(401, "Mot de passe incorrect.")

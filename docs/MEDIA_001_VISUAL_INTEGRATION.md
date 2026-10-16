@@ -93,6 +93,14 @@ historisé en base : ne pas partager de dump ni captures de détails métier.
 
 ## Tests et limites de recette
 
+Revue Lot 1 du 15/10/2026 : réponse JSON du fournisseur lue en streaming,
+limitée à **8 Mio pendant réception**, délai mural **120 secondes**, redirections
+refusées même si le client HTTP est configuré autrement. Le PNG décodé reste
+limité à 4 Mio. Un prompt visuel dépassant 14 000 caractères retourne 422 avant
+réservation ; raccourcir les portraits ou la scène, sans relance automatique.
+La validation PNG actuelle ne décode pas intégralement le fichier : voir le
+constat L1-06 de la [revue](QA_LOT1_2026-10-15.md).
+
 ```bash
 python scripts/run_regression.py
 node --check apps/web/studio.js
