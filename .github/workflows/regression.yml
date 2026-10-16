@@ -32,6 +32,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt 'psycopg[binary]==3.3.6'
+      - name: Install offline video test prerequisite
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Prepare disposable trace database when present
         env:
           TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
@@ -51,3 +53,4 @@ jobs:
           PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
           PO_ALLOW_TEST_MIGRATION: 'yes'
         run: python scripts/benchmark_editorial_sql.py --rows 1200 --disposable
+
