@@ -4,11 +4,13 @@ Provider is deliberately mocked: a Qwen-only PC cannot create image pixels.
 No test writes to the user's application database or generated-media directory.
 """
 import base64
+import hashlib
+import io
 import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4, uuid5
 
 import httpx
@@ -152,6 +154,41 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.store.review(self.tenant, self.actor, self.run_id, "storyboard",
                           {"action": "accept", "expected_revision": 1})
 
+    async def test_minio_image_reference_is_audited_and_old_local_images_still_work(self):
+        await self.approve()
+        url = f"/editorial/runs/{self.run_id}/scenes/1/image"
+        api = MagicMock()
+        api.put_object.return_value = {"VersionId": "v1"}
+        api.head_object.return_value = {"ContentLength": len(PNG), "Metadata": {"sha256": hashlib.sha256(PNG).hexdigest()}}
+        api.get_object.return_value = {"ContentLength": len(PNG), "Body": io.BytesIO(PNG)}
+        with patch.dict(os.environ, {"EDITORIAL_MEDIA_BACKEND": "minio"}), patch("editorial.media_storage.client", return_value=api), patch("editorial.media_storage.bucket", return_value="private-media"), patch("editorial.api.render_png", new_callable=AsyncMock, return_value=PNG):
+            response = await self.client.post(url, headers=self.auth)
+            self.assertEqual(response.status_code, 201, response.text)
+            scene_id, reference = self.store.image_asset(self.tenant, self.run_id, 1, True)
+            self.assertEqual(reference["backend"], "minio")
+            self.assertFalse(list(Path(self.media.name).rglob("*.png")))
+            self.assertEqual((await self.client.get(url, headers=self.auth)).content, PNG)
+            self.assertNotIn("bucket", response.text)
+        # The old local backend remains the default, on another scene.
+        with patch("editorial.api.render_png", new_callable=AsyncMock, return_value=PNG):
+            local_url = f"/editorial/runs/{self.run_id}/scenes/2/image"
+            self.assertEqual((await self.client.post(local_url, headers=self.auth)).status_code, 201)
+            self.assertEqual((await self.client.get(local_url, headers=self.auth)).content, PNG)
+        with self.store.connect() as conn:
+            self.assertEqual(conn.execute("SELECT content->'storage'->>'backend' FROM po_entity WHERE tenant_id=%s AND entity_id=%s", (self.tenant, self.store._visual_id(scene_id))).fetchone()[0], "minio")
+
+    async def test_production_media_reference_has_audit_outbox_and_no_cross_tenant_write(self):
+        await self.approve()
+        asset_id = uuid4()
+        reference = {"backend": "minio", "kind": "video", "size": 42}
+        self.store.record_media(self.tenant, self.actor, self.run_id, asset_id, reference)
+        with self.store.connect() as conn:
+            self.assertEqual(conn.execute("SELECT content->>'type' FROM po_entity WHERE tenant_id=%s AND entity_id=%s", (self.tenant, asset_id)).fetchone()[0], "production_media")
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM po_audit a JOIN po_outbox o USING(event_id) WHERE a.tenant_id=%s AND a.entity_id=%s", (self.tenant, asset_id)).fetchone()[0], 1)
+        from editorial.store import RunMissing
+        with self.assertRaises(RunMissing):
+            self.store.record_media(uuid4(), self.actor, self.run_id, uuid4(), reference)
+
     async def test_unapproved_or_unconfigured_image_is_never_generated(self):
         url = f"/editorial/runs/{self.run_id}/scenes/1/image"
         self.assertEqual((await self.client.post(url)).status_code, 401)
@@ -221,6 +258,74 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(plan["scenes"][0]["image_status"], "failed")
         self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 409)
 
+    async def test_receipts_three_images_readonly_verification_and_tamper(self):
+        from test_image_receipts import sample_scene
+        png = sample_scene()[1]
+        await self.approve()
+        base = f"/editorial/runs/{self.run_id}"
+        with patch("editorial.api.render_png", new_callable=AsyncMock, return_value=png) as render:
+            for i in range(1, 4):
+                response = await self.client.post(base + f"/scenes/{i}/image", headers=self.auth)
+                self.assertEqual(response.status_code, 201, response.text)
+        self.assertEqual(render.await_count, 3)
+        counts_before = self.store.image_audit_counts(self.tenant, self.run_id)
+        response = await self.client.get(base + "/visuals/verification", headers=self.auth)
+        self.assertEqual(response.status_code, 200, response.text)
+        report = response.json()
+        self.assertTrue(report["technical_passed"], report)
+        self.assertTrue(report["duplicate_image_digests"])
+        self.assertFalse(report["gpu_verified"])
+        self.assertTrue(report["human_visual_review_required"])
+        self.assertEqual(self.store.image_audit_counts(self.tenant, self.run_id), counts_before)
+        self.assertEqual(list(counts_before.values()), [2, 2, 2])
+        plan = self.store.visual_plan(self.tenant, self.run_id)
+        self.assertNotIn("character_references", plan["scenes"][0]["generation"]["provenance"])
+        self.assertIsNone(plan["scenes"][0]["generation"]["provenance"]["seed"])
+        run = self.store.get(self.tenant, self.run_id)
+        path = Path(self.media.name) / str(self.tenant) / str(self.run_id) / (run["scene_ids"][0] + ".png")
+        path.write_bytes(png + b"tampered")
+        changed = (await self.client.get(base + "/visuals/verification", headers=self.auth)).json()
+        self.assertFalse(changed["technical_passed"])
+        self.assertIn("image_digest_mismatch_or_missing", changed["scenes"][0]["reasons"])
+        self.assertEqual((await self.client.get(base + "/visuals/verification")).status_code, 401)
+        with patch.dict(os.environ, {"EDITORIAL_TENANT_ID": str(uuid4())}):
+            self.assertEqual((await self.client.get(base + "/visuals/verification", headers=self.auth)).status_code, 404)
+
+    async def test_timeout_is_uncertain_and_does_not_repeat_provider_call(self):
+        await self.approve()
+        url = f"/editorial/runs/{self.run_id}/scenes/1/image"
+        with patch("editorial.api.render_png", new_callable=AsyncMock,
+                   side_effect=ImageUnavailable("image_provider_timeout")) as render:
+            self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 504)
+            self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 409)
+        self.assertEqual(render.await_count, 1)
+        generation = self.store.visual_plan(self.tenant, self.run_id)["scenes"][0]["generation"]
+        self.assertTrue(generation["outcome_uncertain"])
+        self.assertEqual(generation["error_code"], "image_provider_timeout")
+        self.assertGreaterEqual(generation["duration_seconds"], 0)
+
+    async def test_ambiguous_database_acknowledgement_preserves_private_png(self):
+        import psycopg
+        await self.approve()
+        url = f"/editorial/runs/{self.run_id}/scenes/1/image"
+        with patch("editorial.api.render_png", new_callable=AsyncMock, return_value=PNG), \
+             patch.object(self.store, "finish_image", side_effect=psycopg.OperationalError()):
+            self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 503)
+        run = self.store.get(self.tenant, self.run_id)
+        self.assertEqual(load_png(self.tenant, self.run_id, UUID(run["scene_ids"][0])), PNG)
+        self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 409)
+
+    async def test_reservation_rejects_a_stale_prompt_or_scene_identity(self):
+        from editorial.store import RunConflict
+        await self.approve()
+        plan = self.store.visual_plan(self.tenant, self.run_id)
+        for prompt, scene_id in [("stale prompt", UUID(plan["scenes"][0]["scene_id"])),
+                                 (plan["scenes"][0]["prompt"], uuid4())]:
+            with self.assertRaises(RunConflict):
+                self.store.begin_image(self.tenant, self.actor, self.run_id, 1, prompt, scene_id)
+        self.assertEqual(self.store.visual_plan(self.tenant, self.run_id)["scenes"][0]["image_status"], "not_generated")
+
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -7,10 +7,13 @@ one image for one approved scene; no implicit retries or publication.
 import asyncio
 import base64
 import binascii
+import hashlib
+import json
 import ipaddress
 import os
 from pathlib import Path
 import struct
+import tempfile
 from urllib.parse import urlsplit
 from threading import BoundedSemaphore
 from uuid import UUID
@@ -25,6 +28,27 @@ PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 class ImageUnavailable(Exception):
     """Absent provider, inaccessible model, invalid/unsafe output or timeout."""
+
+    def __init__(self, code="image_provider_invalid_or_unavailable"):
+        self.code = code
+        super().__init__(code)
+
+
+IMAGE_PARAMETERS = {"n": 1, "size": "512x512", "output_format": "png"}
+
+
+def image_provenance(run, scene_number, prompt):
+    """Snapshot what we actually control, without claiming engine telemetry."""
+    references = characters(run.get("storyboard") or {})
+    canonical = json.dumps(references, sort_keys=True, ensure_ascii=False,
+                           separators=(",", ":"))
+    return {"contract_version": "private-image-v2", "provider": "sd.cpp-compatible",
+            "parameters": dict(IMAGE_PARAMETERS), "model": None, "seed": None,
+            "model_seed_reason": "not_reported_by_image_contract",
+            "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+            "character_reference_sha256": hashlib.sha256(canonical.encode()).hexdigest(),
+            "character_references": references, "scene_number": scene_number,
+            "gpu_verified": False, "vram_peak_bytes": None}
 
 
 class ImagePromptTooLong(ValueError):
@@ -134,17 +158,18 @@ async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str):
         async with asyncio.timeout(120):
             async with client.stream(
                 "POST", base_url.rstrip("/") + "/v1/images/generations",
-                json={"prompt": prompt, "n": 1, "size": "512x512", "output_format": "png"},
+                json={"prompt": prompt, **IMAGE_PARAMETERS},
                 timeout=120.0, follow_redirects=False
             ) as response:
+                if response.status_code >= 500:
+                    raise ImageUnavailable("image_provider_response_uncertain")
                 if response.status_code != 200:
-                    raise ImageUnavailable()
+                    raise ImageUnavailable("image_provider_rejected")
                 body = bytearray()
                 async for chunk in response.aiter_bytes():
                     if len(body) + len(chunk) > MAX_PNG_BYTES * 2:
                         raise ImageUnavailable()
                     body.extend(chunk)
-                import json
                 payload = json.loads(body)
         entries = payload.get("data") if isinstance(payload, dict) else None
         encoded = entries[0].get("b64_json") if isinstance(entries, list) and len(entries) == 1 and isinstance(entries[0], dict) else None
@@ -153,7 +178,11 @@ async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str):
         data = base64.b64decode(encoded, validate=True)
         validate_png(data)
         return data
-    except (httpx.HTTPError, TimeoutError, ValueError, KeyError, TypeError, binascii.Error, RecursionError):
+    except (httpx.TimeoutException, TimeoutError):
+        raise ImageUnavailable("image_provider_timeout") from None
+    except httpx.HTTPError:
+        raise ImageUnavailable("image_provider_response_uncertain") from None
+    except (ValueError, KeyError, TypeError, binascii.Error, RecursionError):
         raise ImageUnavailable() from None
 
 
@@ -172,6 +201,20 @@ def media_location(tenant: UUID, run_id: UUID, scene_id: UUID):
 
 def save_png(tenant, run_id, scene_id, data):
     validate_png(data)
+    if os.getenv("EDITORIAL_MEDIA_BACKEND", "filesystem") == "minio":
+        from editorial.media_storage import put_file, MediaStorageError
+        # Keep the generated PNG on an uncertain upload. It must not require
+        # another model call merely because storage lost its acknowledgement.
+        recovery = media_location(tenant, run_id, scene_id)
+        try:
+            with recovery.open("xb") as handle:
+                handle.write(data)
+            reference = put_file(recovery, tenant, run_id, scene_id, "image")
+            # The API removes this recovery file only after PostgreSQL confirms
+            # the storage reference. A lost DB acknowledgement must preserve it.
+            return reference, recovery
+        except (MediaStorageError, OSError):
+            raise ImageUnavailable("image_storage_result_uncertain") from None
     path = media_location(tenant, run_id, scene_id)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     if hasattr(os, "O_NOFOLLOW"):
@@ -189,7 +232,18 @@ def save_png(tenant, run_id, scene_id, data):
     return path
 
 
-def load_png(tenant, run_id, scene_id):
+def load_png(tenant, run_id, scene_id, storage=None):
+    if storage:
+        from editorial.media_storage import get_file, MediaStorageError
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                path = get_file(storage, Path(directory) / "image.png", tenant,
+                                run_id, scene_id, "image", max_bytes=MAX_PNG_BYTES)
+                data = path.read_bytes()
+                validate_png(data)
+                return data
+        except (MediaStorageError, OSError):
+            raise ImageUnavailable("image_storage_unavailable") from None
     path = media_location(tenant, run_id, scene_id)
     if path.is_symlink() or not path.is_file():
         raise ImageUnavailable()
@@ -201,3 +255,19 @@ def load_png(tenant, run_id, scene_id):
         return data
     except OSError:
         raise ImageUnavailable() from None
+
+
+def media_preflight(tenant, run_id, scene_id):
+    backend = os.getenv("EDITORIAL_MEDIA_BACKEND", "filesystem")
+    if backend == "filesystem":
+        return media_location(tenant, run_id, scene_id)
+    if backend == "minio":
+        from editorial.media_storage import preflight, MediaStorageError
+        try:
+            media_location(tenant, run_id, scene_id)
+            preflight()
+            return None
+        except MediaStorageError:
+            raise ImageUnavailable("image_storage_unavailable") from None
+    raise ImageUnavailable("image_storage_configuration_invalid")
+

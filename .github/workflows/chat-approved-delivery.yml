@@ -1,0 +1,81 @@
+name: Chat approved PC delivery
+on:
+  create:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: editorial-pc-delivery
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: github.event.ref_type == 'branch' && startsWith(github.event.ref, 'delivery-approved/')
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.validate.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: validate
+        name: Validate approval against current main
+        env:
+          APPROVAL_REF: ${{ github.event.ref }}
+          APPROVAL_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/validate_delivery_approval.py
+  install-and-live:
+    needs: validate
+    if: vars.LOCAL_PC_ENABLED == 'true'
+    runs-on: [self-hosted, Linux, editorial-pc]
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: po_test
+          POSTGRES_PASSWORD: ephemeral_ci_only
+          POSTGRES_DB: po_test
+        ports: [5432/tcp]
+        options: >-
+          --health-cmd "pg_isready -U po_test -d po_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ needs.validate.outputs.sha }}
+          persist-credentials: false
+      - name: Enforce exact SHA approval before installation
+        env:
+          APPROVED_SHA: ${{ needs.validate.outputs.sha }}
+          EXPECTED_SHA: ${{ needs.validate.outputs.sha }}
+          LOCAL_PC_ENABLED: ${{ vars.LOCAL_PC_ENABLED }}
+        shell: bash
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          [[ "$LOCAL_PC_ENABLED" == "true" ]] || exit 1
+          [[ "$APPROVED_SHA" == "$EXPECTED_SHA" ]] || exit 1
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]] || exit 1
+          echo "Exact SHA approval verified; full CI evidence checked again by deploy_local.py."
+      - name: Prepare test dependencies and disposable DB
+        env:
+          TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt 'psycopg[binary]==3.3.6'
+          .venv/bin/python scripts/prepare_test_database.py
+      - name: Candidate install, regression, real HTTP and rollback
+        env:
+          RELEASE_ROOT: ${{ vars.LOCAL_RELEASE_ROOT }}
+          CONFIG_PATH: ${{ vars.LOCAL_CONFIG_PATH }}
+          EXPECTED_SHA: ${{ needs.validate.outputs.sha }}
+          LOCAL_PC_APPROVED_SHA: ${{ needs.validate.outputs.sha }}
+          LOCAL_PC_ENABLED: ${{ vars.LOCAL_PC_ENABLED }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
+          PO_ALLOW_TEST_MIGRATION: 'yes'
+          TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
+        run: >-
+          .venv/bin/python scripts/deploy_local.py
+          --root "$RELEASE_ROOT" --config "$CONFIG_PATH" --sha "$EXPECTED_SHA"

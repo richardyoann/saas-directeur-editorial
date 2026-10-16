@@ -1,5 +1,35 @@
 # État du projet
 
+## MEDIA-004 — stockage MinIO, 16 octobre 2026
+
+Backend optionnel pour nouvelles images, références JSONB avec audit/outbox,
+lecture compatible des anciennes images sur disque ; archivage CLI privé
+PNG/WAV/MP4 et restauration contrôlée ajoutés. Base inspectée :
+517a62dc3a7077f9b82e9ca82d2cfcb224899ae4. Voir docs/MEDIA_004_MINIO_STORAGE.md.
+Pas d'activation PC, de migration SQL, de transfert de médias historiques ni
+de suppression de source. Tests S3 simulés distincts de la recette MinIO réelle.
+Aucun gain de temps, infrastructure ou espace revendiqué sans mesure.
+
+## MEDIA-003 — chaîne 80/20 et export vidéo, 16 octobre 2026
+
+Base inspectée : 25e5d4aff298fc30c85012c75de4fc0d116821c5. Régression GitHub
+38771830917 réussie ; livraison 38771922089 skipped, aucune installation
+actuelle déduite. CLI hors ligne d'export MP4 vertical, voix WAV facultative,
+SRT et dossier reproductible ajoutée. Tests FFmpeg réels sur médias synthétiques,
+sans preuve artistique, GPU ni accès PC. Voir docs/MEDIA_003_EPISODE_EXPORT.md
+pour la matrice des sept priorités, les limites et les commandes de recette.
+Pas de migration, configuration runtime ou activation PC pendant ce travail.
+
+## Lot 2 — provenance et recette images, 15 octobre 2026
+
+Travail sur PR #87 : reçus de génération (empreintes, paramètres, personnages,
+durée), classification des erreurs incertaines, conservation du PNG sur perte
+d'acquittement DB et contrôle privé en lecture seule API/Studio/CLI. Aucun
+nouveau modèle ni seed inventée : informations absentes du contrat actuel.
+Tests ciblés locaux réussis ; régression PostgreSQL et navigateur à vérifier
+sur le SHA final. Aucun déploiement PC, rendu GPU ou acceptation artistique.
+Voir docs/MEDIA_002_IMAGE_RECEIPTS.md et docs/mco/IMAGE_GENERATION_RECOVERY.md.
+
 ## PO-001 — État vérifié le 12 octobre 2026 à 17:02 UTC
 
 Cette section actualise les constats historiques conservés ci-dessous.
@@ -343,3 +373,5 @@ Voir `docs/REPOSITORY_SETUP.md` ; provenance et blocage consignés dans le journ
 ## EDIT-001 — incrément validation humaine, 12 octobre 2026
 
 API accept/reject/revise et historique paginé développés sur branche isolée; contrôle concurrent, décisions immuables, snapshots Qwen préservés et scénario/scènes courants cohérents. Aucun nouvel appel modèle ni migration métier. Tests sur base jetable : RED routes absentes, borne excessive et résultat périmé confirmés; 121 tests sans skip après correction. Revue textuelle indépendante réalisée, contrôle final des schémas ajouté; CI, livraison de ce SHA et revue à consigner après vérification. L'interface, les comptes SaaS et l'évaluation éditoriale réelle restent ouverts. Aucun critère produit accepté automatiquement.
+
+

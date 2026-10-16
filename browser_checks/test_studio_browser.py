@@ -142,6 +142,16 @@ class StudioBrowserJourneys(unittest.TestCase):
             self.assertEqual(unauth.get(src).status_code, 401)
         self.assertEqual(self.page.locator("#panel .visual-card").count(), 3)
         self.assertEqual(self.page.locator("#panel .visual-card img").count(), 1)
+        expect(first).to_contain_text("Durée : 1.25 s")
+        self.page.get_by_role("button", name="Vérifier les images et leur historique").click()
+        expect(self.page.locator("#panel")).to_contain_text("Contrôle incomplet")
+        for number in (2, 3):
+            self.page.locator("#panel .visual-card").nth(number - 1).get_by_role(
+                "button", name="Générer cette image").click()
+            expect(self.page.locator("#panel .visual-card img")).to_have_count(number)
+        self.page.get_by_role("button", name="Vérifier les images et leur historique").click()
+        expect(self.page.locator("#panel")).to_contain_text("Intégrité et historique vérifiés.")
+        expect(self.page.locator("#panel")).to_contain_text("GPU et VRAM non mesurés.")
 
     def test_login_create_analysis_history_approve_logout(self):
         self.page.goto(self.base + "/studio")

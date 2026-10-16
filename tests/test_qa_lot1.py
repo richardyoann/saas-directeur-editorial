@@ -115,6 +115,32 @@ class StudioMalformedInputTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ImageLimitTests(unittest.IsolatedAsyncioTestCase):
+    async def test_wall_timeout_closes_stream_without_retry(self):
+        class Stream(httpx.AsyncByteStream):
+            closed = False
+
+            async def __aiter__(self):
+                await asyncio.sleep(1)
+                yield b"{}"
+
+            async def aclose(self):
+                self.closed = True
+
+        stream, calls = Stream(), []
+
+        def handler(request):
+            calls.append(request)
+            return httpx.Response(200, stream=stream)
+
+        real_timeout = asyncio.timeout
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            with patch("editorial.visuals.asyncio.timeout", side_effect=lambda _: real_timeout(0.01)):
+                with self.assertRaises(ImageUnavailable) as caught:
+                    await render_png(client, "http://127.0.0.1:8080", "scene")
+        self.assertEqual(caught.exception.code, "image_provider_timeout")
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(stream.closed)
+
     async def test_oversized_stream_stops_before_end(self):
         class Stream(httpx.AsyncByteStream):
             consumed = 0
