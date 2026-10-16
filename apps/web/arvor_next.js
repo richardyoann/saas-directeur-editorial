@@ -168,10 +168,21 @@ function renderAdmin(){
  <div id="admin-stage">${adminData?renderAdminTab(tab):'<div class="loading-view">Chargement du suivi GitHub privé…</div>'}</div>`;
 }
 function renderAdminTab(tab){
- if(tab==='Vue d’ensemble')return `<div class="stats" style="margin-bottom:23px">${[['grid','03','Epics suivies'],['book','07','Stories illustratives'],['file','03','PR présentées'],['check','—','Livraison non connectée']].map(([i,n,t])=>`<div class="stat"><span class="stat-icon">${ico(i)}</span><div><span class="stat-number">${n}</span><span class="stat-label">${t}</span></div></div>`).join('')}</div><div class="admin-grid"><section class="panel"><div class="eyebrow">LE BESOIN, PUIS LA RÉALISATION</div><h3 style="margin:10px 0 17px">Avancement des epics</h3>${demoEpics.map(e=>`<div class="mini-row"><div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px"><span>${escapeHtml(e.title)}</span><b>${e.percent}%</b></div><progress class="progress" value="${e.percent}" max="100"></progress></div>`).join('')}</section><section class="panel"><div class="eyebrow">LES DERNIÈRES TRACES</div><h3 style="margin:10px 0 17px">Activité récente</h3>${demoPR.map(p=>`<div class="mini-row"><b>PR #${p.number} · ${escapeHtml(p.status)}</b><span>${escapeHtml(p.title)}</span></div>`).join('')}</section></div>`;
- if(tab==='Epics & stories')return `<section class="panel"><h3>La feuille de route éditoriale</h3><p>Exemples de suivi. Les véritables états devront provenir de GitHub.</p><table class="mini-table"><thead><tr><th>Epic</th><th>Avancement illustratif</th><th>État</th></tr></thead><tbody>${demoEpics.map(e=>`<tr><td>${escapeHtml(e.title)}</td><td>${e.percent}%</td><td>${escapeHtml(e.tag)}</td></tr>`).join('')}</tbody></table></section>`;
- if(tab==='Pull requests')return `<section class="panel"><h3>Historique de contribution</h3><p>Exemples de présentation, non synchronisés.</p><table class="mini-table"><thead><tr><th>Référence</th><th>Objet</th><th>Statut</th></tr></thead><tbody>${demoPR.map(p=>`<tr><td>#${p.number}</td><td>${escapeHtml(p.title)}</td><td>${statusPill('Validée')}</td></tr>`).join('')}</tbody></table></section>`;
+ const epics=adminData?.epics||[],issues=adminData?.issues||[],prs=adminData?.pull_requests||[],deliveries=adminData?.deliveries||[];
+ const commits=commitsData?.commits||[];
+ if(tab==='Vue d’ensemble'){
+  const stats=[['grid',epics.length,'Epics'],['book',issues.length,'Issues chargées'],['file',prs.filter(x=>x.state==='open').length,'PR ouvertes'],['check',deliveries.filter(x=>x.conclusion==='failure').length,'Livraisons en échec']];
+  return `<section class="stats">${stats.map(([ic,n,label])=>`<div class="stat"><span class="stat-icon">${ico(ic)}</span><div><span class="stat-number">${n}</span><span class="stat-label">${label}</span></div></div>`).join('')}</section>
+  <div class="admin-grid"><section class="panel"><div class="eyebrow">AVANCEMENT VÉRIFIABLE</div><h3>Les epics</h3>${epics.slice(0,12).map(e=>`<div class="mini-row"><b>#${e.number} · ${escapeHtml(e.title)}</b><small>${Number.isInteger(e.progress_pct)?e.checklist_done+'/'+e.checklist_total+' critères · '+e.progress_pct+' %':'Aucune checklist mesurable'}</small>${Number.isInteger(e.progress_pct)?`<progress class="progress" value="${e.progress_pct}" max="100"></progress>`:''}</div>`).join('')}</section>
+  <section class="panel"><div class="eyebrow">LES DERNIÈRES TRACES</div><h3>Pull requests</h3>${prs.slice(0,9).map(p=>`<div class="mini-row"><b>PR #${p.number} · ${p.merged_at?'Fusionnée':p.state==='open'?'Ouverte':'Fermée'}</b><span>${escapeHtml(p.title)}</span></div>`).join('')}</section></div>`;
+ }
+ if(tab==='Epics & stories')return adminTable('Épics et tâches GitHub',['Ticket','Titre','État'],issues.map(i=>['#'+i.number,i.title,i.state]));
+ if(tab==='Pull requests')return adminTable('Pull requests',['PR','Objet','État'],prs.map(p=>['#'+p.number,p.title,p.merged_at?'Fusionnée':p.draft?'Brouillon':p.state]));
+ if(tab==='Commits')return adminTable('Commits réels de main',['SHA','Message','Date'],commits.map(c=>[(c.sha||'').slice(0,10),c.message,formatDay(c.when)]));
  return renderCalendar();
+}
+function adminTable(title,cols,rows){
+ return `<section class="panel"><h3>${escapeHtml(title)}</h3><div class="admin-table-wrap"><table class="mini-table"><thead><tr>${cols.map(x=>`<th>${escapeHtml(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map(x=>`<td>${escapeHtml(x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${!rows.length?'<p>Aucune donnée disponible dans les résultats chargés.</p>':''}</section>`;
 }
 function renderCalendar(){
  const mon=state.month,days=new Date(mon.getFullYear(),mon.getMonth()+1,0).getDate(),offset=(new Date(mon.getFullYear(),mon.getMonth(),1).getDay()+6)%7;
