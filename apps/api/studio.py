@@ -1,6 +1,7 @@
 """Private browser facade for editorial API. No bearer token enters client code.
 One-process volatile sessions; require HTTPS for remote use.
 """
+import asyncio
 import hashlib
 import hmac
 import json
@@ -332,7 +333,6 @@ def _github_read_token():
 async def conception_data(request: Request):
     session(request)
     token = _github_read_token()
-    import asyncio
     issues, pulls, delivery = await asyncio.gather(
         _gh("GET", "/issues?state=all&per_page=100", token=token),
         _gh("GET", "/pulls?state=all&per_page=70", token=token),
