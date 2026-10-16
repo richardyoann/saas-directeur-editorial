@@ -31,11 +31,16 @@ def secret_from_sources(name: str, values=None, credentials_directory=None) -> s
         path = Path(filename)
         if not path.is_absolute() or path.is_symlink():
             return ""
-        info = path.stat()
-        if not stat.S_ISREG(info.st_mode) or not 0 < info.st_size <= MAX_SECRET_BYTES:
-            return ""
-        with path.open("rb") as handle:
-            raw = handle.read(MAX_SECRET_BYTES + 1)
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        try:
+            info = os.fstat(descriptor)
+            # Reject writable-by-others credential files, including shared mounts.
+            if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o022 or not 0 < info.st_size <= MAX_SECRET_BYTES:
+                return ""
+            with os.fdopen(descriptor, "rb", closefd=False) as handle:
+                raw = handle.read(MAX_SECRET_BYTES + 1)
+        finally:
+            os.close(descriptor)
         if len(raw) > MAX_SECRET_BYTES:
             return ""
         value = raw.decode("utf-8").rstrip("\r\n")

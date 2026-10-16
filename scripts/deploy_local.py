@@ -20,6 +20,20 @@ from uuid import UUID, uuid4, uuid5
 from dotenv import dotenv_values
 from live_api_check import check
 
+# Running scripts/deploy_local.py directly otherwise imports only scripts/.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from editorial.runtime_secrets import secret_from_sources
+
+
+def deployment_secret(name, settings):
+    """Resolve env or absolute file path without exposing credentials to logs."""
+    values = dict(settings)
+    for key in (name, name + "_FILE", "CREDENTIALS_DIRECTORY"):
+        if key in os.environ and os.environ[key]:
+            values[key] = os.environ[key]
+    return secret_from_sources(name, values)
+
+
 
 def assert_current_main(sha):
     token = os.environ["GITHUB_TOKEN"]
@@ -85,12 +99,12 @@ def disposable_database_url(url, business_url):
 
 def candidate_test_environment(test_url, settings):
     """Force isolated database + actor, even if runner exports production vars."""
-    business_url = settings.get("PO_DATABASE_URL")
+    business_url = deployment_secret("PO_DATABASE_URL", settings)
     disposable_database_url(test_url, business_url)
     environment = os.environ.copy()
-    environment.update(PO_DATABASE_URL=test_url,
-                       EDITORIAL_TENANT_ID=str(uuid4()),
-                       EDITORIAL_ACTOR_ID=str(uuid4()),
+    environment.update(PO_DATABASE_URL=test_url, PO_DATABASE_URL_FILE="",
+                       EDITORIAL_TENANT_ID=str(uuid4()), EDITORIAL_TENANT_ID_FILE="",
+                       EDITORIAL_ACTOR_ID=str(uuid4()), EDITORIAL_ACTOR_ID_FILE="",
                        EDITORIAL_ASYNC_ENABLED="false")
     return environment
 
@@ -260,10 +274,10 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
     if not root.is_absolute() or not config.is_absolute() or not config.is_file():
         raise ValueError("Absolute release root and existing config required")
     settings = dotenv_values(config)
-    editorial_token = os.environ.get("EDITORIAL_API_TOKEN") or settings.get("EDITORIAL_API_TOKEN")
+    editorial_token = deployment_secret("EDITORIAL_API_TOKEN", settings)
     if not isinstance(editorial_token, str) or len(editorial_token) < 32:
         raise ValueError("Editorial authentication missing from private configuration")
-    web_password = os.environ.get("EDITORIAL_WEB_PASSWORD") or settings.get("EDITORIAL_WEB_PASSWORD")
+    web_password = deployment_secret("EDITORIAL_WEB_PASSWORD", settings)
     if (not isinstance(web_password, str) or len(web_password) < 32
             or web_password == editorial_token):
         raise ValueError("Distinct private Studio password is required")
@@ -314,7 +328,7 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
         command([python, "-m", "pip", "install", "-r", "requirements.txt", "psycopg[binary]==3.3.6"], candidate)
         # Historical tests use only the ephemeral DB supplied by the workflow.
         command([python, "scripts/run_regression.py"], candidate, quiet=False, env=candidate_env)
-        prepare_disposable_editorial_db(test_url, settings.get("PO_DATABASE_URL"))
+        prepare_disposable_editorial_db(test_url, deployment_secret("PO_DATABASE_URL", settings))
         (candidate / ".env").symlink_to(config)
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))

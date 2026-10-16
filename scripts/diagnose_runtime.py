@@ -72,7 +72,7 @@ def config_info(root):
                  "EDITORIAL_WEB_PASSWORD", "EDITORIAL_TENANT_ID",
                  "EDITORIAL_ACTOR_ID", "LLM_BASE_URL")
     return {"config_found": True, "configured": {
-        key: bool(values.get(key)) for key in mandatory},
+        key: bool(values.get(key) or values.get(key + '_FILE')) for key in mandatory},
         "async_enabled": str(values.get("EDITORIAL_ASYNC_ENABLED", "false")).lower() == "true"}
 
 
