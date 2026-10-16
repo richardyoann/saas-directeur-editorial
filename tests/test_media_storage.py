@@ -65,6 +65,20 @@ class MediaStorageTests(unittest.TestCase):
                 save_png(*self.ids, PNG)
         self.assertEqual(list(self.root.rglob("*.png"))[0].read_bytes(), PNG)
 
+    def test_successful_image_upload_keeps_recovery_until_database_ack(self):
+        from editorial.visuals import save_png
+        from test_visuals import PNG
+        reference = {"backend": "minio", "key": "private"}
+        with patch.dict("os.environ", {
+                "EDITORIAL_MEDIA_BACKEND": "minio",
+                "EDITORIAL_MEDIA_ROOT": str(self.root)}), \
+                patch.object(storage, "put_file", return_value=reference):
+            saved = save_png(*self.ids, PNG)
+        self.assertEqual(saved[0], reference)
+        self.assertTrue(saved[1].is_file())
+        saved[1].unlink()
+        self.assertFalse(saved[1].exists())
+
     def test_download_checks_hash_and_rejects_cross_tenant_reference(self):
         reference = storage.put_file(self.source, *self.ids, "voice")
         self.api.get_object.return_value = {"ContentLength": len(self.payload), "Body": io.BytesIO(self.payload)}
