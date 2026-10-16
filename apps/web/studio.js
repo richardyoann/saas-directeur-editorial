@@ -69,7 +69,11 @@ function showWorkspace(view){
 }
 function safeGithubLink(root,label,path){
  const b=put(root,"a","btn secondary small-btn",label+" ↗");
- b.href="https://github.com/richardyoann/saas-directeur-editorial/"+path;
+ const base=s.conception?.repository_url||"";
+ if(!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(base)){
+  b.removeAttribute("href");b.setAttribute("aria-disabled","true");return b;
+ }
+ b.href=base+"/"+path;
  b.target="_blank";b.rel="noopener noreferrer";
  return b;
 }
@@ -127,6 +131,9 @@ function calendarView(root,data){
 function renderConception(){
  const data=s.conception;
  const root=$("conceptionContent");root.replaceChildren();
+ if(data && Object.values(data.source_truncated||{}).some(Boolean)){
+  put(root,"p","warning","Résultats GitHub partiels : consultez le dépôt pour les éléments non chargés.");
+ }
  if(!data){put(root,"p","empty-panel","Connectez l’intégration GitHub pour afficher les données réelles.");return;}
  const epics=put(root,"section","conception-section");put(epics,"h3","","Epics · "+(data.epics||[]).length);
  for(const epic of data.epics||[]){
