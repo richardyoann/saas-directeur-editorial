@@ -1,4 +1,5 @@
 """Readiness never leaks provider or database credentials."""
+import importlib
 import os
 import unittest
 from unittest.mock import patch
@@ -13,6 +14,10 @@ class ReadinessTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(app.dependency_overrides.clear)
 
     async def probe(self, db_ok, llm_status):
+        # Each probe simulates a different downstream health state. Bypass the
+        # two-second production cache so these tests independently exercise it.
+        runtime = importlib.import_module("apps.api.main")
+        runtime._ready_cache.update(key=None, until=0.0, ok=False)
         def provider(request):
             self.assertEqual(request.url.path, "/health")
             return httpx.Response(llm_status)
