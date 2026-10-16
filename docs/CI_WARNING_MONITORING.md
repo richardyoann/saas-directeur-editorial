@@ -61,3 +61,7 @@ GitHub souhaitée. Corriger en PR puis revenir à un run sans warnings.
 Pour revenir en arrière, désactiver les deux nouveaux workflows ou
 revert cette PR ; ne pas toucher aux volumes PC. Une fusion ne vaut jamais
 approbation de livraison PC (SHA exact requis).
+
+Incidents clôturés : une nouvelle analyse du **même ID de run** respecte
+leur clôture et ne les rouvre pas. Un **nouvel ID** avec avertissement
+crée un nouvel incident suivi.

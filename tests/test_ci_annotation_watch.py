@@ -33,6 +33,14 @@ class CIAnnotationWatchTests(unittest.TestCase):
         self.assertIn("Deduplicated", status)
         self.assertEqual(mocked.call_args.args[0], "PATCH")
 
+    def test_closed_incident_is_not_reopened_by_scheduled_rescan(self):
+        annotation = [{"annotation_level": "warning", "message": "node20"}]
+        old = {"number": 20, "state": "closed", "body": watch.marker(RUN["id"])}
+        with patch.object(watch, "api", side_effect=[JOBS, annotation, [old]]) as mocked:
+            status = watch.monitor(RUN, REPO, "token")
+        self.assertIn("Acknowledged closed", status)
+        self.assertEqual(mocked.call_count, 3)
+
     def test_green_clean_does_not_create_issue(self):
         with patch.object(watch, "api", side_effect=[JOBS, []]) as mocked:
             status = watch.monitor(RUN, REPO, "token")
