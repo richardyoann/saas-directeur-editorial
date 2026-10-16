@@ -179,6 +179,13 @@ def history(run_id: UUID, authorization: str = Header("")):
     ]}
 
 
+@app.get("/editorial/runs/{run_id}/media")
+def media_catalog(run_id: UUID, authorization: str = Header("")):
+    require_token(authorization)
+    get_record(run_id)
+    return {"run_id": str(run_id), "media": []}
+
+
 @app.get("/editorial/runs/{run_id}/visuals")
 def visuals(run_id: UUID, authorization: str = Header("")):
     require_token(authorization)
