@@ -354,6 +354,28 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.get_by_role("button", name="Retour à l'histoire").click()
         expect(self.page.locator("#panel .story-tile")).to_have_count(3)
 
+    def test_atelier_composer_and_export_without_mutating_history(self):
+        self.sign_in()
+        self.create("Le phare de Bretagne")
+        composer = self.page.locator("#storyComposer")
+        expect(composer).to_be_visible()
+        expect(composer.locator("[data-composer]")).to_have_count(10)
+        composer.locator('[data-composer="colors"]').click()
+        expect(self.page.locator("#panel")).to_contain_text("Couleurs")
+        expect(self.page.locator("#panel")).to_contain_text("bleu")
+        composer.locator('[data-composer="characters"]').click()
+        expect(self.page.locator("#panel")).to_contain_text("Un marin")
+        composer.locator('[data-composer="overview"]').click()
+        expect(self.page.locator("#panel .story-tile")).to_have_count(3)
+        with self.page.expect_download() as info:
+            self.page.locator("#exportStory").click()
+        exported = json.loads(Path(info.value.path()).read_text(encoding="utf-8"))
+        self.assertEqual(exported["format"], "arvor-storyboard-v1")
+        self.assertEqual(len(exported["storyboard"]["scenes"]), 3)
+        self.page.locator("#detailBack").click()
+        expect(self.page.locator("#library")).to_be_visible()
+        self.assertTrue(composer.is_hidden())
+
     def test_accessible_tab_navigation_and_small_text_contrast(self):
         self.sign_in()
         self.page.locator("#heroCreate").click()
