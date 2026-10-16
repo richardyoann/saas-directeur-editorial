@@ -394,6 +394,20 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator('[data-panel="scenes"]').click()
         expect(self.page.locator(".scene-row")).to_have_count(3)
 
+    def test_next_studio_real_creation_and_revision(self):
+        self.page.goto(self.base + "/studio/next")
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        expect(self.page.locator("#studio-shell")).to_be_visible()
+        self.page.locator("#side-create").click()
+        self.page.locator("#edit-topic").fill("La légende du vent")
+        self.page.locator("#editor-form button[type=submit]").click()
+        expect(self.page.locator(".story-banner h1")).to_have_text("La légende du vent")
+        self.page.locator('[data-action="edit-story"]').first.click()
+        self.page.locator("#edit-summary").fill("Une histoire de vent et de mémoire")
+        self.page.locator("#editor-form button[type=submit]").click()
+        expect(self.page.locator(".story-banner")).to_contain_text("Une histoire de vent")
+
     def test_accessible_tab_navigation_and_small_text_contrast(self):
         self.sign_in()
         self.page.locator("#heroCreate").click()
