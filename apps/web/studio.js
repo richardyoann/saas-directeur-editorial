@@ -2,7 +2,7 @@
 (() => {
 "use strict";
 const $ = id => document.getElementById(id);
-const s = {csrf:null,runs:[],next:null,run:null,tab:"storyboard",pending:null,step:"storyboard",reviews:[],nextReview:null,openRequest:0,pollBusy:false};
+const s = {csrf:null,runs:[],next:null,run:null,tab:"storyboard",pending:null,step:"storyboard",reviews:[],nextReview:null,openRequest:0,pollBusy:false,conception:null,calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1)};
 const uuid=/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const states={queued:"En attente",waiting_validation:"À valider",changes_requested:"À retravailler",approved:"Approuvé",running:"En cours",failed:"Échec"};
 const names={analysis:"Analyse",storyboard:"Storyboard"};
@@ -24,8 +24,8 @@ async function api(path,method="GET",body,more={}){
 }
 function lock(){s.csrf=null;s.run=null;s.runs=[];s.openRequest++;document.querySelectorAll("dialog[open]").forEach(d=>d.close());$("login").hidden=false;$("app").hidden=true;$("password").value="";}
 function unlock(){ $("login").hidden=true;$("app").hidden=false;$("loginError").hidden=true; }
-async function boot(){try{const x=await api("/studio/session");if(!x.authenticated)return lock();s.csrf=x.csrf;unlock();await list(true);const id=location.hash.replace("#run/","");if(location.hash==="#conception")showConception();else if(uuid.test(id)&&location.hash.startsWith("#run/"))await openRun(id);else home(false);}catch(e){lock();$("loginError").hidden=false;$("loginError").textContent=message(e);}}
-async function login(e){e.preventDefault();$("loginButton").disabled=true;try{const x=await api("/studio/session","POST",{password:$("password").value});s.csrf=x.csrf;unlock();$("password").value="";await list(true);const id=location.hash.slice(5);if(location.hash==="#conception")showConception();else if(location.hash.startsWith("#run/")&&uuid.test(id))await openRun(id);else home(false);}catch(err){$("loginError").hidden=false;$("loginError").textContent=err.status===401?"Mot de passe incorrect.":message(err);}finally{$("loginButton").disabled=false;}}
+async function boot(){try{const x=await api("/studio/session");if(!x.authenticated)return lock();s.csrf=x.csrf;unlock();await list(true);const id=location.hash.replace("#run/","");if(location.hash==="#conception")showConception(false);else if(uuid.test(id)&&location.hash.startsWith("#run/"))await openRun(id);else home(false);}catch(e){lock();$("loginError").hidden=false;$("loginError").textContent=message(e);}}
+async function login(e){e.preventDefault();$("loginButton").disabled=true;try{const x=await api("/studio/session","POST",{password:$("password").value});s.csrf=x.csrf;unlock();$("password").value="";await list(true);const id=location.hash.slice(5);if(location.hash==="#conception")showConception(false);else if(location.hash.startsWith("#run/")&&uuid.test(id))await openRun(id);else home(false);}catch(err){$("loginError").hidden=false;$("loginError").textContent=err.status===401?"Mot de passe incorrect.":message(err);}finally{$("loginButton").disabled=false;}}
 async function logout(){try{await api("/studio/logout","POST");s.runs=[];lock();}catch(e){if(e.status===401){s.runs=[];lock();return;}alertUser("Déconnexion non confirmée : la session peut rester active. Réessayez.",true);}}
 async function list(reset=false){
  if(reset){s.runs=[];s.next=null;}
@@ -65,11 +65,118 @@ function showWorkspace(view){
  $("home").classList.toggle("selected",view!=="conception");
  $("conceptionNav").classList.toggle("selected",view==="conception");
 }
-function showConception(){
+function safeGithubLink(root,label,path){
+ const b=put(root,"a","btn secondary small-btn",label+" ↗");
+ b.href="https://github.com/richardyoann/saas-directeur-editorial/"+path;
+ b.target="_blank";b.rel="noopener noreferrer";
+ return b;
+}
+function dateKey(value){
+ if(!value)return null;
+ const d=new Date(value);if(!Number.isFinite(d.getTime()))return null;
+ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function calendarEvents(data){
+ const result=[];
+ for(const epic of data.epics||[]){
+  if(epic.created_at)result.push({when:epic.created_at,kind:"dev",title:"Epic #"+epic.number+" · démarrage",id:epic.number});
+  if(epic.closed_at)result.push({when:epic.closed_at,kind:"validation",title:"Epic #"+epic.number+" · clôture",id:epic.number});
+ }
+ for(const pr of data.pull_requests||[]){
+  if(pr.created_at)result.push({when:pr.created_at,kind:"validation",title:"PR #"+pr.number+" · ouverture",id:pr.number});
+  if(pr.merged_at)result.push({when:pr.merged_at,kind:"validation",title:"PR #"+pr.number+" · fusion",id:pr.number});
+ }
+ for(const d of data.deliveries||[]){
+  if(d.conclusion==="success"&&d.updated_at)result.push({when:d.updated_at,kind:"prod",title:"PC · déploiement validé "+(d.sha||"").slice(0,8),id:d.id});
+ }
+ return result;
+}
+function calendarView(root,data){
+ const wrap=put(root,"article","card conception-calendar");
+ const header=put(wrap,"div","calendar-toolbar");
+ const previous=put(header,"button","btn secondary small-btn","←");previous.type="button";
+ const label=put(header,"h3","",s.calendarMonth.toLocaleDateString("fr-FR",{month:"long",year:"numeric"}));
+ const next=put(header,"button","btn secondary small-btn","→");next.type="button";
+ previous.addEventListener("click",()=>{s.calendarMonth=new Date(s.calendarMonth.getFullYear(),s.calendarMonth.getMonth()-1,1);renderConception();});
+ next.addEventListener("click",()=>{s.calendarMonth=new Date(s.calendarMonth.getFullYear(),s.calendarMonth.getMonth()+1,1);renderConception();});
+ const legend=put(wrap,"p","calendar-legend","● Développement   ● En validation   ● Production PC confirmée");
+ const dayNames=put(wrap,"div","calendar-days");
+ ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].forEach(day=>put(dayNames,"strong","",day));
+ const cells=put(wrap,"div","calendar-days calendar-cells");
+ const start=new Date(s.calendarMonth.getFullYear(),s.calendarMonth.getMonth(),1);
+ const offset=(start.getDay()+6)%7;
+ const days=new Date(start.getFullYear(),start.getMonth()+1,0).getDate();
+ const buckets=new Map();
+ for(const event of calendarEvents(data)){
+  const key=dateKey(event.when);if(!key)continue;
+  if(!buckets.has(key))buckets.set(key,[]);
+  buckets.get(key).push(event);
+ }
+ for(let i=0;i<offset;i++)put(cells,"div","calendar-cell calendar-empty");
+ for(let day=1;day<=days;day++){
+  const cell=put(cells,"div","calendar-cell");put(cell,"strong","",day);
+  const key=dateKey(new Date(start.getFullYear(),start.getMonth(),day,12));
+  for(const event of (buckets.get(key)||[])){
+   const item=put(cell,"div","calendar-event "+event.kind,event.title);
+   item.title=event.title;
+  }
+ }
+}
+async function approveDelivery(pr){
+ if(!pr.merge_commit_sha || !/^[a-f0-9]{40}$/.test(pr.merge_commit_sha))return;
+ const summary="Autoriser la livraison PC de la PR #"+pr.number+
+  " au SHA "+pr.merge_commit_sha+" ?\nL'action vérifie la régression et la tête de main.";
+ if(!window.confirm(summary))return;
+ const confirmation=window.prompt('Saisissez exactement AUTORISER PC pour confirmer le lancement sur votre PC :');
+ if(confirmation!=="AUTORISER PC")return;
+ try{
+  const response=await api("/studio/api/conception/pulls/"+pr.number+"/deliver","POST",
+   {confirm:confirmation,sha:pr.merge_commit_sha});
+  alertUser(response.message||"Demande de livraison transmise.");
+  await loadConception();
+ }catch(e){alertUser(message(e),true);}
+}
+function renderConception(){
+ const data=s.conception;
+ const root=$("conceptionContent");root.replaceChildren();
+ if(!data){put(root,"p","empty-panel","Connectez l’intégration GitHub pour afficher les données réelles.");return;}
+ const epics=put(root,"section","conception-section");put(epics,"h3","","Epics · "+(data.epics||[]).length);
+ for(const epic of data.epics||[]){
+  const card=put(epics,"article","conception-item");
+  put(card,"strong","",epic.title);
+  put(card,"span","pill "+(epic.state==="closed"?"approved":"running"),epic.state==="closed"?"Terminée":"Ouverte");
+  const info=put(card,"small","", "Créée le "+date(epic.created_at)+(epic.closed_at?" · clôturée le "+date(epic.closed_at):""));
+  safeGithubLink(card,"Détails","issues/"+epic.number);
+ }
+ const prs=put(root,"section","conception-section");put(prs,"h3","","Pull requests · "+(data.pull_requests||[]).length);
+ for(const pr of data.pull_requests||[]){
+  const card=put(prs,"article","conception-item");
+  put(card,"strong","", "#"+pr.number+" · "+pr.title);
+  put(card,"span","pill",pr.merged_at?"Fusionnée":pr.draft?"Brouillon":pr.state==="open"?"En validation":"Fermée");
+  put(card,"small","","SHA : "+(pr.merge_commit_sha||pr.sha||"non disponible").slice(0,12));
+  safeGithubLink(card,pr.draft?"Ouvrir brouillon":"Examiner la PR","pull/"+pr.number);
+  if(pr.merged_at&&data.delivery_control_enabled){
+   const b=put(card,"button","btn primary small-btn","Autoriser la livraison PC");
+   b.type="button";b.addEventListener("click",()=>approveDelivery(pr));
+  }
+ }
+ put(root,"h3","","Calendrier de réalisation (événements enregistrés)");
+ calendarView(root,data);
+ put(root,"p","tip","Dates réelles uniquement : ouverture d'epic (dev), PR (validation) et workflow PC réussi (production). Aucun pourcentage d'avancement sans liens de tâches fiables.");
+ const reload=put(root,"button","btn secondary","↻ Actualiser GitHub");
+ reload.type="button";reload.addEventListener("click",loadConception);
+}
+async function loadConception(){
+ const root=$("conceptionContent");put(root,"p","tip","Synchronisation des événements GitHub…");
+ try{s.conception=await api("/studio/api/conception");if(!$("conception").hidden)renderConception();}
+ catch(e){s.conception=null;if(!$("conception").hidden){root.replaceChildren();put(root,"p","warning",message(e)+" Lisez la documentation de configuration GitHub de ce projet.");}}
+}
+function showConception(push=true){
  s.openRequest++;s.run=null;
  showWorkspace("conception");$("crumb").textContent="Conception";
- if(location.hash!=="#conception")history.pushState(null,"","#conception");
+ if(push&&location.hash!=="#conception")history.pushState(null,"","#conception");
  closeNav();
+ if(s.conception)renderConception();else loadConception();
 }
 async function pollRun(){
  if(s.pollBusy||!s.csrf||!s.run||!["queued","running"].includes(s.run.status)||
@@ -131,17 +238,121 @@ function decisions(root,step){
   const b=put(bar,"button","btn "+(action==="accept"?"primary":"secondary"),label);b.type="button";b.addEventListener("click",()=>openReview(step,action));
  }
 }
+function detailRow(root,label,value,onClick){
+ const wrap=put(root,"div","element-row");
+ const b=put(wrap,"button","element-link");b.type="button";
+ put(b,"strong","",label);
+ put(b,"span","",String(value??"—"));
+ b.addEventListener("click",onClick);
+}
+function detailHeader(root,category,title,back){
+ const crumb=put(root,"div","element-crumb");
+ const returnButton=put(crumb,"button","btn secondary small-btn","← "+back);
+ returnButton.type="button";returnButton.addEventListener("click",storyboard);
+ put(root,"div","overline",category);put(root,"h3","",title);
+}
+function editElement(sceneIndex){
+ if(!s.run||!["waiting_validation","changes_requested"].includes(s.run.status)){
+  alertUser("L'édition requiert un storyboard en validation. Les versions déjà approuvées ne sont pas écrasées.",true);return;
+ }
+ openReview("storyboard","revise");
+ if(Number.isInteger(sceneIndex)){
+  const field=$("edit-scene-"+sceneIndex+"-title");
+  field?.focus();
+ }
+}
+function elementValue(sceneIndex,key,label){
+ const scene=s.run?.storyboard?.scenes?.[sceneIndex];if(!scene)return storyboard();
+ const root=$("panel");root.replaceChildren();
+ detailHeader(root,"SCÈNE "+(sceneIndex+1)+" / "+label,label,"Retour à l'histoire");
+ const a=put(root,"article","card");
+ const value=scene[key];
+ if(Array.isArray(value)){
+  const list=put(a,"ul");
+  for(const v of value)put(list,"li","",v);
+ }else put(a,"p","",value||"Non renseigné");
+ put(a,"p","tip","Cette information appartient au storyboard historisé. La révision conserve la version précédente.");
+ const button=put(a,"button","btn primary","✎ Modifier dans le storyboard");
+ button.type="button";button.addEventListener("click",()=>editElement(sceneIndex));
+}
+function personDetail(name){
+ const board=s.run?.storyboard;if(!board)return storyboard();
+ const profile=(board.cast||[]).find(p=>p.name.toLocaleLowerCase("fr")===name.toLocaleLowerCase("fr"));
+ const root=$("panel");root.replaceChildren();
+ detailHeader(root,"FICHE PERSONNAGE",name,"Retour à l'histoire");
+ const card=put(root,"article","card");
+ for(const [title,value] of [["Apparence",profile?.appearance],["Rôle",profile?.role],["Personnalité",profile?.personality]]){
+  put(card,"h4","",title);put(card,"p","",value||"Non renseigné");
+ }
+ const indices=board.scenes.map((v,i)=>v.characters.some(c=>c.toLocaleLowerCase("fr")===name.toLocaleLowerCase("fr"))?i:-1).filter(i=>i>=0);
+ put(card,"h4","","Présence dans les scènes");
+ for(const index of indices){
+  const button=put(card,"button","btn secondary small-btn","Scène "+(index+1)+" — "+board.scenes[index].title);
+  button.type="button";button.addEventListener("click",()=>sceneDetail(index));
+ }
+ const revise=put(card,"button","btn primary","✎ Modifier la fiche personnage");
+ revise.type="button";revise.addEventListener("click",()=>editElement(null));
+}
+function sceneDetail(sceneIndex){
+ const board=s.run?.storyboard,scene=board?.scenes?.[sceneIndex];if(!scene)return storyboard();
+ const root=$("panel");root.replaceChildren();
+ detailHeader(root,"SCÉNARIO / SCÈNE "+String(sceneIndex+1).padStart(2,"0"),scene.title,"Retour à l'histoire");
+ const summary=put(root,"article","card");
+ put(summary,"p","",scene.visual_description);
+ put(summary,"p","","Durée : "+scene.duration_seconds+" secondes");
+ const edit=put(summary,"button","btn primary","✎ Modifier la scène");
+ edit.type="button";edit.addEventListener("click",()=>editElement(sceneIndex));
+ const gallery=put(root,"div","scene-element-grid");
+ const fields=[["Narration","narration"],["Description visuelle","visual_description"],["Décor / paysage","landscape"],["Palette de couleurs","colors"],["Plan / caméra","shot"],["Émotion","emotion"],["Son et voix","sound"],["Prompt image","image_prompt"]];
+ for(const [label,key] of fields){
+  const shown=Array.isArray(scene[key])?scene[key].join(", "):scene[key];
+  detailRow(gallery,label,shown,()=>elementValue(sceneIndex,key,label));
+ }
+ const cast=put(root,"article","card");
+ put(cast,"h4","","Personnages de la scène");
+ if(!(scene.characters||[]).length)put(cast,"p","","Aucun personnage indiqué.");
+ for(const name of scene.characters||[]){
+  const button=put(cast,"button","btn secondary small-btn",name+" →");
+  button.type="button";button.addEventListener("click",()=>personDetail(name));
+ }
+ const image=put(root,"article","card");
+ put(image,"h4","","Illustration et médias associés");
+ put(image,"p","","Les images sont accessibles dans l'onglet Personnages & images. Les autres médias ne sont affichés que si leur existence est confirmée.");
+ const media=put(image,"button","btn secondary","Afficher les images privées");
+ media.type="button";media.addEventListener("click",()=>tab("visuals"));
+}
 function storyboard(){
- const root=$("panel"),board=s.run.storyboard;root.replaceChildren();if(!board)return empty("Storyboard indisponible.");
- const box=put(root,"article","card");put(box,"div","overline","SYNOPSIS");put(box,"h3","",board.title);put(box,"p","",board.synopsis);
- const grid=put(root,"div","scene-grid");
+ const root=$("panel"),board=s.run.storyboard;root.replaceChildren();
+ if(!board)return empty("Storyboard indisponible. Le traitement est peut-être en cours.");
+ const intro=put(root,"article","card");put(intro,"div","overline","HISTOIRE / SCÉNARIO");put(intro,"h3","",board.title);put(intro,"p","",board.synopsis);
+ put(intro,"p","tip","Sélectionnez une scène ou un personnage pour accéder à ses données, puis à chacun de ses éléments.");
+ const actions=put(intro,"div","actions");
+ const edit=put(actions,"button","btn primary","✎ Éditer l'histoire");
+ edit.type="button";edit.addEventListener("click",()=>editElement(null));
+ const brief=put(root,"article","card");
+ put(brief,"h4","","Brief de création");
+ for(const [label,value] of [["Sujet",s.run.brief?.topic],["Genre",s.run.brief?.genre],["Public",s.run.brief?.audience],["Ton",s.run.brief?.tone],["Durée",s.run.brief?.duration_seconds+" s"]]){
+  put(brief,"strong","",label+": ");put(brief,"span","",value||"—");put(brief,"div","");
+ }
+ const gallery=put(root,"div","storyboard-section");
+ put(gallery,"h3","","Scènes et éléments");
+ const grid=put(gallery,"div","story-cards");
  (board.scenes||[]).forEach((scene,i)=>{
-  const item=put(grid,"article","scene");put(item,"div","scene-art","✧");const body=put(item,"div","scene-content");
-  put(body,"small","","SCÈNE "+String(i+1).padStart(2,"0")+" · "+scene.duration_seconds+" S");
-  put(body,"h3","",scene.title);put(body,"p","",scene.visual_description);
-  const tags=put(body,"div","tags");[scene.shot,scene.emotion,scene.landscape].filter(Boolean).forEach(v=>put(tags,"span","",v));
-  const dl=put(body,"dl");for(const [k,v] of [["Narration",scene.narration],["Personnages",(scene.characters||[]).join(", ")],["Couleurs",(scene.colors||[]).join(", ")],["Son",scene.sound],["Prompt image",scene.image_prompt]]){put(dl,"dt","",k);put(dl,"dd","",v||"—");}
+  const button=put(grid,"button","story-tile");button.type="button";
+  put(button,"span","story-tile-art","0"+(i+1));
+  const c=put(button,"span","story-tile-content");
+  put(c,"strong","",scene.title);put(c,"small","",scene.duration_seconds+" s · "+scene.landscape);
+  put(c,"span","story-tile-more","Voir les éléments →");
+  button.addEventListener("click",()=>sceneDetail(i));
  });
+ const casting=put(root,"article","card");
+ put(casting,"h3","","Personnages");
+ const all=new Set([...(board.cast||[]).map(p=>p.name),...(board.scenes||[]).flatMap(sc=>sc.characters||[])]);
+ if(!all.size)put(casting,"p","","Aucun personnage indiqué.");
+ for(const name of all){
+  const b=put(casting,"button","btn secondary small-btn",name+" →");
+  b.type="button";b.addEventListener("click",()=>personDetail(name));
+ }
  if(s.run.storyboard_stale)put(root,"p","warning","Storyboard obsolète : une nouvelle révision est obligatoire.");
  decisions(root,"storyboard");
 }
@@ -287,6 +498,15 @@ function buildEditor(){
  }else{
   editField(root,"edit-title","Titre du storyboard",result.title,{max:200});
   editField(root,"edit-synopsis","Synopsis",result.synopsis,{multiline:true,rows:3});
+  const profiles=put(root,"fieldset","edit-scene");
+  put(profiles,"legend","","Personnages et fiches");
+  (result.cast||[]).forEach((person,i)=>{
+   const p="edit-person-"+i+"-";
+   editField(profiles,p+"name","Personnage "+(i+1),person.name,{max:200});
+   editField(profiles,p+"appearance","Apparence",person.appearance,{multiline:true,max:4000});
+   editField(profiles,p+"personality","Personnalité",person.personality,{max:200});
+   editField(profiles,p+"role","Rôle",person.role,{max:200});
+  });
   const plan=put(root,"p","tip","La durée totale doit être exactement de "+s.run.brief.duration_seconds+" secondes. Chaque scène est enregistrée dans l'ordre actuel.");
   plan.id="edit-duration-help";
   (result.scenes||[]).forEach((scene,i)=>{
@@ -337,7 +557,11 @@ function revisedOutput(){
   throw Error("La durée totale des scènes doit être de "+s.run.brief.duration_seconds+" secondes.");
  if(scenes.some(x=>x.colors.length<1||x.colors.length>8||x.characters.length>12))
   throw Error("Chaque scène accepte de 1 à 8 couleurs et au maximum 12 personnages.");
- return {title:$("edit-title").value.trim(),synopsis:$("edit-synopsis").value.trim(),cast:s.run.storyboard?.cast||[],scenes};
+ const cast=(s.run.storyboard?.cast||[]).map((person,i)=>{const p="edit-person-"+i+"-";return {
+  name:$(p+"name").value.trim(),appearance:$(p+"appearance").value.trim(),
+  personality:$(p+"personality").value.trim(),role:$(p+"role").value.trim()
+ };});
+ return {title:$("edit-title").value.trim(),synopsis:$("edit-synopsis").value.trim(),cast,scenes};
 }
 function openReview(step,action="accept"){
  s.step=step;$("reviewError").hidden=true;$("reviewError").textContent="";
@@ -388,7 +612,7 @@ function home(push=true){s.openRequest++;s.run=null;showWorkspace("library");$("
 function bind(){
  $("loginForm").addEventListener("submit",login);$("logout").addEventListener("click",logout);
  for(const id of ["sideCreate","heroCreate","emptyCreate","libraryCreate"])$(id).addEventListener("click",()=>{closeNav();$("newDialog").showModal();});
- $("home").addEventListener("click",()=>home());$("conceptionNav").addEventListener("click",showConception);window.addEventListener("popstate",()=>{const id=location.hash.slice(5);if(location.hash==="#conception")showConception();else if(location.hash.startsWith("#run/")&&uuid.test(id))openRun(id);else home(false);});$("openId").addEventListener("click",()=>$("idDialog").showModal());
+ $("home").addEventListener("click",()=>home());$("conceptionNav").addEventListener("click",()=>showConception());window.addEventListener("popstate",()=>{const id=location.hash.slice(5);if(location.hash==="#conception")showConception();else if(location.hash.startsWith("#run/")&&uuid.test(id))openRun(id);else home(false);});$("openId").addEventListener("click",()=>$("idDialog").showModal());
  $("idForm").addEventListener("submit",e=>{e.preventDefault();const id=$("runId").value.trim();if(!uuid.test(id))return alertUser("Identifiant UUID invalide.",true);$("idDialog").close();openRun(id);});
  document.querySelectorAll(".close").forEach(b=>b.addEventListener("click",()=>b.closest("dialog").close()));
  document.querySelectorAll("dialog").forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close();}));
