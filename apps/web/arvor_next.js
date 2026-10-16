@@ -248,7 +248,7 @@ function renderCalendar(){
 }
 function bindContent(){
  document.querySelectorAll('[data-action="more"]').forEach(x=>x.addEventListener('click',()=>fetchStories(true).catch(e=>showToast(e.message))));
- $('[data-action="new"]').forEach(x=>x.addEventListener('click',()=>openEditor('new')));
+ document.querySelectorAll('[data-action="new"]').forEach(x=>x.addEventListener('click',()=>openEditor('new')));
  $$('[data-action="library"]').forEach(x=>x.addEventListener('click',()=>navigate('stories')));
  $$('[data-action="edit-story"]').forEach(x=>x.addEventListener('click',()=>openEditor('story')));
  $$('[data-action="edit-scene"]').forEach(x=>x.addEventListener('click',()=>openEditor('scene')));
