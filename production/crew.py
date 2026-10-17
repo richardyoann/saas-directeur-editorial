@@ -156,4 +156,7 @@ async def execute_role(client, base_url, role, source, outputs, feedback=None):
         parsed = schema.model_validate(strict_json(raw)).model_dump()
     except (ValueError, TypeError, ValidationError, RecursionError):
         raise ValueError("invalid_structured_output") from None
+    if role == "critic" and not quality_gate(parsed)["passed"] and not parsed["target_roles"]:
+        # A negative review must identify at least one responsible specialist.
+        raise ValueError("unactionable_critical_review")
     return parsed
