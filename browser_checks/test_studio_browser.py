@@ -89,7 +89,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.assertEqual(self.js_errors, [], "Uncaught JavaScript exceptions")
 
     def sign_in(self):
-        self.page.goto(self.base + "/studio")
+        self.page.goto(self.base + "/studio/legacy")
         self.page.locator("#password").fill(PASSWORD)
         self.page.locator("#loginButton").click()
         self.page.locator("#app").wait_for(state="visible")
@@ -222,7 +222,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         expect(self.page.locator("#panel")).to_contain_text("GPU et VRAM non mesurés.")
 
     def test_login_create_analysis_history_approve_logout(self):
-        self.page.goto(self.base + "/studio")
+        self.page.goto(self.base + "/studio/legacy")
         self.assertTrue(self.page.locator("#login").is_visible())
         self.assertTrue(self.page.locator("#app").is_hidden())
         self.page.locator("#password").fill("wrong" * 9)
@@ -247,7 +247,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#logout").click()
         self.page.locator("#login").wait_for(state="visible")
         self.assertTrue(self.page.locator("#app").is_hidden())
-        self.page.goto(self.base + "/studio#run/" + run_id)
+        self.page.goto(self.base + "/studio/legacy#run/" + run_id)
         self.page.locator("#password").fill(PASSWORD)
         self.page.locator("#loginButton").click()
         self.page.locator("#storyTitle").wait_for(state="visible")
