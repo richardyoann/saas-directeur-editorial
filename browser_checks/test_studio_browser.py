@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import shutil
 import subprocess
 import sys
 import time
@@ -53,8 +54,12 @@ class StudioBrowserJourneys(unittest.TestCase):
             raise RuntimeError("Browser fixture did not start")
         cls.playwright = sync_playwright().start()
         try:
-            cls.browser = cls.playwright.chromium.launch(
-                channel="chrome", headless=True, args=["--no-sandbox"])
+            # Use Chrome when installed on Linux; otherwise reuse an existing
+            # Playwright-managed Chromium binary. Never download browsers here.
+            browser_args = {"headless": True, "args": ["--no-sandbox"]}
+            if shutil.which("google-chrome") or shutil.which("google-chrome-stable"):
+                browser_args["channel"] = "chrome"
+            cls.browser = cls.playwright.chromium.launch(**browser_args)
         except Exception:
             cls.playwright.stop()
             cls.server.terminate()
