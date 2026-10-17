@@ -380,7 +380,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         with httpx.Client(base_url=self.base, headers=AUTH) as client:
             run = client.post("/editorial/runs", headers={"Idempotency-Key": str(uuid4())}, json={"topic":"Le murmure de Brocéliande"})
             self.assertEqual(run.status_code, 200)
-        self.page.goto(self.base + "/studio/next")
+        self.page.goto(self.base + "/studio")
         expect(self.page.locator("#login-screen")).to_be_visible()
         self.page.locator("#login-password").fill(PASSWORD)
         self.page.locator("#login-submit").click()
@@ -397,7 +397,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         expect(self.page.locator(".scene-row")).to_have_count(3)
 
     def test_next_studio_real_creation_and_revision(self):
-        self.page.goto(self.base + "/studio/next")
+        self.page.goto(self.base + "/studio")
         self.page.locator("#login-password").fill(PASSWORD)
         self.page.locator("#login-submit").click()
         expect(self.page.locator("#studio-shell")).to_be_visible()
