@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid5
 
 from editorial.store import RunConflict, RunMissing, now
-from production.crew import ROLES, SPECIALISTS, source_snapshot, quality_gate
+from production.crew import (ROLES, SPECIALISTS, SpecialistOutput, CriticOutput,
+                             source_snapshot, quality_gate, role_prompt)
 
 MAX_CORRECTIONS = 2
 
@@ -119,6 +120,14 @@ class ProductionStore:
                     or state["current_role"] or not state["next_roles"]):
                 raise RunConflict()
             role = state["next_roles"][0]
+            prompt_id = uuid5(identifier, "prompt:" + str(state["cycle"]) + ":" + role)
+            self.store._write(conn, tenant, actor, run_id, "prompt", prompt_id,
+                              {"type": "production_role_prompt", "session_id": str(identifier),
+                               "run_id": str(run_id), "cycle": state["cycle"],
+                               "role": role, "version": "production-crew-v1",
+                               "text": role_prompt(role, state["source"],
+                                                   state["outputs"], feedback=state["feedback"]),
+                               "created_at": now()})
             state.update(phase="running", current_role=role,
                          started_at=now(), updated_at=now(), revision=expected_revision + 1)
             self._save(conn, tenant, actor, run_id, identifier, state, version)
@@ -130,8 +139,9 @@ class ProductionStore:
             if (state["phase"] != "running" or state["revision"] != claimed_revision
                     or state["current_role"] != role or state["next_roles"][0] != role):
                 raise RunConflict()
-            if error is None and output is None:
-                raise ValueError("missing_role_result")
+            if error is None:
+                validated = CriticOutput if role == "critic" else SpecialistOutput
+                output = validated.model_validate(output).model_dump()
             record = {"type": "production_crew_output", "run_id": str(run_id),
                       "session_id": str(identifier), "cycle": state["cycle"],
                       "role": role, "status": "failed" if error else "completed",
@@ -211,4 +221,16 @@ class ProductionStore:
                 "ORDER BY (content->>'cycle')::integer, content->>'created_at'",
                 (tenant, state["id"]),
             ).fetchall()
-            return {"session_id": state["id"], "outputs": [row[0] for row in rows]}
+            prompts = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='prompt' "
+                "AND NOT deleted AND content->>'type'='production_role_prompt' "
+                "AND content->>'session_id'=%s "
+                "ORDER BY (content->>'cycle')::integer, content->>'created_at'",
+                (tenant, state["id"]),
+            ).fetchall()
+            texts = {(row[0]["cycle"], row[0]["role"]): row[0]["text"]
+                     for row in prompts}
+            outputs = [row[0] for row in rows]
+            for item in outputs:
+                item["prompt"] = texts.get((item["cycle"], item["role"]))
+            return {"session_id": state["id"], "outputs": outputs}
