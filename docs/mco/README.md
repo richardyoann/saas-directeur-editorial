@@ -14,6 +14,7 @@
 | Mécanisme de déploiement sécurisé et rollback | [AUTONOMOUS_DELIVERY](../AUTONOMOUS_DELIVERY.md) |
 | Studio : sécurité, sessions et recette | [STUDIO_PRIVATE](../STUDIO_PRIVATE.md) |
 | Qwen : contrats et sorties IA | [QWEN_HARDENING](../QWEN_HARDENING.md) |
+| Production multi-agents, critique bloquante et contrôle MP4 (proposé, non livré) | [STUDIO CREW](../ARVOR_MULTI_AGENT_PRODUCTION_2026-10-17.md) |
 | Mode async, worker PostgreSQL, idempotence | [ASYNC_EDITORIAL_WORKER](../ASYNC_EDITORIAL_WORKER.md) |
 | Workflow métier, audit, snapshots | [EDITORIAL_WORKFLOW](../EDITORIAL_WORKFLOW.md) |
 | Rapport d'audit technique et dette SaaS non corrigée | [QA_SECURITY_AUDIT_2026-10-14](../QA_SECURITY_AUDIT_2026-10-14.md) |
