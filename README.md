@@ -48,6 +48,7 @@ Une CI verte ne prouve pas une livraison locale : celle-ci exige validation du S
 
 ## Documentation utile
 
+- `docs/ARVOR_MULTI_AGENT_PRODUCTION_2026-10-17.md` : équipe IA, critique stricte de préproduction, contrôle MP4 (code en PR, non livré sur PC).
 - `docs/mco/README.md` : incidents, diagnostic et capitalisation MCO.
 - `docs/mco/RUNBOOK_DIAGNOSTIC_PC.md` : reprise privée Windows/WSL.
 - `docs/EDITORIAL_WORKFLOW.md` : modèle et validation éditoriale.
