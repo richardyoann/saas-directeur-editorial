@@ -835,6 +835,19 @@ function crewRender(state){
   put(sum,"p",state.quality.passed?"tip":"warning",
    state.quality.passed?"Critique textuelle conforme. Aucune vidéo réelle n'a été examinée ; validation humaine indispensable.":
    "Qualité insuffisante : les corrections ciblées sont nécessaires avant toute validation.");
+  const reviewCriteria=[
+   ["narrative","Scénario et émotion",20],
+   ["visual_continuity","Continuité visuelle décrite",20],
+   ["camera_motion","Cadrage et mouvement",15],
+   ["sound_plan","Plan sonore",15],
+   ["rhythm","Montage et rythme",15],
+   ["legend_integrity","Cohérence des légendes",10],
+   ["technical_feasibility","Faisabilité",5]
+  ];
+  for(const [key,name,max] of reviewCriteria){
+   const value=state.critique?.[key];
+   if(Number.isInteger(value))crewLine(sum,name,String(value)+" / "+String(max)+(value*5<max*4?" · sous le seuil":""));
+  }
  }
  const grid=put(root,"div","crew-grid");
  const done=state.outputs||{};
@@ -897,6 +910,12 @@ function crewRender(state){
      const pre=put(e,"pre","crew-history");
      pre.textContent=JSON.stringify(event.output,null,2);
     }else{put(e,"p","warning","Étape échouée : "+(event.error_code||"erreur"));}
+    if(event.prompt){
+     const prompt=put(e,"details");
+     put(prompt,"summary","","Consulter le prompt historisé (données privées)");
+     const exact=put(prompt,"pre","crew-history");
+     exact.textContent=event.prompt;
+    }
    }
   }catch(e){alertUser(message(e),true);}
  });
