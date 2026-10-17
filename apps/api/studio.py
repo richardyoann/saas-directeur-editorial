@@ -229,6 +229,39 @@ async def reviews(request: Request, run_id: UUID, limit: int = Query(20, ge=1, l
     if before_revision is not None: path += f"&before_revision={before_revision}"
     return await relay(request, "GET", path)
 
+@router.get("/api/runs/{run_id}/production")
+async def production_status(request: Request, run_id: UUID):
+    return await relay(request, "GET", f"/editorial/runs/{run_id}/production")
+
+
+@router.post("/api/runs/{run_id}/production")
+async def production_create(request: Request, run_id: UUID):
+    return await relay(request, "POST", f"/editorial/runs/{run_id}/production")
+
+
+@router.post("/api/runs/{run_id}/production/advance")
+async def production_advance(request: Request, run_id: UUID):
+    return await relay(request, "POST", f"/editorial/runs/{run_id}/production/advance",
+                       await body(request))
+
+
+@router.post("/api/runs/{run_id}/production/revise")
+async def production_revise(request: Request, run_id: UUID):
+    return await relay(request, "POST", f"/editorial/runs/{run_id}/production/revise",
+                       await body(request))
+
+
+@router.post("/api/runs/{run_id}/production/reconcile")
+async def production_reconcile(request: Request, run_id: UUID):
+    return await relay(request, "POST", f"/editorial/runs/{run_id}/production/reconcile",
+                       await body(request))
+
+
+@router.get("/api/runs/{run_id}/production/history")
+async def production_history(request: Request, run_id: UUID):
+    return await relay(request, "GET", f"/editorial/runs/{run_id}/production/history")
+
+
 @router.get("/api/runs/{run_id}/media")
 async def media_catalog(request: Request, run_id: UUID):
     return await relay(request, "GET", f"/editorial/runs/{run_id}/media")
