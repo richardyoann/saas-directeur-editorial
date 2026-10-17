@@ -181,7 +181,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.assertEqual(calls["created"], 1)
         self.assertEqual(calls["advance"], 0)
         self.page.get_by_role("button", name="Lancer : Scénariste").click()
-        expect(self.page.locator("#panel")).to_contain_text("Lancer : Directeur artistique")
+        expect(self.page.locator("#panel")).to_contain_text("Lancer : Direction artistique")
         self.assertEqual(calls["advance"], 1)
 
     def test_reference_journal_and_admin_navigation(self):
