@@ -3,6 +3,7 @@ import json
 import os
 import unittest
 from unittest.mock import patch
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -56,6 +57,15 @@ class FakeProduction:
         self.state["current_role"] = None
         self.state["revision"] += 1
         return dict(self.state)
+
+
+class ProductionStudioDefaultsTests(unittest.TestCase):
+    def test_story_form_defaults_match_seventy_five_second_production(self):
+        html = (Path(__file__).resolve().parents[1] / "apps/web/studio.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('id="duration" type="number" min="15" max="180" value="75"', html)
+        self.assertIn('id="scenes" type="number" min="1" max="6" value="5"', html)
 
 
 class ProductionStudioJourneyTests(unittest.IsolatedAsyncioTestCase):
