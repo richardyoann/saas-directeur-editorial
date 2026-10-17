@@ -43,7 +43,7 @@ async function fetchStories(more=false){
  const known=new Set(stories.map(x=>x.id));
  for(const row of result.runs||[])if(!known.has(row.id)){stories.push(mapSummary(row));known.add(row.id)}
  nextCursor=result.next_before||null;
- events=stories.map(x=>({id:x.id,date:x.created,type:'creation',title:x.title,detail:'Histoire enregistrée · '+x.status}));
+ events=stories.filter(x=>x.created).map(x=>({id:x.id,date:x.created,type:'creation',title:x.title,detail:'Création enregistrée · voir les traitements réels dans la fiche'}));
  render();
 }
 
@@ -116,7 +116,7 @@ const statusClass=status=>({'En écriture':'writing','À relire':'review','Valid
 const statusPill=status=>`<span class="pill ${statusClass(status)}">${escapeHtml(status)}</span>`;
 const coverMarkup=(s)=>ASSETS[s.cover]?`<img src="${ASSETS[s.cover]}" alt="Paysage de référence de ${escapeAttr(s.place)}">`:'<div style="height:100%;background:linear-gradient(130deg,#1b4035,#aec4ad)"></div>';
 function render(){
- $$('#sidebar .nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.route===state.route));
+ $('#sidebar .nav-btn').forEach(b=>{const active=b.dataset.route===state.route;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
  $('#nav-count').textContent=editorialStories().length;
  const title=state.route==='stories'?(state.storyId?story(state.storyId)?.title:'Mes histoires'):state.route==='journal'?'Journal de création':'Administration';
  $('#breadcrumb').textContent=title||'Mes histoires';
@@ -125,9 +125,9 @@ function render(){
 }
 function renderLibrary(){
  const sceneCount=editorialStories().reduce((a,s)=>a+(s.sceneCount||s.scenes.length),0),elementCount=editorialStories().filter(s=>s.status==='À relire').length;
- return `<div class="page-heading"><div><div class="eyebrow">L’IMAGINAIRE BRETON, EN MOUVEMENT</div><h1>Vos histoires commencent ici.</h1><p>Du premier murmure au dernier plan, imaginez et façonnez chaque détail.</p></div>${btn('Nouvelle histoire','plus','primary','data-action="new"')}</div>
+ return `<div class="page-heading"><div><div class="eyebrow">L’IMAGINAIRE BRETON, EN MOUVEMENT</div><h1>Vos histoires commencent ici.</h1><p>Un seul atelier pour concevoir, illustrer et préparer vos récits bretons.</p></div>${btn('Nouvelle histoire','plus','primary','data-action="new"')}</div>
  <section class="stats" aria-label="Statistiques de l’atelier">
- ${[["book",editorialStories().length,"Histoires chargées"],["film",sceneCount,"Scènes imaginées"],["layers",elementCount,"À valider"],["clock",events.length,"Traces de création"]].map(([ic,n,t])=>`<div class="stat"><div class="stat-icon">${ico(ic)}</div><div><span class="stat-number">${String(n).padStart(2,'0')}</span><span class="stat-label">${t}</span></div></div>`).join('')}</section>
+ ${[["book",editorialStories().length,"Histoires chargées"],["film",sceneCount,"Scènes imaginées"],["layers",elementCount,"À valider"],["check",editorialStories().filter(s=>s.status==='Validée').length,"Histoires validées"]].map(([ic,n,t])=>`<div class="stat"><div class="stat-icon">${ico(ic)}</div><div><span class="stat-number">${String(n).padStart(2,'0')}</span><span class="stat-label">${t}</span></div></div>`).join('')}</section>
  <div class="toolbar"><div class="filter-tabs" role="group" aria-label="Filtrer par état">${['Toutes','En écriture','À relire','Validée','À retravailler','Échec'].map(v=>`<button type="button" class="filter-btn ${v===state.filter?'active':''}" data-filter="${v}" aria-pressed="${v===state.filter}">${v}</button>`).join('')}</div><label class="searchbox">${ico('search')}<input id="story-search" aria-label="Rechercher une histoire" placeholder="Rechercher une histoire…" value="${escapeAttr(state.query)}" autocomplete="off"></label></div>
  <div id="library-grid" class="story-grid"></div>${nextCursor?btn('Charger d’autres histoires','plus','small','data-action="more"'):''}`;
 }
@@ -135,7 +135,7 @@ function libraryCards(){
  const el=$('#library-grid');if(!el)return;
  const results=editorialStories().filter(s=>(state.filter==='Toutes'||s.status===state.filter)&&(s.title+' '+s.summary+' '+s.place).toLocaleLowerCase('fr').includes(state.query.toLocaleLowerCase('fr')));
  const cards=results.map(s=>`<article class="story-card"><div class="story-cover">${coverMarkup(s)}<span class="visual-tag">ILLUSTRATION D’AMBIANCE</span></div><div class="card-body"><div class="card-topline"><span class="place">${ico('map')}${escapeHtml(s.place||'Lieu à définir')}</span>${statusPill(s.status)}</div><h3 class="card-title">${escapeHtml(s.title)}</h3><p class="card-summary">${escapeHtml(s.summary||'Synopsis en cours de génération.')}</p><div class="card-data"><span>${ico('film')}${(s.sceneCount||s.scenes.length)} scène${(s.sceneCount||s.scenes.length)>1?'s':''}</span><span>${ico('clock')}${escapeHtml(s.status)}</span></div></div><div class="card-bottom"><span>Modifiée le ${formatDay(s.updated)}</span><button type="button" data-open="${escapeAttr(s.id)}">Ouvrir l’histoire ${ico('arrow')}</button></div></article>`).join('');
- el.innerHTML=cards+`<div class="create-tile"><div class="create-icon">${ico('plus')}</div><h3>La prochaine légende ?</h3><p>Une idée, un lieu, une voix. Commencez un nouveau récit.</p>${btn('Créer une histoire','arrow','textual','data-action="new"')}</div>`;
+ el.innerHTML=(results.length?'':`<div class="empty-results" role="status"><h3>Aucune histoire trouvée</h3><p>Essayez un autre filtre ou une autre recherche.</p></div>`)+cards+`<div class="create-tile"><div class="create-icon">${ico('plus')}</div><h3>La prochaine légende ?</h3><p>Une idée, un lieu, une voix. Commencez un nouveau récit.</p>${btn('Créer une histoire','arrow','textual','data-action="new"')}</div>`;
 }
 const atelierMenu=[['overview','Vue d’ensemble','book'],['scenario','Scénario','file'],['scenes','Scènes','film'],['characters','Personnages','users'],['landscapes','Paysages','map'],['colors','Couleurs','palette'],['shots','Plans & cadrages','grid'],['emotions','Émotions','shield'],['sounds','Sons & voix','mic'],['media','Médias','image'],['history','Historique IA','clock']];
 function renderAtelier(){
@@ -194,7 +194,7 @@ function renderAtelierPanel(s){
 }
 function renderJournal(){
  const rows=events.filter(e=>(state.journalFilter==='Tout'||e.type===state.journalFilter)&&(e.title+' '+e.detail).toLowerCase().includes(state.journalQuery.toLowerCase())).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
- return `<div class="page-heading"><div><div class="eyebrow">RIEN NE SE PERD</div><h1>La mémoire de vos créations.</h1><p>Retrouvez les décisions, les versions et les étapes de chaque récit.</p></div></div><div class="toolbar"><div class="filter-tabs">${[['Tout','Tout'],['Créations','creation'],['Révisions','revision'],['IA & visuels','ia']].map(([name,k])=>`<button class="filter-btn ${state.journalFilter===k?'active':''}" data-journal-filter="${k}">${name}</button>`).join('')}</div><label class="searchbox">${ico('search')}<input id="journal-search" aria-label="Rechercher dans le journal" placeholder="Rechercher une trace…" value="${escapeAttr(state.journalQuery)}"></label></div><section class="panel"><div class="eyebrow">ÉVÉNEMENTS CHARGÉS</div><div id="timeline" class="timeline">${rows.map(e=>`<article class="timeline-row"><time>${formatDay(e.date)}</time><h3>${escapeHtml(e.title)}</h3><p>${escapeHtml(e.detail)}</p>${statusPill(({creation:'Brouillon',revision:'En écriture',ia:'À relire'})[e.type]||'Brouillon')}</article>`).join('')||'<div class="empty-state">Aucune trace correspondante.</div>'}</div></section>`;
+ return `<div class="page-heading"><div><div class="eyebrow">VOTRE ACTIVITÉ ÉDITORIALE</div><h1>Journal de création.</h1><p>Créations issues des histoires chargées. Retrouvez les prompts et versions vérifiés dans l’historique de chaque histoire.</p></div></div><div class="toolbar"><div class="filter-tabs">${[['Tout','Tout'],['Créations','creation'],['Révisions','revision'],['IA & visuels','ia']].map(([name,k])=>`<button class="filter-btn ${state.journalFilter===k?'active':''}" data-journal-filter="${k}">${name}</button>`).join('')}</div><label class="searchbox">${ico('search')}<input id="journal-search" aria-label="Rechercher dans le journal" placeholder="Rechercher une trace…" value="${escapeAttr(state.journalQuery)}"></label></div><section class="panel"><div class="eyebrow">ÉVÉNEMENTS CHARGÉS</div><div id="timeline" class="timeline">${rows.map(e=>`<article class="timeline-row"><time>${formatDay(e.date)}</time><h3>${escapeHtml(e.title)}</h3><p>${escapeHtml(e.detail)}</p>${btn('Ouvrir l’historique','arrow','small','data-history="'+escapeAttr(e.id)+'"')}</article>`).join('')||'<div class="empty-state">Aucune trace correspondante.</div>'}</div></section>`;
 }
 function renderAdmin(){
  const tab=state.adminTab;
@@ -255,7 +255,8 @@ function bindContent(){
  $$('[data-action="add-scene"]').forEach(x=>x.addEventListener('click',()=>openEditor('add-scene')));
  $$('[data-action="export"]').forEach(x=>x.addEventListener('click',exportStory));
  $$('[data-open]').forEach(x=>x.addEventListener('click',()=>navigate('stories',x.dataset.open)));
- $$('[data-panel]').forEach(x=>x.addEventListener('click',()=>{state.panel=x.dataset.panel;mediaData=null;render();if(state.panel==='media')loadMedia();if(state.panel==='history')loadHistory()}));
+ $('[data-panel]').forEach(x=>x.addEventListener('click',()=>{state.panel=x.dataset.panel;mediaData=null;render();if(state.panel==='media')loadMedia();if(state.panel==='history')loadHistory()}));
+ $('[data-history]').forEach(x=>x.addEventListener('click',async()=>{const id=x.dataset.history;await navigate('stories',id,'history');if(state.storyId===id)await loadHistory()}));
  $$('[data-scene]').forEach(x=>x.addEventListener('click',()=>{state.sceneIndex=Number(x.dataset.scene);state.panel='scenes';render()}));
  $$('[data-filter]').forEach(x=>x.addEventListener('click',()=>{state.filter=x.dataset.filter;render()}));
  if($('#story-search')){libraryCards();bindLibraryOpen();$('#story-search').addEventListener('input',e=>{state.query=e.target.value;libraryCards();bindLibraryOpen()})}
