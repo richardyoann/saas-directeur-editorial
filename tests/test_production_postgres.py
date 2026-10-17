@@ -55,8 +55,10 @@ class ProductionPostgresTests(unittest.TestCase):
         self.assertEqual(claimed["current_role"], "screenwriter")
         with self.assertRaises(RunConflict):
             self.production.claim(self.tenant, self.actor, self.run_id, 0)
-        artifact = {"summary": "Test", "directions": ["Film"], "constraints_checked": ["75s"],
-                    "handoff": "Direction artistique"}
+        artifact = {"summary": "Le scénario conserve une structure claire et exploitable.",
+                    "directions": ["Conserver une introduction captivante."],
+                    "constraints_checked": ["La somme des scènes donne exactement 75 secondes."],
+                    "handoff": "Transmettre les plans validés à la direction artistique."}
         result = self.production.finish(self.tenant, self.actor, self.run_id,
                                         claimed["revision"], "screenwriter", artifact)
         self.assertEqual(result["phase"], "ready")
@@ -86,7 +88,10 @@ class ProductionPostgresTests(unittest.TestCase):
                           "observations": ["Corriger une incohérence visuelle clairement identifiable."],
                           "target_roles": ["cinematographer"]}
             else:
-                output = {"summary": role, "directions": ["production"], "constraints_checked": ["75s"], "handoff": role}
+                output = {"summary": "Plan de production détaillé pour le métier " + role,
+                          "directions": ["Conserver la continuité et la durée exacte."],
+                          "constraints_checked": ["Les cinq scènes occupent 75 secondes."],
+                          "handoff": "Transmettre le dossier au métier suivant."}
             state = self.production.finish(self.tenant, self.actor, self.run_id,
                                            claimed["revision"], role, output)
         self.assertEqual(state["phase"], "changes_requested")
