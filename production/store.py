@@ -95,10 +95,12 @@ class ProductionStore:
             if not entry:
                 raise RunMissing()
             state = entry[0]
-            state["stale"] = (run.get("status") != "approved" or bool(run.get("storyboard_stale"))
-                              or source_digest(source_snapshot(run)) != state["source_hash"]
-                              if run.get("status") == "approved" and not run.get("storyboard_stale")
-                              else True)
+            # Historical files remain readable even after an editorial revision.
+            try:
+                actual = source_snapshot(run)
+                state["stale"] = source_digest(actual) != state["source_hash"]
+            except (ValueError, TypeError, KeyError):
+                state["stale"] = True
             return state
 
     def _locked(self, conn, tenant, run_id):
@@ -153,7 +155,8 @@ class ProductionStore:
                     if state["quality"]["passed"]:
                         state["phase"] = "ready_for_human_review"
                     else:
-                        state["phase"] = ("changes_requested" if state["cycle"] < MAX_CORRECTIONS
+                        targets = output.get("target_roles", [])
+                        state["phase"] = ("changes_requested" if targets and state["cycle"] < MAX_CORRECTIONS
                                           else "blocked_quality")
                 else:
                     state["phase"] = "ready"
