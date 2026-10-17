@@ -103,6 +103,20 @@ class CrewProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("tools", requests[0])
         self.assertEqual(requests[0]["messages"][0]["role"], "system")
 
+    async def test_critic_low_score_must_include_actionable_owner(self):
+        report = dict(perfect_critic(), narrative=14)
+        calls = []
+        def handler(request):
+            calls.append(request)
+            return httpx.Response(200, json={
+                "choices": [{"message": {"content": json.dumps(report)},
+                             "finish_reason": "stop"}]})
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            with self.assertRaises(ValueError):
+                await execute_role(client, "http://llm.test", "critic",
+                                   source_snapshot(approved_run()), {})
+        self.assertEqual(len(calls), 1)
+
     async def test_invalid_or_truncated_response_is_not_retried(self):
         source = source_snapshot(approved_run())
         for output, reason in (("{}", "stop"), ("{}", "length"),
