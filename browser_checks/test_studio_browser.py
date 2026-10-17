@@ -396,6 +396,50 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator('[data-panel="scenes"]').click()
         expect(self.page.locator(".scene-row")).to_have_count(3)
 
+    def test_next_studio_journal_history_and_empty_filters(self):
+        with httpx.Client(base_url=self.base, headers=AUTH) as client:
+            run = client.post("/editorial/runs",
+                              headers={"Idempotency-Key": str(uuid4())},
+                              json={"topic": "La mémoire de Brocéliande"})
+            self.assertEqual(run.status_code, 200)
+        self.page.goto(self.base + "/studio/next")
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        expect(self.page.locator("#studio-shell")).to_be_visible()
+        expect(self.page.locator("#nav-count")).to_have_text("1")
+
+        self.page.locator('[data-filter="Échec"]').click()
+        expect(self.page.locator(".empty-results")).to_be_visible()
+        expect(self.page.locator(".story-card")).to_have_count(0)
+        self.page.locator('[data-filter="Toutes"]').click()
+        expect(self.page.locator(".story-card")).to_have_count(1)
+
+        self.page.locator('[data-route="journal"]').click()
+        expect(self.page.locator(".timeline-row")).to_have_count(1)
+        expect(self.page.locator(".timeline-row")).to_contain_text("Création enregistrée")
+        self.assertNotIn("Prompt :", self.page.locator("#timeline").inner_text())
+
+        with self.page.expect_response("**/studio/api/runs/*/history") as response:
+            self.page.locator('[data-history]').click()
+        self.assertEqual(response.value.status, 200)
+        expect(self.page.locator(".outline")).to_be_visible()
+        expect(self.page.locator("#workbench")).to_contain_text("Historique des traitements")
+        expect(self.page.locator("#workbench details")).not_to_have_count(0)
+
+    def test_next_studio_mobile_navigation(self):
+        self.page.set_viewport_size({"width": 390, "height": 844})
+        self.page.goto(self.base + "/studio/next")
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        expect(self.page.locator("#studio-shell")).to_be_visible()
+        self.page.locator("#mobile-toggle").click()
+        expect(self.page.locator("#sidebar")).to_have_class("sidebar open")
+        self.page.locator('[data-route="journal"]').click()
+        expect(self.page.locator("#sidebar")).not_to_have_class("sidebar open")
+        expect(self.page.locator("#content h1")).to_have_text("Journal de création.")
+        self.assertLessEqual(self.page.evaluate(
+            "document.documentElement.scrollWidth - window.innerWidth"), 1)
+
     def test_next_studio_real_creation_and_revision(self):
         self.page.goto(self.base + "/studio/next")
         self.page.locator("#login-password").fill(PASSWORD)

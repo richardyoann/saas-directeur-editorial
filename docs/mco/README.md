@@ -6,6 +6,7 @@
 
 | Besoin | Document |
 | --- | --- |
+| GitHub Actions bloqué avant runner, PR #196 (17/10/2026) | [Incident CI du 17/10](INCIDENT_2026-10-17_GITHUB_ACTIONS_RUNNER.md) |
 | Livraison : casse de LOCAL_PC_ENABLED et JSON Python 3.14 | [Incident du 16/10](INCIDENT_2026-10-16_LIVRAISON_JSON.md) |
 | Transfert MinIO incertain et reprise des médias | [MinIO médias](MINIO_MEDIA_RECOVERY.md) |
 | Résultat image incertain, timeout et fichier privé conservé | [Runbook images](IMAGE_GENERATION_RECOVERY.md) |
