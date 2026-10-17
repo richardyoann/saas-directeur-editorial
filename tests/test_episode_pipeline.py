@@ -44,6 +44,13 @@ def fixture():
 
 
 class PlanTests(unittest.TestCase):
+    def test_non_string_run_id_is_rejected_with_fixed_error(self):
+        for value in ([], {}, 42, True, None):
+            bundle = fixture()
+            bundle["run"]["id"] = value
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "production_run_id_invalid"):
+                prepare_manifest(bundle, human_review_confirmed=True)
+
     def test_manifest_uses_only_locked_storyboard_and_keeps_inputs(self):
         bundle = fixture()
         before = copy.deepcopy(bundle)
@@ -205,6 +212,19 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn(str(self.root), reply.stderr)
         self.assertNotIn("private input", reply.stderr)
         self.assertNotIn("Traceback", reply.stderr)
+
+    def test_cli_non_string_id_never_prints_traceback_or_private_path(self):
+        for value in ([], {}, 42):
+            self.bundle["run"]["id"] = value
+            self.save()
+            reply = subprocess.run([sys.executable, "scripts/render_production.py", str(self.path),
+                                    str(self.media), str(self.destination), "--confirm-human-review"],
+                                   capture_output=True, text=True)
+            with self.subTest(value=value):
+                self.assertEqual(reply.returncode, 2)
+                self.assertNotIn("Traceback", reply.stderr)
+                self.assertNotIn(str(self.root), reply.stderr)
+                self.assertFalse(self.destination.exists())
 
     def test_real_pipeline_keeps_sources_and_produces_qualified_75s_export(self):
         self.assertIsNotNone(shutil.which("ffmpeg"), "FFmpeg required; no skipped validation")

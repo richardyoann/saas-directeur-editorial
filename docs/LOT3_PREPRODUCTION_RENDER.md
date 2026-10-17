@@ -133,3 +133,15 @@ Régression complète Python 3.12/3.14, revue, CI et recette PC non réalisées.
 Aucune fusion, livraison, migration ni modification des secrets/services.
 Suite : raccordement authentifié au Studio avec audit/persistance et
 concurrence, génération réelle images/voix, puis recette audiovisuelle sur PC.
+
+## Correction de revue — 18 octobre 2026
+
+Un identifiant de run JSON non textuel (liste, objet ou nombre) provoquait
+une exception AttributeError dans UUID et une trace console au lieu du refus
+contrôlé. Le type est désormais validé avant conversion, avec le code fixe
+`production_run_id_invalid`, sans création de destination ni appel FFmpeg.
+Deux tests de non-régression (fonction et CLI) ont échoué avant correction,
+puis réussi ; les 35 tests ciblés pipeline/critique/rendu/SRT passent sans skip
+en Python 3.12 isolé, avec rendu synthétique FFmpeg/ffprobe réel.
+La CI complète, PostgreSQL, Qwen et la recette PC restent non validés ;
+aucune fusion ou livraison n'est autorisée par ces seuls résultats ciblés.

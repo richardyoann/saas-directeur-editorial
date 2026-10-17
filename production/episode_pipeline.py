@@ -35,6 +35,8 @@ def prepare_manifest(bundle, *, human_review_confirmed=False):
     source = source_snapshot(run)
     if source["review_revision"] < 0:
         raise ValueError("source_revision_invalid")
+    if not isinstance(run.get("id"), str):
+        raise ValueError("production_run_id_invalid")
     run_id = str(UUID(run["id"]))
     expected_id = str(uuid5(UUID(run_id), "production-crew-v1:" + str(source["review_revision"])))
     if (session.get("type") != "production_crew_session"
