@@ -34,7 +34,7 @@ Une note insuffisante doit identifier au moins un métier responsable ; un avis 
 - Chaque rôle reçoit le document approuvé et les livrables textuels précédents comme **données non fiables** ; sortie JSON Pydantic stricte, `finish_reason=stop` requis. Pas d'outils système accordés à Qwen, pas de scraping ni d'appel public.
 - Le critique textuel **ne voit aucun pixel et n'écoute aucun audio** : ne pas interpréter la note comme évaluation du MP4. Un examen humain visuel et audio reste obligatoire.
 - Aucun changement aux secrets, à MinIO, aux volumes, au modèle GGUF, aux services existants, aux workflows de déploiement ou au paramètre du worker.
-- Les livrables métier et historiques contiennent des informations privées : GET/auth seulement, aucune copie dans GitHub, Slack ou les journaux applicatifs.
+- Les livrables métier et historiques contiennent des informations privées : GET/auth seulement, aucune copie dans GitHub, Slack ou les journaux applicatifs. Le prompt exact de chaque rôle et son résultat sont archivés côté PostgreSQL pour diagnostic et traçabilité ; ils restent privés.
 
 ## Contrôles du véritable rendu
 
@@ -72,6 +72,7 @@ git worktree add --detach ~/arvor-crew-check origin/feature/production-crew-qual
 cd ~/arvor-crew-check
 
 ~/editorial-runtime/current/.venv/bin/python -m unittest discover -s tests -p 'test_production_crew.py' -v
+~/editorial-runtime/current/.venv/bin/python -m unittest discover -s tests -p 'test_production_studio.py' -v
 ~/editorial-runtime/current/.venv/bin/python -m unittest discover -s tests -p 'test_render_critic.py' -v
 node --check apps/web/studio.js
 ```
