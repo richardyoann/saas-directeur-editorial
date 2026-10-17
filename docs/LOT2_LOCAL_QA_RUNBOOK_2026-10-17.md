@@ -68,14 +68,24 @@ L'alternative `--url 'http://HOTE_PRIVE:PORT'` est possible si `LLM_BASE_URL` n'
 
 ## C — Chromium réel avec API factice, sans installation
 
-D'abord vérifier la présence du pilote Playwright et du navigateur **Linux** :
+D'abord vérifier la présence du pilote Playwright et d'un navigateur **Linux** déjà installé. Le test utilise Chrome si présent, sinon le Chromium **déjà mis en cache** par Playwright ; il ne télécharge rien.
 
 ```bash
-~/editorial-runtime/current/.venv/bin/python -c "import importlib.util; print('playwright_present=',importlib.util.find_spec('playwright') is not None)"
-command -v google-chrome || command -v chromium || command -v chromium-browser || true
+~/editorial-runtime/current/.venv/bin/python - <<'PY'
+from pathlib import Path
+import importlib.util
+import shutil
+found = importlib.util.find_spec("playwright") is not None
+print("playwright_present=", found)
+print("chrome_linux_present=", bool(shutil.which("google-chrome") or shutil.which("google-chrome-stable")))
+if found:
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as driver:
+        print("playwright_chromium_cached=", Path(driver.chromium.executable_path).is_file())
+PY
 ```
 
-Si les deux composants existent, lancer :
+Si Playwright et l'un de ces navigateurs existent, lancer :
 
 ```bash
 STUDIO_BROWSER_TESTS=yes \
@@ -83,7 +93,7 @@ STUDIO_BROWSER_TESTS=yes \
   discover -s browser_checks -p 'test_studio_browser.py' -v
 ```
 
-Le test navigateur démarre un serveur d'essai sur **127.0.0.1 et un port aléatoire**, avec identifiants fictifs, API simulée et aucune histoire utilisateur. Les anciens scénarios 60 s/3 scènes fixent maintenant leur format explicitement ; le nouveau scénario teste le défaut 75 s/5 scènes, l'approbation humaine et les boutons de l'équipe IA (sans Qwen réel). Si Playwright ou Chrome Linux manquent, **ne pas installer automatiquement** : qualifier d'abord la disponibilité des paquets et le besoin d'une installation explicite.
+Le test navigateur démarre un serveur d'essai sur **127.0.0.1 et un port aléatoire**, avec identifiants fictifs, API simulée et aucune histoire utilisateur. Les anciens scénarios 60 s/3 scènes fixent maintenant leur format explicitement ; le nouveau scénario teste le défaut 75 s/5 scènes, l'approbation humaine et les boutons de l'équipe IA (sans Qwen réel). Si Playwright manque, ou si **ni Chrome Linux ni Chromium Playwright en cache** n'est présent, **ne rien installer automatiquement** : vérifier les paquets existants et faire valider une éventuelle installation.
 
 ## Conclusion et preuves
 
