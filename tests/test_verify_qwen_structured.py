@@ -50,6 +50,39 @@ class QwenStructuredVerificationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["calls"], 1)
         self.assertEqual([r.method for r in requests], ["GET", "POST"])
 
+    async def test_two_valid_structured_steps_pass_without_exposing_content(self):
+        requests = []
+        analysis = {"angle": "Une lumière lointaine", "message": "Un récit fictif",
+                    "historical_checks": []}
+        scene = {"title": "Le phare", "duration_seconds": 20,
+                 "narration": "La mer se retire", "visual_description": "Phare sous la brume",
+                 "characters": ["Une gardienne"], "landscape": "Côte",
+                 "colors": ["bleu"], "shot": "Plan large",
+                 "emotion": "Mystère", "sound": "Vagues",
+                 "image_prompt": "Phare breton dans la brume"}
+        board = {"title": "Le phare oublié", "synopsis": "Une histoire imaginaire",
+                 "scenes": [scene, scene, scene]}
+        outputs = iter((analysis, board))
+
+        def handler(request):
+            requests.append(request)
+            if request.method == "GET":
+                return httpx.Response(200)
+            payload = json.loads(request.content)
+            self.assertNotIn("$ref", json.dumps(payload["response_format"]))
+            return httpx.Response(200, json={
+                "choices": [{"message": {"content": json.dumps(next(outputs))},
+                             "finish_reason": "stop"}]
+            })
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            result = await verify(client, "http://127.0.0.1:8080", generate=True)
+        self.assertEqual(result, {"health": "ok", "analysis": "ok",
+                                  "storyboard": "ok", "calls": 2})
+        self.assertEqual([r.method for r in requests], ["GET", "POST", "POST"])
+        self.assertNotIn("gardienne", json.dumps(result))
+        self.assertNotIn("phare", json.dumps(result))
+
     async def test_truncated_output_blocks_storyboard_without_second_call(self):
         requests = []
         def handler(request):
