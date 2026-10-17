@@ -71,8 +71,8 @@ git fetch origin
 git worktree add --detach ~/arvor-crew-check origin/feature/production-crew-quality-gate-20261017
 cd ~/arvor-crew-check
 
-~/editorial-runtime/current/.venv/bin/python -m unittest \
-  tests.test_production_crew tests.test_render_critic -v
+~/editorial-runtime/current/.venv/bin/python -m unittest discover -s tests -p 'test_production_crew.py' -v
+~/editorial-runtime/current/.venv/bin/python -m unittest discover -s tests -p 'test_render_critic.py' -v
 node --check apps/web/studio.js
 ```
 
