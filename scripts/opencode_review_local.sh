@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Analyse indépendante de la PR par OpenCode (aucune MEP, aucun push).
 set -euo pipefail
+export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/bin:$PATH"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-command -v opencode >/dev/null || { echo "OpenCode non installé"; exit 1; }
+command -v opencode >/dev/null || { echo "OpenCode introuvable dans PATH ; exécuter source ~/.bashrc et vérifier ~/.opencode/bin/opencode"; exit 1; }
 sha="$(git rev-parse HEAD)"
 output="${ARVOR_REPORT_DIR:-$HOME/.local/state/arvor-reviews}"
 mkdir -p "$output"
