@@ -73,6 +73,20 @@ def assert_ci_success(sha):
             raise RuntimeError("Required CI evidence missing for approved SHA")
 
 
+def assert_local_quality_evidence(sha):
+    """Require SHA-bound local QA from the same self-hosted CD job."""
+    if (os.environ.get("GITHUB_ACTIONS") != "true"
+            or os.environ.get("RUNNER_ENVIRONMENT") != "self-hosted"):
+        raise RuntimeError("Self-hosted GitHub runner required for deployment")
+    if __package__:
+        from .local_quality_gate import assert_receipt
+    else:
+        from local_quality_gate import assert_receipt
+    report = Path(os.environ["LOCAL_QUALITY_REPORT"])
+    assert_receipt(sha, report, run_id=os.environ["GITHUB_RUN_ID"],
+                   runner_temp=Path(os.environ["RUNNER_TEMP"]))
+
+
 def verify_approved_sha(sha):
     """Approval must be a separate repo variable, never an API response or PR."""
     approved = os.environ.get("LOCAL_PC_APPROVED_SHA", "")
@@ -298,7 +312,7 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
         raise ValueError("Tracked checkout modifications invalidate SHA evidence")
     verify_approved_sha(sha)
     assert_current_main(sha)
-    assert_ci_success(sha)
+    assert_local_quality_evidence(sha)
     command(["systemctl", "--user", "cat", "editorial-api.service"])
     service_directory = subprocess.check_output(["systemctl", "--user", "show",
         "editorial-api.service", "--property=WorkingDirectory", "--value"], text=True).strip()
@@ -366,7 +380,7 @@ def deploy(source: Path, root: Path, config: Path, sha: str, port: int):
             check_studio(url, web_password)
         verify_approved_sha(sha)
         assert_current_main(sha)
-        assert_ci_success(sha)
+        assert_local_quality_evidence(sha)
         activate(root / "current", candidate,
             lambda: command(["systemctl", "--user", "restart", "editorial-api.service"]),
             verify, lambda: command(["systemctl", "--user", "stop", "editorial-api.service"]))
