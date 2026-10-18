@@ -58,6 +58,24 @@ ou cinq scènes de 15 s. Une voix WAV de 75 s peut être ajoutée via le champ
 n'efface ni les médias existants ni les données en base. L'option est explicite
 pour conserver la compatibilité des exports historiques sans `--arvor-75`.
 
+### Revue de non-régression — 18 octobre 2026
+
+Le parcours Chromium historique de révision supposait trois scènes de 20 s.
+Avec le nouveau brief de 75 s, la fixture produit trois scènes de 25 s :
+restaurer 20 s après le cas invalide donne 70 s et bloque la validation.
+Le test vérifie maintenant le formulaire à 75 s en lecture seule, conserve
+la durée initiale de 25 s, injecte un écart de +1 s puis restaure la valeur.
+Le refus du total erroné et l'approbation finale restent exigés ; aucun test
+n'est désactivé. Cette correction de test ne modifie ni l'API ni les archives.
+
+Limite de preuve : défaut établi par lecture du parcours et de la fixture,
+pas par une exécution Chromium. La correction doit encore être exécutée avec
+la régression complète Python 3.12/3.14, PostgreSQL dédié et navigateur sur
+le nouveau SHA. Le run initial 39127783667 et le run navigateur 39127783463
+échouent sans étapes ; ils ne prouvent aucun test exécuté. Aucun export réel
+de 75 s avec `--arvor-75`, aucune recette API/Qwen ou livraison PC n'est
+revendiqué par cette revue.
+
 La destination doit être nouvelle et son parent déjà présent. Aucun fichier
 existant n'est écrasé. Un échec nettoie uniquement la nouvelle destination.
 La sortie comprend `episode.mp4`, `narration.srt`, images, voix éventuelle,
