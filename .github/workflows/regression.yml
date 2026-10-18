@@ -1,8 +1,6 @@
 name: Full regression
+# Legacy optional GitHub-hosted check: manual only; normal QA runs on PC.
 on:
-  pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
