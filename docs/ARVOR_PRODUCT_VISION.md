@@ -1,11 +1,11 @@
 # ARVOR — Charte de vision produit « Private First »
 
-**Version :** 1.0  
+**Version :** 1.1  
 **Décision utilisateur :** validée le 18 octobre 2026  
 **Statut :** référentiel fonctionnel à conserver pour la roadmap, les PR, les agents de développement et les recettes.  
 **Portée :** Arvor / Directeur éditorial — dépôt privé `richardyoann/saas-directeur-editorial`.
 
-> **Mission figée :** Arvor est **d'abord un atelier audiovisuel privé, local et prioritairement open source** permettant de produire des **vidéos courtes, ludiques et éducatives**, notamment sur les légendes, mythes et le patrimoine bretons, destinées aux réseaux sociaux. Sa réussite se mesure à la production effective de vidéos de qualité avec peu de travail manuel et à la capacité de générer **au moins 200 € par mois de bénéfice après coûts directs**. **Le SaaS commercial à abonnements n'est qu'une option ultérieure**, conditionnée à la preuve du fonctionnement et de la rentabilité.
+> **Mission figée :** Arvor est **d'abord un atelier audiovisuel privé, local et prioritairement open source** permettant de produire des **vidéos de 75 secondes, ludiques et éducatives**, notamment sur les légendes, mythes et le patrimoine bretons, destinées aux réseaux sociaux. Sa réussite se mesure à la production effective de vidéos de qualité avec peu de travail manuel et à la capacité de générer **au moins 200 € par mois de bénéfice après coûts directs**. **Le SaaS commercial à abonnements n'est qu'une option ultérieure**, conditionnée à la preuve du fonctionnement et de la rentabilité.
 
 ## 1. Principes non négociables
 
@@ -35,7 +35,7 @@
 | 9. Recette | Visionnage et validations humaines | Pas de corruption, problème de droit ou incohérence majeure |
 | 10. Publication/mesure | Fichier publiable et tableau de suivi | Suivi des performances et revenus, publication non automatique |
 
-**Format de départ :** vidéo verticale 9:16 de 30 à 60 secondes ; cible 1080 × 1920, MP4 H.264 / audio AAC, sous-titres mobiles et accroche claire. Le format technique est une **cible d'acceptation**, non la preuve d'une capacité déjà présente.
+**Format de référence (exigence validée) :** vidéo verticale 9:16 de **75 secondes exactement** ; cible 1080 × 1920, MP4 H.264 / audio AAC, sous-titres mobiles et accroche claire. Le storyboard, la narration, la bande-son, les sous-titres et le montage doivent être synchronisés sur une durée totale de **75 s**. Le contrôle de recette doit vérifier la durée avec `ffprobe` (tolérance technique maximale de ± 0,25 s liée au conteneur/encodage), sans convertir tacitement cette exigence en une plage 30–60 s. Le format technique et la synchronisation sont des **critères d'acceptation**, non la preuve d'une capacité déjà présente. Le format technique est une **cible d'acceptation**, non la preuve d'une capacité déjà présente.
 
 **Définition de « vidéo terminée » :** elle est réellement visionnable du début à la fin, possède voix/sons/sous-titres attendus, montage rythmé, images cohérentes, métadonnées de provenance et accords éditoriaux ; elle peut être exportée sans manipulation technique manuelle non documentée. Pas de faux succès si seul le scénario, le JSON ou un test simulé existe.
 
@@ -47,7 +47,7 @@
 - Valider le parcours : idée → script → scènes → image(s) locale(s) → voix → sous-titres → montage → MP4.
 - Mettre en place le contrôle éditorial, les preuves de provenance, l'export, la reprise sur incident et la protection des médias.
 - Conserver le studio UX/UI attendu et éviter de multiplier les interfaces concurrentes.
-- **Gate A :** une vidéo complète de qualité satisfaisante est produite localement, conservée et relue, avec un temps manuel mesuré.
+- **Gate A :** une vidéo complète **de 75 secondes** et de qualité satisfaisante est produite localement, conservée et relue, avec un temps manuel mesuré.
 
 ### Phase B — Production reproductible privée (P1)
 
@@ -94,7 +94,7 @@
 
 ## 5. Mesures et indicateurs
 
-- **Production :** vidéos exportées et validées / semaine, % de vidéos finies sans reprise, délai total et temps manuel par vidéo.
+- **Production :** vidéos **de 75 secondes** exportées et validées / semaine, % de vidéos finies sans reprise, délai total et temps manuel par vidéo.
 - **Qualité :** images cohérentes, erreurs factuelles détectées, lisibilité sous-titres, problèmes son/vidéo, avis à la recette.
 - **Technique :** statuts des traitements, échecs, reprises, coût GPU/CPU, tailles MinIO, tests CI, SHA PC prouvé.
 - **Audience :** rétention, partages, abonnements, visionnages selon plateforme.
@@ -135,4 +135,6 @@ Documentation vérifiée le 18/10/2026 : https://github.com/Graphify-Labs/graphi
 - Les évolutions **peuvent** être proposées et documentées ; les changements de mission/positionnement, l'ouverture publique, les coûts récurrents et les livraisons nécessitent validation humaine.
 - Cette charte constitue une **baseline de référence** ; les futures révisions portent un numéro, une date, un résumé du changement et l'accord du porteur du projet. Ne jamais réécrire rétroactivement une décision comme si elle avait toujours été différente.
 
-**Synthèse figée :** *Créer de bonnes vidéos bretonnes avec Arvor, de manière locale et économique ; atteindre durablement 200 €/mois grâce à leur exploitation ; seulement ensuite décider si Arvor mérite de devenir un SaaS commercial.*
+**Historique des décisions :** v1.0 : charte privée et cible économique ; **v1.1 (18/10/2026) : durée vidéo fixée par l'utilisateur à 75 secondes** (remplace la plage initiale de 30 à 60 secondes). Un changement ultérieur de durée exige un nouvel accord.
+
+**Synthèse figée :** *Créer de bonnes vidéos bretonnes **de 75 secondes** avec Arvor, de manière locale et économique ; atteindre durablement 200 €/mois grâce à leur exploitation ; seulement ensuite décider si Arvor mérite de devenir un SaaS commercial.*
