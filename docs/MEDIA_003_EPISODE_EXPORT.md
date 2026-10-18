@@ -37,15 +37,25 @@ localement dans un dossier privé hors release. Créer `production.json` :
 ```
 
 Les durées sont celles du scénario, de 1 à 180 secondes par scène, six scènes
-et 180 secondes au maximum par épisode. La voix doit couvrir la durée totale
-à 0,25 seconde près. Omettre `voice` produit explicitement une vidéo muette.
+et 180 secondes au maximum par épisode pour les archives historiques. Le **nouveau
+format Arvor est de 75 secondes exactement** : activer `--arvor-75` pour refuser
+avant création de la sortie tout manifeste dont la somme des scènes diffère
+de 75 s. La voix doit couvrir la durée totale à 0,25 seconde près.
+Omettre `voice` produit explicitement une vidéo muette : ce n'est pas encore
+une vidéo artistique avec narration validée.
 Les fichiers doivent être dans ce dossier ou ses sous-dossiers : chemins
 absolus, sorties du dossier et liens symboliques refusés. Ne pas utiliser de
 dossier partagé avec un autre utilisateur pendant le rendu.
 
 ```bash
-python scripts/render_episode.py /dossier/prive/pilote/production.json /dossier/prive/pilote-export-01
+python scripts/render_episode.py /dossier/prive/pilote/production.json /dossier/prive/pilote-export-01 --arvor-75
 ```
+
+Exemple de manifeste pour une vidéo Arvor de 75 s : trois scènes de 25 s,
+ou cinq scènes de 15 s. Une voix WAV de 75 s peut être ajoutée via le champ
+`"voice": "voix.wav"`. Le test de somme précède l'encodage FFmpeg et
+n'efface ni les médias existants ni les données en base. L'option est explicite
+pour conserver la compatibilité des exports historiques sans `--arvor-75`.
 
 La destination doit être nouvelle et son parent déjà présent. Aucun fichier
 existant n'est écrasé. Un échec nettoie uniquement la nouvelle destination.
@@ -66,7 +76,7 @@ entre versions de FFmpeg ou machines n'est pas garantie.
 | Parcours texte | Routes et Studio présents, régression GitHub de la base réussie | Histoire réelle créée, modifiée et retrouvée sur PC |
 | LLM | Contrats et gestion d'erreurs déjà développés | Recette réelle de cette installation |
 | Scènes/images | Intégration locale SD.cpp et reçus présents | PNG réellement générés, cohérence validée humainement |
-| Export | CLI développée et testée avec vrai FFmpeg, PNG synthétique et WAV silencieux | Pilote artistique 30–60 s avec voix et images réelles |
+| Export | CLI développée et testée avec vrai FFmpeg, PNG synthétique et WAV silencieux | Pilote artistique de 75 s avec voix et images réelles |
 | Reproductibilité | Sources, manifeste, SRT et empreintes exportés | Deuxième épisode réel avec le même processus |
 | Sauvegardes | Non exercées pendant ce travail | Restauration isolée et preuve de récupération |
 
