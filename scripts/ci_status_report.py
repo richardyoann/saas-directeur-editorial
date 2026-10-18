@@ -66,6 +66,9 @@ def classify_failure(jobs, workflow="Full regression"):
     """Separate pre-runner failures from genuine code/test failures."""
     failed_count = sum(job.get("conclusion") in {"failure", "timed_out", "cancelled"}
                        for job in jobs if isinstance(job, dict))
+    if failed_count == 0:
+        return {"failed_jobs": 0, "classification": "no_failed_jobs",
+                "hint": "No failed GitHub jobs recorded; confirm the run status in Actions."}
     steps = {
         "Full regression": (
             "Manually reproduce the first failing Python test with "
