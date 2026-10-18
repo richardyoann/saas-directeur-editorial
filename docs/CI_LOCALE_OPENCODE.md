@@ -14,7 +14,7 @@ Python 3.14 est la cible actuelle. La matrice Python 3.12/3.14 était utile pour
 
 Les workflows `local-delivery.yml` et `chat-approved-delivery.yml` sont proposés sur le runner auto-hébergé `editorial-pc`. Ils exécutent un contrôle qualité indépendant lié au SHA exact, puis `deploy_local.py` réalise l'installation candidate, les probes HTTP et le rollback.
 
-**Important** : les huit anciens workflows continuent à se déclencher tant que leur migration n'a pas été validée. La baisse de consommation GitHub n'est donc pas encore effective. Vérifier également les required checks de la protection de `main` et les quotas Actions/Copilot distincts.
+**Important** : les huit anciens workflows sont passés en déclenchement manuel **sur cette branche**, pas encore sur `main`. La baisse des minutes hébergées ne sera effective qu'après fusion et vérification des protections de branche ; les jobs de sécurité ne sont pas supprimés, leur exécution est déplacée vers le gate du runner. Vérifier également les required checks de la protection de `main` et les quotas Actions/Copilot distincts.
 
 ## Installation
 
