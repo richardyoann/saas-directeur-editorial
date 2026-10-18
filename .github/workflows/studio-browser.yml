@@ -1,12 +1,6 @@
 name: Studio browser journeys
+# Legacy optional GitHub-hosted check: manual only; normal QA runs on PC.
 on:
-  pull_request:
-    paths:
-      - 'apps/web/**'
-      - 'apps/api/studio.py'
-      - 'tests/studio_browser_fixture.py'
-      - 'browser_checks/test_studio_browser.py'
-      - '.github/workflows/studio-browser.yml'
   workflow_dispatch:
 permissions:
   contents: read
