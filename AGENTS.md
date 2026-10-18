@@ -31,3 +31,9 @@ Ce fichier est l'unique source normative pour les agents travaillant dans `richa
 - Accès distant éventuel via proxy HTTPS de confiance explicitement configuré (jamais `--forwarded-allow-ips '*'`), ACL et rate limiting de bout en bout. Ne pas activer Tailscale Funnel.
 - Pour déploiement, utiliser `scripts/deploy_local.py` via GitHub Actions, et lire `docs/mco/RUNBOOK_DIAGNOSTIC_PC.md` avant correction.
 - La documentation d'état doit refléter l'implémentation actuelle, pas des objectifs ou une synthèse obsolète.
+
+## OpenCode / OpenWork — chaîne locale proposée
+- Voir `docs/OPENCODE_OPENWORK_ARCHITECTURE.md` et `docs/CI_LOCALE_OPENCODE.md`. Les agents OpenCode sont des assistants de développement et ne font pas partie du SaaS.
+- Analyses et corrections sur worktree isolé ; aucun accès secrets, données métier ou production par défaut. Le jugement d'un modèle ne remplace jamais les tests et audits locaux déterministes.
+- La livraison PC exige approbation explicite du SHA complet, contrôle du SHA de `main`, validation sécurité et régression sur base jetable, smoke réel et rollback. OpenWork ne déclenche pas ces autorisations.
+- Python 3.14 est la cible prioritaire ; Python 3.12 reste un contrôle de compatibilité périodique. Les anciens workflows ne doivent pas être désactivés avant vérification de leurs remplaçants.
