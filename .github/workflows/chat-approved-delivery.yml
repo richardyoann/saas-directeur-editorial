@@ -10,7 +10,7 @@ concurrency:
 jobs:
   validate:
     if: github.event.ref_type == 'branch' && startsWith(github.event.ref, 'delivery-approved/')
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, editorial-pc]
     outputs:
       sha: ${{ steps.validate.outputs.sha }}
     steps:
@@ -45,6 +45,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ needs.validate.outputs.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Enforce exact SHA approval before installation
         env:
@@ -62,9 +63,19 @@ jobs:
         env:
           TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
         run: |
-          python3 -m venv .venv
-          .venv/bin/python -m pip install -r requirements.txt 'psycopg[binary]==3.3.6'
+          python3.14 -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt 'psycopg[binary]==3.3.6' pip-audit==2.10.1
           .venv/bin/python scripts/prepare_test_database.py
+      - name: Independent deterministic local quality gate
+        env:
+          EXPECTED_SHA: ${{ needs.validate.outputs.sha }}
+          PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
+          TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
+          PO_ALLOW_TEST_MIGRATION: 'yes'
+          LOCAL_QUALITY_REPORT: ${{ runner.temp }}/arvor-quality-${{ needs.validate.outputs.sha }}.json
+        run: >-
+          .venv/bin/python scripts/local_quality_gate.py
+          --sha "$EXPECTED_SHA" --report "$LOCAL_QUALITY_REPORT"
       - name: Candidate install, regression, real HTTP and rollback
         env:
           RELEASE_ROOT: ${{ vars.LOCAL_RELEASE_ROOT }}
@@ -73,6 +84,7 @@ jobs:
           LOCAL_PC_APPROVED_SHA: ${{ needs.validate.outputs.sha }}
           LOCAL_PC_ENABLED: ${{ vars.LOCAL_PC_ENABLED }}
           GITHUB_TOKEN: ${{ github.token }}
+          LOCAL_QUALITY_REPORT: ${{ runner.temp }}/arvor-quality-${{ needs.validate.outputs.sha }}.json
           PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
           PO_ALLOW_TEST_MIGRATION: 'yes'
           TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
