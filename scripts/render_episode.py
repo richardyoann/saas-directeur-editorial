@@ -8,6 +8,16 @@ import shutil
 import subprocess
 import tempfile
 
+ARVOR_VIDEO_DURATION_SECONDS = 75
+
+
+def validate_duration(total, *, arvor_75=False):
+    """Validate the export preset before any output is created."""
+    validate_duration(total, arvor_75=arvor_75)
+    if arvor_75 and total != ARVOR_VIDEO_DURATION_SECONDS:
+        raise ValueError("arvor_75_duration_mismatch")
+
+
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -42,7 +52,7 @@ def stamp(seconds):
     return f"{hours:02}:{minutes:02}:{seconds:02},{milliseconds:03}"
 
 
-def render(manifest, destination):
+def render(manifest, destination, *, arvor_75=False):
     manifest, destination = Path(manifest).resolve(), Path(destination).absolute()
     if destination.exists() or destination.is_symlink():
         raise ValueError("destination_exists")
@@ -130,9 +140,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path)
     parser.add_argument("destination", type=Path)
+    parser.add_argument("--arvor-75", action="store_true",
+                        help="Require an approved storyboard totaling exactly 75 seconds.")
     args = parser.parse_args()
     try:
-        result = render(args.manifest, args.destination)
+        result = render(args.manifest, args.destination, arvor_75=args.arvor_75)
     except (ValueError, OSError, TypeError, KeyError):
         parser.exit(2, "Export impossible : vérifier le manifeste, les médias locaux et FFmpeg.\n")
     print(json.dumps({"exported": True, "duration_seconds": result["duration_seconds"], "audio": result["audio"]}))
