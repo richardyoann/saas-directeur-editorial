@@ -21,6 +21,12 @@ def validate_test_database() -> None:
     trace = os.getenv("TRACE_TEST_DATABASE_URL", "")
     business = os.getenv("PO_DATABASE_URL", "")
     parsed = urlsplit(url)
+    production = urlsplit(business)
+    same_identity = (production.hostname in ("localhost", "127.0.0.1")
+                     and production.port == parsed.port
+                     and production.path == parsed.path)
+    if same_identity:
+        raise RuntimeError("Test and business databases share a physical identity")
     if (parsed.scheme not in ("postgresql", "postgres")
         or parsed.hostname not in ("localhost", "127.0.0.1")
         or parsed.username != "po_test"
@@ -70,7 +76,7 @@ def execute(sha: str, report: Path, *, cwd: Path) -> None:
         "secrets": ["gitleaks", "git", "--no-banner", "--redact", "--exit-code", "1", "--log-opts=--all", "."],
         "syntax-js": ["sh", "-c", "node --check apps/web/studio.js && node --check apps/web/arvor_reference.js && node --check apps/web/arvor_next.js"],
         "syntax-py": [python, "-m", "py_compile", "apps/api/studio.py"],
-        "browser": [python, "-m", "unittest", "discover", "-s", "browser_checks", "-p", "test_studio_browser.py", "-v"],
+        "browser": [python, "scripts/run_browser_gate.py"],
         "unittest": [python, "scripts/run_regression.py"],
         "sql-benchmark": [python, "scripts/benchmark_editorial_sql.py", "--rows", "1200", "--disposable"],
     }
