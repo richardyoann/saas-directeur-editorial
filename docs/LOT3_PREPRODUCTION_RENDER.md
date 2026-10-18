@@ -4,10 +4,10 @@
 
 `scripts/render_production.py` effectue une tentative explicite :
 snapshots de scénario/préproduction → manifeste de montage → FFmpeg →
-contrôle technique MP4 et SRT. Les PNG et le WAV doivent déjà exister.
+contrôle technique MP4 et SRT. Les PNG doivent déjà exister ; la voix WAV peut être fournie ou produite par une commande locale Piper séparée, après relecture.
 
 Ce chemin est **hors ligne**. Il ne lit pas PostgreSQL, ne lance ni Qwen,
-ni sd.cpp, ni Piper, n'envoie rien à MinIO et ne publie rien.
+ni sd.cpp, n'envoie rien à MinIO et ne publie rien.
 Il ne modifie ni sessions de production, ni historique métier.
 Le lot 3 reste en cours.
 
@@ -145,3 +145,42 @@ puis réussi ; les 35 tests ciblés pipeline/critique/rendu/SRT passent sans ski
 en Python 3.12 isolé, avec rendu synthétique FFmpeg/ffprobe réel.
 La CI complète, PostgreSQL, Qwen et la recette PC restent non validés ;
 aucune fusion ou livraison n'est autorisée par ces seuls résultats ciblés.
+
+## Incrément voix française locale — 18 octobre 2026
+
+La génération vocale manquante est désormais raccordable sur cette branche Lot 3.
+`production/voice_timeline.py` produit un WAV PCM mono 24 kHz de 75 secondes :
+une synthèse locale par scène, complétée par du silence pour chaque créneau.
+Une narration trop longue est rejetée plutôt que coupée.
+
+Prérequis à vérifier sur le PC : exécutable Piper, modèle français .onnx
+et sa configuration, FFmpeg. Aucun composant ni modèle n'est installé.
+
+Préparer un bundle approuvé, dont media.voice vaut voice.wav, et ses PNG.
+Puis, dans un dossier privé (la cible WAV doit être absente) :
+
+```bash
+python scripts/synthesize_production_voice.py \
+  /chemin/prive/pilote/bundle.json \
+  /chemin/prive/pilote/medias \
+  --model /chemin/prive/voix-fr.onnx \
+  --confirm-human-review
+
+ffprobe -v error -show_entries format=duration -of default=nw=1 \
+  /chemin/prive/pilote/medias/voice.wav
+
+python scripts/render_production.py \
+  /chemin/prive/pilote/bundle.json \
+  /chemin/prive/pilote/medias \
+  /chemin/prive/pilote/rendu-01 \
+  --confirm-human-review
+```
+
+Les scripts ne modifient pas PostgreSQL, MinIO, les médias existants ou la release PC.
+Le texte de narration n'est pas envoyé au réseau par ce code Python.
+
+Recette hors PC : 5 tests Python réussis avec FFmpeg réel et
+simulateur de l'interface Piper ; 75 secondes et créneaux vérifiés.
+À vérifier encore : Piper réel et modèle français sur PC, diction et
+niveaux audio, images réelles, chaîne de bout en bout, régression et CI.
+Aucune fusion ou livraison PC pendant cet incrément.
