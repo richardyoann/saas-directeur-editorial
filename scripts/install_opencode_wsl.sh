@@ -16,7 +16,12 @@ if ! command -v opencode >/dev/null 2>&1; then
   export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/bin:$PATH"
 fi
 command -v opencode >/dev/null || { echo 'Binaire installé non détecté, vérifier PATH'; exit 1; }
-opencode --version
+version="$(opencode --version)"
+echo "$version"
+if [[ ! "$version" =~ 2\\.[0-9]+ ]]; then
+  echo "OpenCode V2 requis. Installer ou mettre à niveau la version 2." >&2
+  exit 1
+fi
 echo "Modèle local attendu: Qwen3-4B-Instruct-2507 sur Windows, à $URL"
 if ! python3 - "$URL" <<'PY'
 import ipaddress, json, sys, urllib.request
@@ -59,6 +64,11 @@ configdir="$HOME/.config/opencode"
 mkdir -p "$configdir"
 if [ -e "$configdir/opencode.json" ] || [ -e "$configdir/opencode.jsonc" ]; then
   target="$configdir/arvor-local.example.json"
+  if [ -e "$target" ]; then
+    echo "Exemple déjà présent : $target (non écrasé)."
+    echo "Fusionner manuellement puis lancer OpenCode."
+    exit 0
+  fi
   echo 'Configuration globale existante conservée. Exemple généré sans écrasement.'
 else
   target="$configdir/opencode.json"
