@@ -3,11 +3,31 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch, MagicMock
 
 from scripts.verify_pc_release import verify
+from scripts.verify_pc_release import probe_loopback
 
 
 class PCReleaseEvidenceTests(unittest.TestCase):
+    def test_studio_status_probe_does_not_reject_large_html(self):
+        response = MagicMock(status=200)
+        response.read.return_value = b'x' * 8193
+        with patch('scripts.verify_pc_release.http.client.HTTPConnection') as connection:
+            connection.return_value.getresponse.return_value = response
+            self.assertEqual(probe_loopback('/studio', 8000), (200, None))
+        response.read.assert_not_called()
+        connection.return_value.close.assert_called_once()
+
+    def test_health_json_remains_bounded(self):
+        response = MagicMock(status=200)
+        response.read.return_value = b'x' * 8193
+        with patch('scripts.verify_pc_release.http.client.HTTPConnection') as connection:
+            connection.return_value.getresponse.return_value = response
+            with self.assertRaisesRegex(ValueError, 'http_response_too_large'):
+                probe_loopback('/health', 8000)
+        connection.return_value.close.assert_called_once()
+
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.addCleanup(self.folder.cleanup)

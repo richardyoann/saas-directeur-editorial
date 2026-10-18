@@ -6,6 +6,7 @@
 
 | Besoin | Document |
 | --- | --- |
+| Attestation PC read-only et smoke vidéo synthétique 75 s | [REL-004](REL_004_CI_RELEASE_PROOF_VIDEO75.md) |
 | Livraison : casse de LOCAL_PC_ENABLED et JSON Python 3.14 | [Incident du 16/10](INCIDENT_2026-10-16_LIVRAISON_JSON.md) |
 | Transfert MinIO incertain et reprise des médias | [MinIO médias](MINIO_MEDIA_RECOVERY.md) |
 | Résultat image incertain, timeout et fichier privé conservé | [Runbook images](IMAGE_GENERATION_RECOVERY.md) |
@@ -138,4 +139,3 @@ La gravité est à adapter à l'impact réel : un `/ready=503` peut relever de P
 | Flag `LOCAL_PC_ENABLED` | Avant et après **chaque** livraison | `true` hors fenêtre approuvée = risque de MEP non autorisée. |
 
 **Responsabilités :** l'opérateur MCO valide les actions système, secrets et sauvegardes ; le responsable code revoit les correctifs ; le responsable éditorial valide le contenu produit. Une CI verte ne vaut pas recette utilisateur ni acceptation métier.
-

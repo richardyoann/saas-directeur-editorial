@@ -39,6 +39,28 @@ Depuis GitHub : workflow **Synthetic 75s video acceptance**, manuel ou sur PR mo
 
 ## 3. Sécurité, limites et décision
 
+### Revue corrective du 18 octobre 2026
+
+Deux défauts corrigés avant validation : la sonde `/studio` appliquait la
+limite JSON de 8 Ko au HTML réel de plus de 12 Ko, et la comparaison de durée
+acceptait `NaN`. Le statut Studio est désormais lu sans télécharger son corps ;
+les réponses `/health` et `/ready` restent bornées à 8 Ko. La durée FFprobe
+doit être finie. Aucun accès, redémarrage ou changement PC ajouté.
+
+TDD local Python 3.12.14 : nouveaux cas en erreur/échec avant correction,
+puis 12 tests ciblés réussis, 0 échec/erreur/skip. Réseau bloqué pendant ces
+tests et variables d'environnement vidées ; preuves PC simulées uniquement.
+Le smoke FFmpeg réel corrigé a aussi réussi localement : média synthétique,
+MP4 75 s, 720×1280, SRT finissant à 75 s, fichiers temporaires nettoyés.
+Il ne teste pas encore le profil `--arvor-75` de la PR #209 ni la voix,
+Qwen, MinIO, les contrats HTTP métier, PostgreSQL ou le PC réel.
+
+Le workflow vidéo initial `39137918929` a échoué sans étapes. Le résultat
+local ne remplace ni la régression historique complète 3.12/3.14 ni les
+contrôles requis sur le nouveau SHA. L'attestation croise nom de release,
+reçu, service et cwd ; elle n'est pas une vérification cryptographique du
+contenu installé ni une preuve que le socket HTTP appartient à ce PID.
+
 Les scénarios sont séparés : l'attestation lit une installation existante ; le smoke vidéo écrit **uniquement dans un répertoire temporaire neuf**. Aucune des deux commandes n'autorise un SHA, ne modifie la base, ne change la configuration ou ne déclenche `deploy_local.py`.
 
 Si les runners GitHub Actions restent bloqués **avant le démarrage des étapes** (incident du 18 octobre, PR #210), garder la PR en brouillon et lever le blocage infrastructure par les vérifications du propriétaire GitHub. N'annoncer ni CI verte, ni MEP PC, ni résultat vidéo 75s tant que les jobs correspondants ne sont pas exécutés.

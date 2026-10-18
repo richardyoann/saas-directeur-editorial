@@ -3,6 +3,7 @@
 Never invokes a model, reads private media, persists production data or publishes.
 """
 import json
+import math
 from pathlib import Path
 import shutil
 import struct
@@ -43,7 +44,7 @@ def smoke():
             '-of', 'json', str(export / 'episode.mp4')], timeout=15))
         actual = float(probe['format']['duration'])
         videos = [stream for stream in probe['streams'] if stream.get('codec_type') == 'video']
-        if abs(actual - DURATION) > 0.25 or len(videos) != 1:
+        if not math.isfinite(actual) or abs(actual - DURATION) > 0.25 or len(videos) != 1:
             raise RuntimeError('video_duration_or_stream_invalid')
         video = videos[0]
         if (video.get('width'), video.get('height')) != (720, 1280):

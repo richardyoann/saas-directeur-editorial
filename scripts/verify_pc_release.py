@@ -34,6 +34,9 @@ def probe_loopback(path, port):
         connection.request("GET", path)
         response = connection.getresponse()
         status = response.status
+        if path == '/studio':
+            # Only availability is checked here; the HTML exceeds the JSON cap.
+            return status, None
         body = response.read(8193)
         if len(body) > 8192:
             raise ValueError("http_response_too_large")
