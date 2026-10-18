@@ -135,8 +135,9 @@ class IsolatedPCReleaseTests(unittest.TestCase):
         self.assertIn("vars.LOCAL_PC_APPROVED_SHA", workflow)
         self.assertIn("inputs.approved_sha == github.sha", workflow)
         self.assertIn("github.ref == 'refs/heads/main'", workflow)
-        self.assertIn("github.event.workflow_run.conclusion == 'success'", workflow)
-        self.assertIn("github.event.workflow_run.head_branch == 'main'", workflow)
+        self.assertNotIn("workflow_run:", workflow)
+        self.assertIn("runs-on: [self-hosted, Linux, editorial-pc]", workflow)
+        self.assertIn("scripts/local_quality_gate.py", workflow)
         self.assertIn("actions: read", workflow)
         self.assertIn('[[ "$APPROVED_SHA" == "$EXPECTED_SHA" ]]', workflow)
         self.assertLess(workflow.index("name: Enforce exact SHA approval"),
