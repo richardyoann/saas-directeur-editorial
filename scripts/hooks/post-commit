@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Hook Git local : declenche un controle IA non bloquant apres chaque commit.
+# ARVOR_OPENCODE_AUTOREVIEW_V1
+set -euo pipefail
+root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[[ -n "$root" && -f "$root/scripts/opencode_auto_review_commit.sh" ]] || exit 0
+sha="$(git rev-parse HEAD)"
+[[ "$sha" =~ ^[0-9a-f]{40}$ ]] || exit 0
+state="${XDG_STATE_HOME:-$HOME/.local/state}/arvor-opencode"
+mkdir -p "$state"
+chmod 700 "$state"
+# Pas de dependance au PATH du terminal. Le commit ne bloque pas sur le LLM.
+nohup bash "$root/scripts/opencode_auto_review_commit.sh" "$root" "$sha" \
+  >> "$state/hooks.log" 2>&1 </dev/null &
+exit 0
