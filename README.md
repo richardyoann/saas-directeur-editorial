@@ -55,3 +55,7 @@ Une CI verte ne prouve pas une livraison locale : celle-ci exige validation du S
 - `docs/QA_LOT1_2026-10-15.md` : limites des campagnes QA.
 - `docs/mco/README_LEGACY_20261016.md` : historique détaillé du README.
 - `AGENTS.md` : instructions normatives des agents.
+
+## OpenCode et OpenWork (proposition de migration)
+
+L'architecture locale est décrite dans `docs/OPENCODE_OPENWORK_ARCHITECTURE.md`, et la migration CI dans `docs/CI_LOCALE_OPENCODE.md`. Les scripts `scripts/start_opencode_llm_windows.ps1` (Windows) et `scripts/install_opencode_wsl.sh` (WSL) préparent un modèle de code sur un port distinct du moteur d'images. Les tests déterministes sont implémentés dans `scripts/local_quality_gate.py` ; aucune installation PC n'est déclenchée par cette branche.
