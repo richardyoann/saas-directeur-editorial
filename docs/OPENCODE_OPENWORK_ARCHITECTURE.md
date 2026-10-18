@@ -46,3 +46,28 @@ Phase 1 : documentation, script d'installation et test modèle. Phase 2 : gate q
 Documents connexes : `AGENTS.md`, `docs/AUTONOMOUS_CI.md`, `docs/mco/RUNBOOK_DIAGNOSTIC_PC.md`.
 
 Références : https://opencode.ai/v2/docs/ ; https://opencode.ai/v2/docs/agents/ ; https://github.com/different-ai/openwork
+
+## Analyse automatique apres chaque commit Git
+
+L'installation d'OpenCode seule ne lance pas ses agents apres les commits. Activer explicitement le hook du projet dans WSL :
+
+```bash
+cd ~/arvor-opencode
+git fetch origin feat/OPS-OPENCODE-LOCAL-CI-20261018
+# Rester sur un checkout propre lors de l'actualisation du worktree.
+git switch --detach origin/feat/OPS-OPENCODE-LOCAL-CI-20261018
+bash scripts/install_opencode_autoreview.sh
+```
+
+Le hook Git `post-commit` appelle `scripts/opencode_auto_review_commit.sh` **sans ralentir le commit**. Il travaille sur un worktree temporaire du SHA exact, avec un verrou pour ne pas exécuter plusieurs revues simultanément. Les rapports et statuts sont conservés sous `~/.local/state/arvor-opencode/reports/<SHA>.md` et `<SHA>.status`. Le hook est commun aux worktrees qui partagent le même dépôt Git, mais ne s'applique pas aux commits faits directement sur GitHub ou sur une autre machine.
+
+**Par défaut, seul le modèle local `arvorlocal/coder` est autorisé**. Si le serveur Windows 8083 est arrêté, la revue est notée `skipped local_model_offline` sans utiliser de crédits de modèle hébergé. Un autre modèle (gratuit ou payant) n'est utilisé que si l'utilisateur renseigne volontairement son identifiant dans le fichier local `~/.config/arvor-opencode-review-model`, par exemple `fournisseur/modele`. Il faut alors vérifier les limites et les frais éventuels : un déclenchement par commit peut consommer des tokens distants.
+
+```bash
+# Inspecter le statut de la derniere revue
+ls -lt ~/.local/state/arvor-opencode/reports/*.status | head
+# Voir un rapport : remplacer SHA par un identifiant de commit reel
+cat ~/.local/state/arvor-opencode/reports/<SHA>.md
+```
+
+La revue n'est pas un test automatisé et ne remplace pas la commande de QA ni une revue humaine. Aucun `git push`, merge, déploiement, ouverture de PR ou publication de rapport n'est déclenché automatiquement. Lorsqu'un autre hook `post-commit` existe déjà, le script d'installation refuse de le remplacer : réaliser une intégration manuelle sans écraser les hooks existants. L'arrêt du serveur local, la déconnexion WSL ou un quota de fournisseur peuvent empêcher une revue de finir ; vérifier le fichier `.status` plutôt que supposer qu'elle est réussie.
