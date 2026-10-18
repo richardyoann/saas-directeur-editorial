@@ -37,3 +37,11 @@ Aucune dépendance, variable d’environnement, commande d’installation, unit�
 Revue de contenu : aucun secret ajouté ; fixtures PNG et textes de test synthétiques uniquement. AGENTS.md, le plan non suivi et les autres artefacts préexistants restent exclus du commit de PR1. Les sorties graphify locales sont rafraîchies sans suppression des documents existants.
 
 PR2 reste suspendue jusqu’à validation technique de PR1 et remise du rapport de revue. Aucune fusion automatique.
+
+## PR brouillon et contrôle distant
+
+PR [#208](https://github.com/richardyoann/saas-directeur-editorial/pull/208), titre « refactor(ARCH-MEDIA-01): découpler les règles média partagées ». Commit applicatif : d3fb3294352e1ce2ddfb99ce5de147d10c08d5a1. Le run Full regression #39124843757 échoue avant toute étape ; l’annotation GitHub du job 3.14 confirme un blocage de facturation/limite de dépenses. Aucune régression PostgreSQL ou navigateur validée. Voir [la fiche MCO](../mco/INCIDENT_2026-10-18_CI_PR208.md).
+
+Le main distant a avancé jusqu’à d08fe0afe62f0ea209da239aeade0bd5f042d30d. GitHub indique la PR fusionnable ; les modifications distantes de runtime_secrets dans media_storage ne sont pas remplacées par ce diff. Cela ne remplace pas la validation du résultat combiné avec main. Pas de fusion, rebase ou changement des checkouts préexistants.
+
+Les corrections documentaires suivantes ne modifient pas les règles extraites ; les contrôles locaux sont relancés sur l’arbre final avant commit. Leur preuve ne vaut pas CI réussie au nouveau SHA. Nouvelle exécution CI requise après résolution du blocage administratif. Prochaine étape : autoriser l’installation locale isolée et/ou rétablir Actions, puis exécuter tous les tests sur le candidat exact. PR2 non engagée.
