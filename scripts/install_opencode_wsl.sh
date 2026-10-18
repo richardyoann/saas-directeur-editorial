@@ -18,7 +18,7 @@ fi
 command -v opencode >/dev/null || { echo 'Binaire installé non détecté, vérifier PATH'; exit 1; }
 version="$(opencode --version)"
 echo "$version"
-if [[ ! "$version" =~ 2\\.[0-9]+ ]]; then
+if [[ ! "$version" =~ 2\.[0-9]+ ]]; then
   echo "OpenCode V2 requis. Installer ou mettre à niveau la version 2." >&2
   exit 1
 fi
