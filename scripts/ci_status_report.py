@@ -46,8 +46,24 @@ def identify(event, repository):
     return run
 
 
+def startup_failed_before_steps(jobs):
+    """Recognize failed hosted jobs without an assigned runner or any steps.
+
+    A missing 'steps' field is not evidence: old fixtures and incomplete API
+    responses must not be silently classified as infrastructure failures.
+    """
+    failures = [job for job in jobs if isinstance(job, dict)
+                and job.get("conclusion") in {"failure", "timed_out"}]
+    return bool(failures) and all(
+        "steps" in job and job["steps"] in (None, [])
+        and job.get("runner_id") is None
+        and not job.get("runner_name")
+        for job in failures
+    )
+
+
 def classify_failure(jobs, workflow="Full regression"):
-    """Conservative reproduction instructions without reading any CI log data."""
+    """Separate pre-runner failures from genuine code/test failures."""
     failed_count = sum(job.get("conclusion") in {"failure", "timed_out", "cancelled"}
                        for job in jobs if isinstance(job, dict))
     steps = {
@@ -66,8 +82,19 @@ def classify_failure(jobs, workflow="Full regression"):
             "verify that mocked browser tests do not prove the real PC Studio."
         ),
     }
+    if startup_failed_before_steps(jobs):
+        return {
+            "failed_jobs": failed_count,
+            "classification": "runner_startup_unverified",
+            "hint": ("No job step or runner was recorded. Check the GitHub run "
+                     "banner, Actions usage/billing, Actions permissions and "
+                     "GitHub Status; contact GitHub Support with run/job IDs if "
+                     "one controlled retry also fails. Do not alter application "
+                     "code, disable CI checks, or deploy to the PC."),
+        }
     return {
         "failed_jobs": failed_count,
+        "classification": "workflow_failure_or_unknown",
         "hint": (steps.get(workflow, "Manually inspect the failing GitHub workflow.")
                  + " Do not replay an ambiguous persisted Qwen request."),
     }
@@ -106,10 +133,12 @@ def triage_comment(run, outcome):
             "- Result: **{status}**\n"
             "- GitHub Actions run ID: `{run_id}`\n"
             "- Failed jobs: **{n}**\n"
+            "- Classification: **{classification}**\n"
             "- Next step: {hint}\n\n"
             "This is a status/heuristic report, not a code review, code fix, deployment approval or verified root cause.\n"
             ).format(marker=MARKER, workflow=workflow, sha=sha, status=status,
-                     run_id=run["id"], n=outcome["failed_jobs"], hint=next_step)
+                     run_id=run["id"], n=outcome["failed_jobs"], hint=next_step,
+                     classification=outcome.get("classification", "unknown"))
 
 
 def existing_comment(repo, number, token, workflow):
