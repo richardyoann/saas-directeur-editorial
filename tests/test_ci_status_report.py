@@ -103,6 +103,63 @@ class AutomatedTriageTests(unittest.TestCase):
         self.assertNotIn("Review failing job steps", body)
         self.assertIn(SHA, body)
 
+    def test_startup_failure_has_specific_triage_not_python_or_pip_advice(self):
+        for workflow in ("Full regression", "Dependency security audit",
+                         "Studio browser journeys"):
+            with self.subTest(workflow=workflow):
+                outcome = reporter.classify_failure([
+                    {"name": "job", "conclusion": "failure",
+                     "steps": None, "runner_id": None, "runner_name": None}
+                ], workflow)
+                self.assertEqual(outcome["classification"], "runner_startup_unverified")
+                self.assertIn("GitHub Support", outcome["hint"])
+                self.assertNotIn("pip_audit", outcome["hint"])
+                self.assertNotIn("run_regression.py", outcome["hint"])
+                self.assertIn("Do not alter", outcome["hint"])
+
+    def test_startup_evidence_must_be_explicit_and_all_failed_jobs_unassigned(self):
+        unknown = [{"conclusion": "failure"}]
+        started = [{"conclusion": "failure", "steps": [
+            {"name": "test", "conclusion": "failure"}], "runner_id": 10}]
+        mixed = [{"conclusion": "failure", "steps": None, "runner_id": None},
+                 {"conclusion": "failure", "steps": [], "runner_id": 12}]
+        for jobs in (unknown, started, mixed):
+            with self.subTest(jobs=jobs):
+                self.assertFalse(reporter.startup_failed_before_steps(jobs))
+                self.assertEqual(reporter.classify_failure(jobs)["classification"],
+                                 "workflow_failure_or_unknown")
+        self.assertFalse(reporter.startup_failed_before_steps([]))
+        self.assertFalse(reporter.startup_failed_before_steps([
+            {"conclusion": "success", "steps": [], "runner_id": None}
+        ]))
+
+    def test_raw_zero_runner_id_is_unassigned_but_missing_or_assigned_is_unknown(self):
+        # Raw Actions jobs response: unassigned runner is 0, not always null.
+        outcome = reporter.classify_failure([
+            {"conclusion": "failure", "steps": [], "runner_id": 0,
+             "runner_name": ""}
+        ])
+        self.assertEqual(outcome["classification"], "runner_startup_unverified")
+        for job in (
+            {"conclusion": "failure", "steps": []},
+            {"conclusion": "failure", "steps": [], "runner_id": 12, "runner_name": ""},
+            {"conclusion": "failure", "steps": [], "runner_id": 0, "runner_name": "assigned"},
+            {"conclusion": "failure", "steps": [], "runner_id": False, "runner_name": ""},
+            {"conclusion": "failure", "steps": [], "runner_id": "0", "runner_name": ""},
+        ):
+            with self.subTest(job=job):
+                self.assertFalse(reporter.startup_failed_before_steps([job]))
+
+    def test_startup_failure_comment_is_clearly_classified(self):
+        data = event()["workflow_run"]
+        outcome = reporter.classify_failure([
+            {"conclusion": "failure", "steps": [], "runner_id": None}
+        ], "Full regression")
+        body = reporter.triage_comment(data, outcome)
+        self.assertIn("runner_startup_unverified", body)
+        self.assertIn("No job step", body)
+        self.assertNotIn("Manually reproduce the first failing Python test", body)
+
     def test_failure_includes_reproducible_static_actions_without_log_payload(self):
         data = event()
         data["workflow_run"]["name"] = "Dependency security audit"
