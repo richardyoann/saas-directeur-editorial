@@ -56,7 +56,9 @@ def startup_failed_before_steps(jobs):
                 and job.get("conclusion") in {"failure", "timed_out"}]
     return bool(failures) and all(
         "steps" in job and job["steps"] in (None, [])
-        and job.get("runner_id") is None
+        and "runner_id" in job
+        and (job["runner_id"] is None
+             or (type(job["runner_id"]) is int and job["runner_id"] == 0))
         and not job.get("runner_name")
         for job in failures
     )
@@ -89,7 +91,7 @@ def classify_failure(jobs, workflow="Full regression"):
         return {
             "failed_jobs": failed_count,
             "classification": "runner_startup_unverified",
-            "hint": ("No job step or runner was recorded. Check the GitHub run "
+            "hint": ("No job step or runner was recorded for failed/timed-out jobs. Check the GitHub run "
                      "banner, Actions usage/billing, Actions permissions and "
                      "GitHub Status; contact GitHub Support with run/job IDs if "
                      "one controlled retry also fails. Do not alter application "

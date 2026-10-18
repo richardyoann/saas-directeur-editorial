@@ -64,6 +64,25 @@ sous `runner_startup_unverified` : ne plus recommander de corriger
 La catégorisation est conservatrice ; aucun message de job n'est traité
 comme une instruction ni publié.
 
+### Revue et correction du format API — 18 octobre 2026
+
+La réponse REST brute du run `39127985728` (jobs `117677042003` et
+`117677042238`) indique `steps: []`, `runner_id: 0`, `runner_name: ""`.
+Le premier correctif ne reconnaissait que `runner_id: null` et manquait
+donc ce cas réel. Le diagnostic accepte maintenant explicitement `null`
+ou l'entier `0`, avec étapes explicitement vides et aucun nom de runner.
+Un champ `runner_id` absent reste une preuve insuffisante ; un runner
+positif ou nommé interdit cette classification. Les booléens ne sont pas
+assimilés à l'entier zéro. L'indication concerne les jobs en échec/timeout,
+sans affirmer que tous les autres jobs du workflow sont restés sans runner.
+
+Test de non-régression ajouté avant correction : 13 tests ciblés exécutés,
+1 échec sur le cas réel `runner_id: 0` ; après correction et séparation du
+cas de non-régression : 14 tests réussis, 0 échec, 0 erreur, 0 skip sous
+Python 3.12.14. Environnement de revue isolé des identifiants (variables vidées),
+appels réseau bloqués et API simulée : ce contrôle n'est ni une CI GitHub
+complète ni une validation du PC ou de PostgreSQL.
+
 Ce correctif améliore la **qualité du diagnostic**, **pas l'accès aux
 runners hébergés par GitHub**. Une PR non fusionnée ne le rend pas actif.
 

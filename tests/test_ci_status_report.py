@@ -133,6 +133,23 @@ class AutomatedTriageTests(unittest.TestCase):
             {"conclusion": "success", "steps": [], "runner_id": None}
         ]))
 
+    def test_raw_zero_runner_id_is_unassigned_but_missing_or_assigned_is_unknown(self):
+        # Raw Actions jobs response: unassigned runner is 0, not always null.
+        outcome = reporter.classify_failure([
+            {"conclusion": "failure", "steps": [], "runner_id": 0,
+             "runner_name": ""}
+        ])
+        self.assertEqual(outcome["classification"], "runner_startup_unverified")
+        for job in (
+            {"conclusion": "failure", "steps": []},
+            {"conclusion": "failure", "steps": [], "runner_id": 12, "runner_name": ""},
+            {"conclusion": "failure", "steps": [], "runner_id": 0, "runner_name": "assigned"},
+            {"conclusion": "failure", "steps": [], "runner_id": False, "runner_name": ""},
+            {"conclusion": "failure", "steps": [], "runner_id": "0", "runner_name": ""},
+        ):
+            with self.subTest(job=job):
+                self.assertFalse(reporter.startup_failed_before_steps([job]))
+
     def test_startup_failure_comment_is_clearly_classified(self):
         data = event()["workflow_run"]
         outcome = reporter.classify_failure([

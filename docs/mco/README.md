@@ -6,6 +6,7 @@
 
 | Besoin | Document |
 | --- | --- |
+| CI sans étapes ni runner : diagnostic et reprise | [Incident CI du 18/10](CI_RUNNER_STARTUP_RECOVERY_20261018.md) |
 | Livraison : casse de LOCAL_PC_ENABLED et JSON Python 3.14 | [Incident du 16/10](INCIDENT_2026-10-16_LIVRAISON_JSON.md) |
 | Transfert MinIO incertain et reprise des médias | [MinIO médias](MINIO_MEDIA_RECOVERY.md) |
 | Résultat image incertain, timeout et fichier privé conservé | [Runbook images](IMAGE_GENERATION_RECOVERY.md) |
@@ -138,4 +139,3 @@ La gravité est à adapter à l'impact réel : un `/ready=503` peut relever de P
 | Flag `LOCAL_PC_ENABLED` | Avant et après **chaque** livraison | `true` hors fenêtre approuvée = risque de MEP non autorisée. |
 
 **Responsabilités :** l'opérateur MCO valide les actions système, secrets et sauvegardes ; le responsable code revoit les correctifs ; le responsable éditorial valide le contenu produit. Une CI verte ne vaut pas recette utilisateur ni acceptation métier.
-
