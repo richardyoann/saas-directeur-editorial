@@ -13,7 +13,8 @@ ARVOR_VIDEO_DURATION_SECONDS = 75
 
 def validate_duration(total, *, arvor_75=False):
     """Validate the export preset before any output is created."""
-    validate_duration(total, arvor_75=arvor_75)
+    if total > 180:
+        raise ValueError("episode_duration_invalid")
     if arvor_75 and total != ARVOR_VIDEO_DURATION_SECONDS:
         raise ValueError("arvor_75_duration_mismatch")
 
@@ -76,8 +77,7 @@ def render(manifest, destination, *, arvor_75=False):
             raise ValueError("narration_invalid")
         assets.append(local_file(manifest.parent, scene.get("image"), ".png"))
         total += duration
-    if total > 180:
-        raise ValueError("episode_duration_invalid")
+    validate_duration(total, arvor_75=arvor_75)
     voice = local_file(manifest.parent, data["voice"], ".wav") if data.get("voice") else None
     ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
     if not ffmpeg or not ffprobe:
