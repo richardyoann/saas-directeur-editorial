@@ -30,8 +30,9 @@ localement dans un dossier privé hors release. Créer `production.json` :
   "approved": true,
   "voice": "voix.wav",
   "scenes": [
-    {"image": "scene-1.png", "duration_seconds": 15, "narration": "Texte validé de la première scène."},
-    {"image": "scene-2.png", "duration_seconds": 15, "narration": "Texte validé de la deuxième scène."}
+    {"image": "scene-1.png", "duration_seconds": 25, "narration": "Texte validé de la première scène."},
+    {"image": "scene-2.png", "duration_seconds": 25, "narration": "Texte validé de la deuxième scène."},
+    {"image": "scene-3.png", "duration_seconds": 25, "narration": "Texte validé de la troisième scène."}
   ]
 }
 ```
