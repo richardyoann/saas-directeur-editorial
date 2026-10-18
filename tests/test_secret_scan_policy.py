@@ -21,7 +21,9 @@ class SecretScanPolicyTests(unittest.TestCase):
         watch = (repo / "scripts" / "ci_annotation_watch.py").read_text()
         triggers = (repo / ".github" / "workflows" / "ci-annotations.yml").read_text()
         self.assertIn('"Secret exposure scan"', watch)
-        self.assertIn("      - Secret exposure scan", triggers)
+        self.assertIn("workflow_dispatch:", triggers)
+        self.assertNotIn("workflow_run:", triggers)
+        self.assertIn("gitleaks", (repo / "scripts" / "local_quality_gate.py").read_text())
 
 
 if __name__ == "__main__":
