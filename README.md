@@ -59,3 +59,7 @@ Une CI verte ne prouve pas une livraison locale : celle-ci exige validation du S
 ## OpenCode et OpenWork (proposition de migration)
 
 L'architecture locale est décrite dans `docs/OPENCODE_OPENWORK_ARCHITECTURE.md`, et la migration CI dans `docs/CI_LOCALE_OPENCODE.md`. Les scripts `scripts/start_opencode_llm_windows.ps1` (Windows) et `scripts/install_opencode_wsl.sh` (WSL) préparent un modèle de code sur un port distinct du moteur d'images. Les tests déterministes sont implémentés dans `scripts/local_quality_gate.py` ; aucune installation PC n'est déclenchée par cette branche.
+
+### Revue OpenCode automatique après chaque commit (optionnelle)
+
+Dans WSL, depuis un worktree de la branche de migration, exécuter `bash scripts/install_opencode_autoreview.sh`. Le hook Git `post-commit` déclenchera `scripts/opencode_auto_review_commit.sh` en arrière-plan et conservera un rapport par SHA dans `~/.local/state/arvor-opencode/reports/`. Sans modèle local actif sur le port Windows 8083, la revue est signalée comme ignorée, sans coût distant automatique. Voir `docs/OPENCODE_OPENWORK_ARCHITECTURE.md`. Ce hook ne lance pas les tests de recette, ne publie rien et ne déploie pas.
