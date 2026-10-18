@@ -529,5 +529,47 @@ class StudioBrowserJourneys(unittest.TestCase):
             self.assertEqual(client.get("/__fixture__/counts").json()["generate"], 1)
 
 
+    def test_stale_refresh_response_cannot_replace_another_open_story(self):
+        """Delayed response for A must never redraw B after navigation."""
+        self.sign_in()
+        first = self.create("Légende A")
+        self.page.locator("#home").click()
+        second = self.create("Légende B")
+        self.page.locator("#home").click()
+        self.page.locator("#runList .run-item").filter(has_text="Légende A").click()
+        expect(self.page.locator("#storyTitle")).to_have_text("Légende A")
+
+        # Hold one read-only API response entirely inside the browser.
+        # No database write, sleep in a route handler, or provider call.
+        self.page.evaluate("""(runId) => {
+            const realFetch = window.fetch.bind(window);
+            window.__heldRefreshes = [];
+            window.fetch = (url, options) => {
+                if (String(url) === "/studio/api/runs/" + runId
+                        && (!options || !options.method || options.method === "GET")) {
+                    return new Promise(resolve => window.__heldRefreshes.push(resolve));
+                }
+                return realFetch(url, options);
+            };
+        }""", first)
+        self.page.locator("#refresh").click()
+        self.page.wait_for_function("window.__heldRefreshes.length === 1")
+
+        self.page.locator("#home").click()
+        self.page.locator("#runList .run-item").filter(has_text="Légende B").click()
+        expect(self.page.locator("#storyTitle")).to_have_text("Légende B")
+        self.page.evaluate("""(runId) => {
+            const resolve = window.__heldRefreshes.shift();
+            resolve(new Response(JSON.stringify({
+                id: runId, status: "failed", created_at: "2026-01-01T00:00:00Z",
+                brief: {topic: "DONNÉE OBSOLÈTE"},
+                storyboard: {title: "DONNÉE OBSOLÈTE", scenes: []}
+            }), {status: 200, headers: {"Content-Type": "application/json"}}));
+        }""", first)
+        self.page.wait_for_timeout(100)
+        expect(self.page.locator("#storyTitle")).to_have_text("Légende B")
+        self.assertEqual(self.page.evaluate("location.hash.slice(5)"), second)
+
+
 if __name__ == "__main__":
     unittest.main()

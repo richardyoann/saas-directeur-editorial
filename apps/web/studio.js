@@ -11,7 +11,7 @@ const verbs={accept:"Accepté",reject:"Changements demandés",revise:"Révision"
 function elem(tag,cls,value){const x=document.createElement(tag);if(cls)x.className=cls;if(value!==undefined&&value!==null)x.textContent=String(value);return x;}
 function put(root,tag,cls,value){const x=elem(tag,cls,value);root.append(x);return x;}
 function date(d){const x=new Date(d);return isNaN(x.getTime())?"Date inconnue":x.toLocaleString("fr-FR",{dateStyle:"medium",timeStyle:"short"});}
-function message(e){return ({401:"Session expirée. Reconnectez-vous.",403:"Accès refusé.",404:"Histoire introuvable.",409:"Conflit de version : actualisez avant toute nouvelle décision.",422:"Données non conformes : vérifiez le schéma et les durées.",429:"Trop de tentatives de connexion.",502:"API indisponible : ne réessayez pas automatiquement.",503:"Service non configuré ou indisponible.",504:"Délai dépassé : l'état de la génération est incertain."})[e.status]||"Une erreur est survenue.";}
+function message(e){return ({401:"Session expirée. Reconnectez-vous.",403:"Accès refusé.",404:"Histoire introuvable.",409:"Conflit de version : actualisez avant toute nouvelle décision.",422:"Données non conformes : vérifiez le schéma et les durées.",429:"Trop de requêtes. Patientez avant de réessayer cette opération.",502:"API indisponible : ne réessayez pas automatiquement.",503:"Service non configuré ou indisponible.",504:"Délai dépassé : l'état de la génération est incertain."})[e.status]||"Une erreur est survenue.";}
 function alertUser(text,bad=false){$("notice").hidden=false;$("notice").textContent=text;$("notice").classList.toggle("error",bad);}
 async function api(path,method="GET",body,more={}){
  let res,data;const headers={...more};
@@ -196,10 +196,10 @@ async function pollRun(){
  if(s.pollBusy||!s.csrf||!s.run||!["queued","running"].includes(s.run.status)||
     document.visibilityState!=="visible")return;
  s.pollBusy=true;
- const id=s.run.id;
+ const id=s.run.id,request=s.openRequest;
  try{
   const latest=await api("/studio/api/runs/"+id);
-  if(!s.run||s.run.id!==id||!s.csrf)return;
+  if(request!==s.openRequest||!s.run||s.run.id!==id||!s.csrf)return;
   const changed=latest.status!==s.run.status||
     (latest.current_step?.name||"")!==(s.run.current_step?.name||"")||
     (latest.steps||[]).length!==(s.run.steps||[]).length;
@@ -214,7 +214,7 @@ async function pollRun(){
     alertUser(latest.status==="failed"?"La génération a échoué. Consultez l'historique avant de relancer.":"Génération terminée : la validation humaine est maintenant disponible.",latest.status==="failed");
    }
   }
- }catch(e){if(e.status!==401)alertUser(message(e),true);}
+ }catch(e){if(e.status!==401&&request===s.openRequest&&s.run?.id===id&&s.csrf)alertUser(message(e),true);}
  finally{s.pollBusy=false;}
 }
 function closeNav(){$("sidebar").classList.remove("open");$("menu").setAttribute("aria-expanded","false");}
@@ -570,32 +570,49 @@ function analysis(){
 }
 function fold(root,label,value){const d=put(root,"details");put(d,"summary","",label);put(d,"pre","",typeof value==="string"?value:JSON.stringify(value||{},null,2));}
 async function historyView(){
- empty("Chargement de l’historique…");const id=s.run.id;
- try{const x=await api("/studio/api/runs/"+id+"/history");if(s.tab!=="history"||s.run.id!==id)return;
+ empty("Chargement de l’historique…");const id=s.run.id,request=s.openRequest;
+ try{const x=await api("/studio/api/runs/"+id+"/history");if(request!==s.openRequest||s.tab!=="history"||s.run?.id!==id||!s.csrf)return;
   const root=$("panel");root.replaceChildren();if(!x.steps?.length)return empty("Aucun traitement historisé.");
   x.steps.forEach((h,i)=>{const c=put(root,"article","card");put(c,"div","overline","ÉTAPE "+(i+1));put(c,"h3","",h.order===0?"Analyse IA":"Storyboard IA");fold(c,"Voir le prompt",h.prompt);fold(c,"Voir le résultat structuré",h.parsed);if(h.error_code)put(c,"p","warning",h.error_code);});
- }catch(e){empty(message(e));}
+ }catch(e){if(request===s.openRequest&&s.tab==="history"&&s.run?.id===id&&s.csrf)empty(message(e));}
 }
 async function reviews(reset=true){
- if(reset){s.reviews=[];s.nextReview=null;}empty("Chargement des décisions…");const id=s.run.id;
+ if(reset){s.reviews=[];s.nextReview=null;}empty("Chargement des décisions…");const id=s.run.id,request=s.openRequest;
  try{let url="/studio/api/runs/"+id+"/reviews?limit=20";if(!reset&&s.nextReview)url+="&before_revision="+s.nextReview;
-  const x=await api(url);if(s.tab!=="reviews"||s.run.id!==id)return;
+  const x=await api(url);if(request!==s.openRequest||s.tab!=="reviews"||s.run?.id!==id||!s.csrf)return;
   s.reviews.push(...(x.reviews||[]));s.nextReview=x.next_before_revision;const root=$("panel");root.replaceChildren();
   if(!s.reviews.length)return empty("Aucune décision humaine enregistrée.");
   const card=put(root,"article","card");put(card,"h3","","Journal des décisions");
   for(const r of s.reviews){const e=put(card,"div","history-entry");put(e,"strong","","Révision "+r.revision+" · "+(names[r.step]||r.step)+" · "+(verbs[r.action]||r.action));put(e,"p","",date(r.created_at)+(r.comment?" · "+r.comment:""));fold(e,"Consulter cette version",r.effective_output);}
   if(s.nextReview){const b=put(root,"button","btn secondary","Décisions précédentes ↓");b.type="button";b.addEventListener("click",()=>reviews(false));}
- }catch(e){empty(message(e));}
+ }catch(e){if(request===s.openRequest&&s.tab==="reviews"&&s.run?.id===id&&s.csrf)empty(message(e));}
 }
-async function refresh(){if(!s.run)return;try{s.run=await api("/studio/api/runs/"+s.run.id);if(s.run.status==="failed"&&s.pending?.runId===s.run.id)s.pending=null;render();await list(true);alertUser("Histoire actualisée.");}catch(e){alertUser(message(e),true);}}
+async function refresh(){
+ if(!s.run)return;
+ const id=s.run.id,request=s.openRequest;
+ try{
+  const updated=await api("/studio/api/runs/"+id);
+  if(request!==s.openRequest||s.run?.id!==id||!s.csrf)return;
+  s.run=updated;
+  if(s.run.status==="failed"&&s.pending?.runId===id)s.pending=null;
+  render();
+  await list(true);
+  if(request===s.openRequest&&s.run?.id===id)alertUser("Histoire actualisée.");
+ }catch(e){if(request===s.openRequest&&s.run?.id===id)alertUser(message(e),true);}
+}
 async function reconcile(){
  if(!s.run||s.run.status!=="running")return;
+ const id=s.run.id,request=s.openRequest;
  const b=$("reconcile");b.disabled=true;
- try{const run=await api("/studio/api/runs/"+s.run.id+"/reconcile","POST");
-  s.run=run;if(run.status==="failed"&&s.pending?.runId===run.id)s.pending=null;
+ try{
+  const run=await api("/studio/api/runs/"+id+"/reconcile","POST");
+  if(request!==s.openRequest||s.run?.id!==id||!s.csrf)return;
+  s.run=run;
+  if(run.status==="failed"&&s.pending?.runId===id)s.pending=null;
   render();await list(true);
-  alertUser(run.status==="failed"?"Génération interrompue confirmée et historisée. Vous pouvez relancer le brief.":"Cette génération n'a pas dépassé le seuil de dix minutes. Réessayez après actualisation.",run.status==="failed");
- }catch(e){alertUser(message(e),true);}
+  if(request===s.openRequest&&s.run?.id===id)
+   alertUser(run.status==="failed"?"Génération interrompue confirmée et historisée. Vous pouvez relancer le brief.":"Cette génération n'a pas dépassé le seuil de dix minutes. Réessayez après actualisation.",run.status==="failed");
+ }catch(e){if(request===s.openRequest&&s.run?.id===id)alertUser(message(e),true);}
  finally{b.disabled=false;}
 }
 // Form fields map exactly to the Pydantic Analysis/Storyboard contracts.
@@ -710,16 +727,26 @@ function toggleReview(){
  $("commentRequired").textContent=$("reviewAction").value==="accept"?"(facultatif)":"(obligatoire)";
 }
 async function sendReview(ev){
- ev.preventDefault();const r=s.run;if(!r)return;const b=$("submitReview");b.disabled=true;
+ ev.preventDefault();
+ const r=s.run;if(!r)return;
+ const request=s.openRequest,step=s.step,b=$("submitReview");b.disabled=true;
  $("reviewError").hidden=true;
  const payload={action:$("reviewAction").value,expected_revision:r.review_revision||0,comment:$("reviewComment").value.trim()};
  if(payload.action==="revise"){
   try{payload.revised_output=revisedOutput();}
   catch(error){$("reviewError").hidden=false;$("reviewError").textContent=error.message;b.disabled=false;return;}
  }
- try{s.run=await api("/studio/api/runs/"+r.id+"/steps/"+s.step+"/review","POST",payload);$("reviewDialog").close();render();await list(true);alertUser("Décision enregistrée et historisée.");}
- catch(e){if(e.status===409){$("reviewDialog").close();await refresh();alertUser(message(e),true);}else{$("reviewError").hidden=false;$("reviewError").textContent=message(e);}}
- finally{b.disabled=false;}
+ try{
+  const updated=await api("/studio/api/runs/"+r.id+"/steps/"+step+"/review","POST",payload);
+  if(request!==s.openRequest||s.run?.id!==r.id||!s.csrf)return;
+  s.run=updated;
+  $("reviewDialog").close();render();await list(true);
+  if(request===s.openRequest&&s.run?.id===r.id)alertUser("Décision enregistrée et historisée.");
+ }catch(e){
+  if(request!==s.openRequest||s.run?.id!==r.id||!s.csrf)return;
+  if(e.status===409){$("reviewDialog").close();await refresh();if(request===s.openRequest&&s.run?.id===r.id)alertUser(message(e),true);}
+  else{$("reviewError").hidden=false;$("reviewError").textContent=message(e);}
+ }finally{b.disabled=false;}
 }
 async function create(ev){
  ev.preventDefault();const b=$("submitNew");b.disabled=true;b.textContent="Génération en cours…";

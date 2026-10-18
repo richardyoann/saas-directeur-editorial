@@ -6,6 +6,7 @@ on:
       - 'apps/api/studio.py'
       - 'tests/studio_browser_fixture.py'
       - 'browser_checks/test_studio_browser.py'
+      - 'browser_checks/test_studio_races.js'
       - '.github/workflows/studio-browser.yml'
   workflow_dispatch:
 permissions:
@@ -21,6 +22,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12'
+      - name: Deterministic Studio async-state regression
+        run: node --test browser_checks/test_studio_races.js
       - name: Install test-only browser driver
         run: python -m pip install -r requirements.txt playwright==1.58.0
       - name: Run five real Chromium journeys with isolated fake API
