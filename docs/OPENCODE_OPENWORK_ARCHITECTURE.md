@@ -67,7 +67,9 @@ Le hook Git `post-commit` appelle `scripts/opencode_auto_review_commit.sh` **san
 # Inspecter le statut de la derniere revue
 ls -lt ~/.local/state/arvor-opencode/reports/*.status | head
 # Voir un rapport : remplacer SHA par un identifiant de commit reel
-cat ~/.local/state/arvor-opencode/reports/<SHA>.md
+SHA="$(git rev-parse HEAD)"
+cat "$HOME/.local/state/arvor-opencode/reports/$SHA.status"
+cat "$HOME/.local/state/arvor-opencode/reports/$SHA.md"
 ```
 
 La revue n'est pas un test automatisé et ne remplace pas la commande de QA ni une revue humaine. Aucun `git push`, merge, déploiement, ouverture de PR ou publication de rapport n'est déclenché automatiquement. Lorsqu'un autre hook `post-commit` existe déjà, le script d'installation refuse de le remplacer : réaliser une intégration manuelle sans écraser les hooks existants. L'arrêt du serveur local, la déconnexion WSL ou un quota de fournisseur peuvent empêcher une revue de finir ; vérifier le fichier `.status` plutôt que supposer qu'elle est réussie.
