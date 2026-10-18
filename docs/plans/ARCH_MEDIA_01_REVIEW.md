@@ -1,7 +1,7 @@
 # ARCH-MEDIA-01 — Découplage des règles média
 
 Date : 18 octobre 2026. Base : `1aeddcb8e496510034a272484f9bde955fd11fb0`.
-Branche : `fix/ARCH-MEDIA-01-decouplage-media`. Candidat de revue ; validation globale en attente. Aucun déploiement ni acceptation métier.
+Branche : `fix/ARCH-MEDIA-01-decouplage-media`. Candidat de revue ; contrôles locaux complétés, CI GitHub encore bloquée. Aucun déploiement ni acceptation métier.
 
 ## Changement
 
@@ -45,3 +45,9 @@ PR [#208](https://github.com/richardyoann/saas-directeur-editorial/pull/208), ti
 Le main distant a avancé jusqu’à d08fe0afe62f0ea209da239aeade0bd5f042d30d. GitHub indique la PR fusionnable ; les modifications distantes de runtime_secrets dans media_storage ne sont pas remplacées par ce diff. Cela ne remplace pas la validation du résultat combiné avec main. Pas de fusion, rebase ou changement des checkouts préexistants.
 
 Les corrections documentaires suivantes ne modifient pas les règles extraites ; les contrôles locaux sont relancés sur l’arbre final avant commit. Leur preuve ne vaut pas CI réussie au nouveau SHA. Nouvelle exécution CI requise après résolution du blocage administratif. Prochaine étape : autoriser l’installation locale isolée et/ou rétablir Actions, puis exécuter tous les tests sur le candidat exact. PR2 non engagée.
+
+## Validation locale complétée — 18 octobre 2026
+
+Le venv QA isolé et les installations de test ont été autorisés. Sur Ubuntu 26.04/Python 3.14, le candidat 39f2444 donne 263 tests historiques réussis sans erreur ni skip, dont les tests PostgreSQL, concurrence, panne après stockage, isolation tenant, audit/outbox et identité des réexports. Les 12 parcours Studio dans Chrome portable réussissent également sur fixture API simulée. La copie temporaire du main d08fe0a avec les changements de code/tests de PR1 donne 292 réussites sans skip. Aucun changement applicatif supplémentaire nécessaire pour obtenir ces résultats.
+
+Les paragraphes précédents décrivent les tentatives historiques avec environnement incomplet. Le blocage de facturation CI reste ouvert : les réussites locales ne donnent pas le droit de fusionner ou déployer. Voir [les commandes, préconditions et limites reproductibles](ARCH_MEDIA_01_LOCAL_QA.md). Le dossier local est complété ; la preuve terminale au SHA documentaire final est consignée dans la PR. PR2 non engagée.

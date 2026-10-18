@@ -15,3 +15,7 @@ Cause immédiate confirmée pour ce job : restriction de facturation/quota empê
 Après résolution administrative, relancer les contrôles sur le SHA final exact de la PR, vérifier que les étapes démarrent puis exiger la régression complète sans skip, PostgreSQL dédié compris. Les tests locaux purs ne remplacent pas cette validation. Aucun résultat éditorial ni release PC accepté. Aucun déploiement autorisé par un rapport CI.
 
 Le checkout local initial précède le main distant d08fe0afe62f0ea209da239aeade0bd5f042d30d ; GitHub indique PR fusionnable au contrôle. Aucune fusion réalisée. Les changements distants de secrets dans media_storage sont à préserver et l’intégration avec main reste à tester par la CI de PR.
+
+## Environnement QA local rétabli — problème distinct
+
+Symptôme local : dépendances absentes dans Python système, et téléchargement Chromium Playwright refusé sur Ubuntu 26.04. Correction autorisée : venv isolé sous /tmp, requirements existant, PostgreSQL tmpfs dédié ; navigateur Chrome for Testing portable et bibliothèques Ubuntu 26.04 extraites sous /tmp. Aucun paquet système, volume métier ou règle de production modifié. Validation : 263 tests et 12 parcours navigateur réussis sans skip sur le candidat 39f2444 ; combinaison temporaire avec main d08fe0a : 292 tests réussis. Voir ../plans/ARCH_MEDIA_01_LOCAL_QA.md. Le problème administratif GitHub demeure ouvert et n’est pas présenté comme corrigé.
