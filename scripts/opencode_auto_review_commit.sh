@@ -2,11 +2,11 @@
 # Revue du SHA commite dans un worktree ephemere, sans publication ni livraison.
 set -euo pipefail
 export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$HOME/bin:$PATH"
-root="\${1:?Repository required}"
-sha="\${2:?Commit SHA required}"
+root="${1:?Repository required}"
+sha="${2:?Commit SHA required}"
 [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || exit 2
 [[ -d "$root" ]] || exit 2
-state="\${XDG_STATE_HOME:-$HOME/.local/state}/arvor-opencode"
+state="${XDG_STATE_HOME:-$HOME/.local/state}/arvor-opencode"
 mkdir -p "$state/reports"
 chmod 700 "$state" "$state/reports"
 umask 077
