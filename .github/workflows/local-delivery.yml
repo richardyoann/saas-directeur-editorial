@@ -1,8 +1,5 @@
 name: Private PC delivery
 on:
-  workflow_run:
-    workflows: [Full regression]
-    types: [completed]
   workflow_dispatch:
     inputs:
       approved_sha:
@@ -20,17 +17,11 @@ jobs:
     if: >-
       vars.LOCAL_PC_ENABLED == 'true' &&
       vars.LOCAL_PC_APPROVED_SHA != '' &&
-      vars.LOCAL_PC_APPROVED_SHA == (github.event_name == 'workflow_dispatch' &&
-        inputs.approved_sha || github.event.workflow_run.head_sha) &&
-      ((github.event_name == 'workflow_dispatch' &&
-        github.ref == 'refs/heads/main' && inputs.approved_sha == github.sha) ||
-       (github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.head_repository.full_name == github.repository))
+      vars.LOCAL_PC_APPROVED_SHA == inputs.approved_sha &&
+      github.ref == 'refs/heads/main' &&
+      inputs.approved_sha == github.sha
     runs-on: [self-hosted, Linux, editorial-pc]
-    timeout-minutes: 30
+    timeout-minutes: 90
     services:
       postgres:
         image: postgres:16
@@ -45,12 +36,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ inputs.approved_sha || github.event.workflow_run.head_sha }}
+          ref: ${{ inputs.approved_sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: Enforce exact SHA approval before installation
         env:
           APPROVED_SHA: ${{ vars.LOCAL_PC_APPROVED_SHA }}
-          EXPECTED_SHA: ${{ inputs.approved_sha || github.event.workflow_run.head_sha }}
+          EXPECTED_SHA: ${{ inputs.approved_sha }}
           LOCAL_PC_ENABLED: ${{ vars.LOCAL_PC_ENABLED }}
         shell: bash
         run: |
@@ -58,21 +50,31 @@ jobs:
           [[ "$LOCAL_PC_ENABLED" == "true" ]] || exit 1
           [[ "$APPROVED_SHA" == "$EXPECTED_SHA" ]] || exit 1
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]] || exit 1
-          echo "Exact SHA approval verified; full CI evidence checked again by deploy_local.py."
-      - name: Prepare test dependencies and disposable DB
+      - name: Prepare isolated Python 3.14 and disposable DB
         env:
           TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
         run: |
-          python3 -m venv .venv
-          .venv/bin/python -m pip install -r requirements.txt 'psycopg[binary]==3.3.6'
+          python3.14 -m venv .venv
+          .venv/bin/python -m pip install -r requirements.txt 'psycopg[binary]==3.3.6' pip-audit==2.10.1
           .venv/bin/python scripts/prepare_test_database.py
-      - name: Candidate install, regression, real HTTP and rollback
+      - name: Independent deterministic quality gate (not OpenCode)
+        env:
+          EXPECTED_SHA: ${{ inputs.approved_sha }}
+          PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
+          TRACE_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
+          PO_ALLOW_TEST_MIGRATION: 'yes'
+          LOCAL_QUALITY_REPORT: ${{ runner.temp }}/arvor-quality-${{ inputs.approved_sha }}.json
+        run: >-
+          .venv/bin/python scripts/local_quality_gate.py
+          --sha "$EXPECTED_SHA" --report "$LOCAL_QUALITY_REPORT"
+      - name: Candidate install, HTTP checks and rollback
         env:
           RELEASE_ROOT: ${{ vars.LOCAL_RELEASE_ROOT }}
           CONFIG_PATH: ${{ vars.LOCAL_CONFIG_PATH }}
-          EXPECTED_SHA: ${{ inputs.approved_sha || github.event.workflow_run.head_sha }}
+          EXPECTED_SHA: ${{ inputs.approved_sha }}
           LOCAL_PC_APPROVED_SHA: ${{ vars.LOCAL_PC_APPROVED_SHA }}
           LOCAL_PC_ENABLED: ${{ vars.LOCAL_PC_ENABLED }}
+          LOCAL_QUALITY_REPORT: ${{ runner.temp }}/arvor-quality-${{ inputs.approved_sha }}.json
           GITHUB_TOKEN: ${{ github.token }}
           PO_TEST_DATABASE_URL: postgresql://po_test:ephemeral_ci_only@localhost:${{ job.services.postgres.ports[5432] }}/po_test
           PO_ALLOW_TEST_MIGRATION: 'yes'
