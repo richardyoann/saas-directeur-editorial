@@ -20,7 +20,7 @@ Ce fichier est l'unique source normative pour les agents travaillant dans `richa
 ## Procédure pour chaque PR
 1. Lire l'état du dépôt et `docs/mco/README.md` si incident, et relever SHA, état des services et chemins réellement disponibles.
 2. Créer une branche dédiée avec périmètre restreint, identifier critères d'acceptation et risques.
-3. Ajouter tests positifs/négatifs, protection d'isolation tenant, conflits et erreurs ; exécuter la CI (Python 3.12/3.14, PostgreSQL jetable, sécurité, navigateur si interface).
+3. Ajouter tests positifs/négatifs, isolation tenant, conflits et erreurs ; exécuter d'abord le gate local Python 3.14 sur PostgreSQL jetable, audits secrets/dépendances et tests navigateur si interface. Python 3.12 demeure un contrôle de compatibilité ponctuel.
 4. Aucun skip ou test désactivé accepté comme réussite. Pas de fusion de PR en échec ni sans contrôle du diff.
 5. Mettre à jour la documentation et les commandes d'exploitation dans la même PR. Renseigner décisions, preuves par SHA et limites.
 6. Laisser la livraison PC en attente tant qu'un nouveau SHA complet n'a pas été explicitement approuvé.
