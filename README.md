@@ -42,7 +42,7 @@ Ne jamais exposer directement le serveur HTTP sur `0.0.0.0`. Pour un accès mobi
 .venv/bin/python scripts/diagnose_project.py
 ```
 
-La régression complète s'effectue sur base **jetable**, via le workflow GitHub `Full regression`, matrice Python 3.12/3.14. L'audit des dépendances Python, les parcours navigateur et la livraison PC sont distincts.
+La CI locale cible **Python 3.14**, une base PostgreSQL **jetable**, Gitleaks, pip-audit, les parcours Chromium et les tests métier via `scripts/local_quality_gate.py`. Le contrôle de compatibilité 3.12 reste déclenchable manuellement. La livraison PC exige ensuite la revalidation locale indépendante au SHA approuvé sur runner privé. Les anciens contrôles hébergés deviennent manuels **après fusion de la branche de migration**.
 
 Une CI verte ne prouve pas une livraison locale : celle-ci exige validation du SHA exact et vérification de `last_delivery.json`, `/ready` et `/studio`.
 
