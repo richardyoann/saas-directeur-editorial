@@ -32,6 +32,16 @@ PNG = base64.b64decode(
 
 
 class VisualContractTests(unittest.IsolatedAsyncioTestCase):
+    async def test_shared_rules_preserve_historical_exports_and_exception_identity(self):
+        from editorial import media_rules, visuals
+        for name in ("MAX_PNG_BYTES", "PNG_MAGIC", "IMAGE_PARAMETERS", "ImageUnavailable",
+                     "ImagePromptTooLong", "characters", "image_prompt", "image_provenance",
+                     "validate_png", "private_image_url"):
+            with self.subTest(name=name):
+                self.assertIs(getattr(visuals, name), getattr(media_rules, name))
+        with self.assertRaises(visuals.ImageUnavailable):
+            media_rules.validate_png(b"invalid")
+
     async def test_optional_cast_is_schema_valid_and_old_stories_work(self):
         from editorial.models import Storyboard
         old = Storyboard.model_validate(outputs()[1])

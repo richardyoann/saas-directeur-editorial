@@ -26,7 +26,7 @@ def client():
     # Lazy import: the historical filesystem backend remains independent.
     import boto3
     from botocore.config import Config
-    from editorial.visuals import private_image_url
+    from editorial.media_rules import private_image_url
     endpoint = os.getenv("MEDIA_S3_ENDPOINT", "")
     access, secret = os.getenv("MEDIA_S3_ACCESS_KEY", ""), os.getenv("MEDIA_S3_SECRET_KEY", "")
     if not private_image_url(endpoint) or not access or not secret:
