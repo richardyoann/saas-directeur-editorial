@@ -196,10 +196,10 @@ async function pollRun(){
  if(s.pollBusy||!s.csrf||!s.run||!["queued","running"].includes(s.run.status)||
     document.visibilityState!=="visible")return;
  s.pollBusy=true;
- const id=s.run.id;
+ const id=s.run.id,request=s.openRequest;
  try{
   const latest=await api("/studio/api/runs/"+id);
-  if(!s.run||s.run.id!==id||!s.csrf)return;
+  if(request!==s.openRequest||!s.run||s.run.id!==id||!s.csrf)return;
   const changed=latest.status!==s.run.status||
     (latest.current_step?.name||"")!==(s.run.current_step?.name||"")||
     (latest.steps||[]).length!==(s.run.steps||[]).length;
@@ -214,7 +214,7 @@ async function pollRun(){
     alertUser(latest.status==="failed"?"La génération a échoué. Consultez l'historique avant de relancer.":"Génération terminée : la validation humaine est maintenant disponible.",latest.status==="failed");
    }
   }
- }catch(e){if(e.status!==401&&s.run?.id===id&&s.csrf)alertUser(message(e),true);}
+ }catch(e){if(e.status!==401&&request===s.openRequest&&s.run?.id===id&&s.csrf)alertUser(message(e),true);}
  finally{s.pollBusy=false;}
 }
 function closeNav(){$("sidebar").classList.remove("open");$("menu").setAttribute("aria-expanded","false");}
@@ -570,22 +570,22 @@ function analysis(){
 }
 function fold(root,label,value){const d=put(root,"details");put(d,"summary","",label);put(d,"pre","",typeof value==="string"?value:JSON.stringify(value||{},null,2));}
 async function historyView(){
- empty("Chargement de l’historique…");const id=s.run.id;
- try{const x=await api("/studio/api/runs/"+id+"/history");if(s.tab!=="history"||s.run?.id!==id||!s.csrf)return;
+ empty("Chargement de l’historique…");const id=s.run.id,request=s.openRequest;
+ try{const x=await api("/studio/api/runs/"+id+"/history");if(request!==s.openRequest||s.tab!=="history"||s.run?.id!==id||!s.csrf)return;
   const root=$("panel");root.replaceChildren();if(!x.steps?.length)return empty("Aucun traitement historisé.");
   x.steps.forEach((h,i)=>{const c=put(root,"article","card");put(c,"div","overline","ÉTAPE "+(i+1));put(c,"h3","",h.order===0?"Analyse IA":"Storyboard IA");fold(c,"Voir le prompt",h.prompt);fold(c,"Voir le résultat structuré",h.parsed);if(h.error_code)put(c,"p","warning",h.error_code);});
- }catch(e){if(s.tab==="history"&&s.run?.id===id&&s.csrf)empty(message(e));}
+ }catch(e){if(request===s.openRequest&&s.tab==="history"&&s.run?.id===id&&s.csrf)empty(message(e));}
 }
 async function reviews(reset=true){
- if(reset){s.reviews=[];s.nextReview=null;}empty("Chargement des décisions…");const id=s.run.id;
+ if(reset){s.reviews=[];s.nextReview=null;}empty("Chargement des décisions…");const id=s.run.id,request=s.openRequest;
  try{let url="/studio/api/runs/"+id+"/reviews?limit=20";if(!reset&&s.nextReview)url+="&before_revision="+s.nextReview;
-  const x=await api(url);if(s.tab!=="reviews"||s.run?.id!==id||!s.csrf)return;
+  const x=await api(url);if(request!==s.openRequest||s.tab!=="reviews"||s.run?.id!==id||!s.csrf)return;
   s.reviews.push(...(x.reviews||[]));s.nextReview=x.next_before_revision;const root=$("panel");root.replaceChildren();
   if(!s.reviews.length)return empty("Aucune décision humaine enregistrée.");
   const card=put(root,"article","card");put(card,"h3","","Journal des décisions");
   for(const r of s.reviews){const e=put(card,"div","history-entry");put(e,"strong","","Révision "+r.revision+" · "+(names[r.step]||r.step)+" · "+(verbs[r.action]||r.action));put(e,"p","",date(r.created_at)+(r.comment?" · "+r.comment:""));fold(e,"Consulter cette version",r.effective_output);}
   if(s.nextReview){const b=put(root,"button","btn secondary","Décisions précédentes ↓");b.type="button";b.addEventListener("click",()=>reviews(false));}
- }catch(e){if(s.tab==="reviews"&&s.run?.id===id&&s.csrf)empty(message(e));}
+ }catch(e){if(request===s.openRequest&&s.tab==="reviews"&&s.run?.id===id&&s.csrf)empty(message(e));}
 }
 async function refresh(){
  if(!s.run)return;

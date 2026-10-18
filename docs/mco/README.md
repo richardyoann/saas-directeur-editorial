@@ -6,6 +6,7 @@
 
 | Besoin | Document |
 | --- | --- |
+| Studio : réponses tardives après navigation, tests A → B → A | [Réponses asynchrones](STUDIO_ASYNC_RACES.md) |
 | Livraison : casse de LOCAL_PC_ENABLED et JSON Python 3.14 | [Incident du 16/10](INCIDENT_2026-10-16_LIVRAISON_JSON.md) |
 | Transfert MinIO incertain et reprise des médias | [MinIO médias](MINIO_MEDIA_RECOVERY.md) |
 | Résultat image incertain, timeout et fichier privé conservé | [Runbook images](IMAGE_GENERATION_RECOVERY.md) |
