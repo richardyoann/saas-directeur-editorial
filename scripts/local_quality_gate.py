@@ -12,7 +12,7 @@ import subprocess
 import sys
 from urllib.parse import urlsplit
 
-REQUIRED = ("policy", "deps", "secrets", "syntax-js", "syntax-py", "unittest", "sql-benchmark")
+REQUIRED = ("policy", "deps", "secrets", "syntax-js", "syntax-py", "browser", "unittest", "sql-benchmark")
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 
 
@@ -70,13 +70,17 @@ def execute(sha: str, report: Path, *, cwd: Path) -> None:
         "secrets": ["gitleaks", "git", "--no-banner", "--redact", "--exit-code", "1", "--log-opts=--all", "."],
         "syntax-js": ["sh", "-c", "node --check apps/web/studio.js && node --check apps/web/arvor_reference.js && node --check apps/web/arvor_next.js"],
         "syntax-py": [python, "-m", "py_compile", "apps/api/studio.py"],
+        "browser": [python, "-m", "unittest", "discover", "-s", "browser_checks", "-p", "test_studio_browser.py", "-v"],
         "unittest": [python, "scripts/run_regression.py"],
         "sql-benchmark": [python, "scripts/benchmark_editorial_sql.py", "--rows", "1200", "--disposable"],
     }
     for name, argv in checks.items():
         print("QA local:", name, flush=True)
         try:
-            result = subprocess.run(argv, cwd=cwd, stdout=subprocess.PIPE,
+            child_env = os.environ.copy()
+            if name == "browser":
+                child_env["STUDIO_BROWSER_TESTS"] = "yes"
+            result = subprocess.run(argv, cwd=cwd, env=child_env, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, timeout=1200,
                                     check=False, text=True)
         except (OSError, subprocess.TimeoutExpired) as error:
