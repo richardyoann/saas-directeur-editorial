@@ -59,7 +59,7 @@ git switch --detach origin/feat/OPS-OPENCODE-LOCAL-CI-20261018
 bash scripts/install_opencode_autoreview.sh
 ```
 
-Le hook Git `post-commit` appelle `scripts/opencode_auto_review_commit.sh` **sans ralentir le commit**. Il travaille sur un worktree temporaire du SHA exact, avec un verrou pour ne pas exécuter plusieurs revues simultanément. Les rapports et statuts sont conservés sous `~/.local/state/arvor-opencode/reports/<SHA>.md` et `<SHA>.status`. Le hook est commun aux worktrees qui partagent le même dépôt Git, mais ne s'applique pas aux commits faits directement sur GitHub ou sur une autre machine.
+Le hook Git `post-commit` appelle une copie permanente du worker installée dans `~/.local/share/arvor-opencode/opencode_auto_review_commit.sh` **sans ralentir le commit**. Le worker reste disponible dans tous les worktrees partageant le dépôt, même lorsque le fichier n'existe pas encore sur la branche courante. Cette copie est actualisée en relançant l'installateur après mise à jour de la branche de migration. Il travaille sur un worktree temporaire du SHA exact, avec un verrou pour ne pas exécuter plusieurs revues simultanément. Les rapports et statuts sont conservés sous `~/.local/state/arvor-opencode/reports/<SHA>.md` et `<SHA>.status`. Le hook est commun aux worktrees qui partagent le même dépôt Git, mais ne s'applique pas aux commits faits directement sur GitHub ou sur une autre machine.
 
 **Par défaut, seul le modèle local `arvorlocal/coder` est autorisé**. Si le serveur Windows 8083 est arrêté, la revue est notée `skipped local_model_offline` sans utiliser de crédits de modèle hébergé. Un autre modèle (gratuit ou payant) n'est utilisé que si l'utilisateur renseigne volontairement son identifiant dans le fichier local `~/.config/arvor-opencode-review-model`, par exemple `fournisseur/modele`. Il faut alors vérifier les limites et les frais éventuels : un déclenchement par commit peut consommer des tokens distants.
 
@@ -73,3 +73,19 @@ cat "$HOME/.local/state/arvor-opencode/reports/$SHA.md"
 ```
 
 La revue n'est pas un test automatisé et ne remplace pas la commande de QA ni une revue humaine. Aucun `git push`, merge, déploiement, ouverture de PR ou publication de rapport n'est déclenché automatiquement. Lorsqu'un autre hook `post-commit` existe déjà, le script d'installation refuse de le remplacer : réaliser une intégration manuelle sans écraser les hooks existants. L'arrêt du serveur local, la déconnexion WSL ou un quota de fournisseur peuvent empêcher une revue de finir ; vérifier le fichier `.status` plutôt que supposer qu'elle est réussie.
+
+### Activation, événements et diagnostic
+
+`git fetch` et `git switch` ne sont **pas** des commits ; ils ne déclenchent pas `post-commit`. Après l'installation du hook, aucun rapport n'existe pour le SHA actuellement consulté tant qu'une revue manuelle ou un nouveau commit n'a pas été réalisé.
+
+Tester immédiatement (sans créer de commit) depuis le worktree :
+
+```bash
+SHA="$(git rev-parse HEAD)"
+bash scripts/opencode_auto_review_commit.sh "$PWD" "$SHA"
+cat "$HOME/.local/state/arvor-opencode/reports/$SHA.status"
+```
+
+Si `skipped local_model_offline` : démarrer le serveur modèle Windows sur l'adresse WSL et le port 8083, et configurer OpenCode. Si `error` : consulter `~/.local/state/arvor-opencode/reports/<SHA>.log` (ne pas publier ce fichier sans vérification). Le hook Git existant V1 est remplacé par V2 uniquement si son contenu est strictement identique au fichier historique Arvor ; une sauvegarde locale est réalisée. Un hook tiers reste inchangé.
+
+Le déclencheur reste attaché à Git : un simple enregistrement de fichier, un push distant, un merge réalisé via l'interface GitHub ou un checkout ne déclenchent pas le hook local. Une branche sans les fichiers `.opencode/agents/` de la migration peut produire un échec de configuration des agents ; ils deviendront disponibles sur `main` seulement après fusion validée.
