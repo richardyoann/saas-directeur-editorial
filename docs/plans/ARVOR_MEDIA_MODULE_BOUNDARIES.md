@@ -106,3 +106,7 @@ Réutiliser les tests existants ; ajouter seulement les cas de frontière néces
 Exécuter les tests historiques Linux, pilotage/test_*.py, PostgreSQL dédié et parcours navigateur image. Les mocks ne prouvent ni MinIO réel ni rendu GPU. Une éventuelle recette privée réelle est distincte et ne déclenche aucune MEP ou acceptation éditoriale automatique.
 
 Reprise du refactoring : petites PR sans migration de données, façades conservées puis retirées après inspection des consommateurs. Un retour de code prépare une release antérieure ; son activation demeure une MEP à autoriser, avec vérification préalable de compatibilité des références média. Aucun effacement d’asset pour revenir en arrière.
+
+## Frontières appliquées — 18 octobre 2026
+
+L’extraction suivante est réalisée sur la branche demandée, dans la PR #208 : service GenerateSceneImage/ReadMedia et ports dans editorial/media, dépôt SQL média dans infrastructure/persistence, adaptateurs rendu/fichiers/S3 distincts, routes et composition dans apps/api. Les façades historiques délèguent aux propriétaires sans dupliquer les règles. media_rules reste le module pur canonique plutôt que multiplier les déplacements. La correction de concurrence approval/finalization est couverte par un test PostgreSQL. Voir [l’architecture implémentée, diagrammes et limites](../ARCHITECTURE_MEDIA.md). Aucune fusion ni MEP ; contrôles finaux liés au SHA dans la PR. Le fournisseur texte reste hors du lot média.

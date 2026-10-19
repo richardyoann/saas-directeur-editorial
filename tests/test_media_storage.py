@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from editorial import media_storage as storage
+from infrastructure.media import s3 as storage
 
 
 class MediaStorageTests(unittest.TestCase):
@@ -64,6 +64,7 @@ class MediaStorageTests(unittest.TestCase):
             with self.assertRaisesRegex(ImageUnavailable, "image_storage_result_uncertain"):
                 save_png(*self.ids, PNG)
         self.assertEqual(list(self.root.rglob("*.png"))[0].read_bytes(), PNG)
+        self.assertEqual(list(self.root.rglob("*.png"))[0].stat().st_mode & 0o777, 0o600)
 
     def test_successful_image_upload_keeps_recovery_until_database_ack(self):
         from editorial.visuals import save_png
@@ -100,3 +101,27 @@ class MediaStorageTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             storage.get_file(reference, destination, *self.ids, "voice")
         self.assertEqual(destination.read_bytes(), b"existing")
+
+
+class ConcurrentImageFileTests(unittest.TestCase):
+    def test_exclusive_writers_do_not_overwrite_each_other(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        from editorial.visuals import ImageUnavailable, save_png
+        from test_visuals import PNG
+        with tempfile.TemporaryDirectory() as directory, patch.dict('os.environ', {
+            'EDITORIAL_MEDIA_ROOT': directory, 'EDITORIAL_MEDIA_BACKEND': 'filesystem'}):
+            ids = uuid4(), uuid4(), uuid4()
+            barrier = Barrier(2)
+            def write():
+                barrier.wait(timeout=5)
+                try:
+                    return save_png(*ids, PNG)
+                except ImageUnavailable:
+                    return None
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                results = list(pool.map(lambda _: write(), range(2)))
+            paths = [p for p in results if p is not None]
+            self.assertEqual(len(paths), 1)
+            self.assertEqual(paths[0].read_bytes(), PNG)
+            self.assertEqual(paths[0].stat().st_mode & 0o777, 0o600)
