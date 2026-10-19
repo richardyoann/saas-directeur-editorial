@@ -86,3 +86,11 @@ La CI GitHub et ses contrôles requis restent une condition de fusion ; les succ
 Liste des fichiers : modules propriétaires ci-dessus, façades editorial/api.py, store.py, visuals.py, media_storage.py et image_verification.py, tests/test_media_application.py, test_media_boundaries.py, test_media_storage.py, test_visuals.py, test_qa_lot1.py, documentation de plan/MCO. Les __init__.py ajoutés déclarent les packages ; aucun fichier temporaire Graphify n’est commité.
 
 Dernière validation de l’arbre média avant commit : 286 tests historiques/unitaires/PostgreSQL réussis, 0 erreur/échec/skip ; 12 parcours Studio réussis. Les cinq tests de frontières et la syntaxe/compilation sont inclus ou contrôlés séparément. La preuve terminale sera relancée et liée au SHA final dans la PR.
+
+## Intégration avec main — 19 octobre 2026
+
+Le main d08fe0afe62f0ea209da239aeade0bd5f042d30d est intégré uniquement dans la branche de travail. Les trois conflits ont été résolus : AGENTS.md est conservé octet pour octet depuis le commit utilisateur 112475c ; les routes conservent la lecture de secrets via runtime_secrets ; cette lecture est aussi transférée dans le propriétaire S3 extrait. Aucune fusion vers main et aucune activation PC. Le code final doit être revu notamment sur ces résolutions.
+
+Régression de l’arbre intégré : 315 tests réussis sans échec/erreur/skip. Les cinq tests de frontières réussissent ; syntaxe JavaScript et compilation Python valides. Graphify est reconstruit localement et reste hors commit. La validation navigateur et la relance terminale au SHA final sont reportées dans la PR. Les résultats 286/12 précédents concernent le code avant intégration ; ils ne sont pas assimilés à une preuve sur un futur commit.
+
+Recette navigateur de l’arbre intégré : 17 parcours Studio réussis, 0 erreur/échec/skip, sur fixture API simulée et Chrome portable. Le nombre diffère des 12 parcours antérieurs car les tests récents de main sont maintenant inclus.

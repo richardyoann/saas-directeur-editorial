@@ -1,7 +1,7 @@
 # Arvor — découpage proposé des modules média
 
 Date : 18 octobre 2026. Base inspectée : `1aeddcb8e496510034a272484f9bde955fd11fb0`.
-Statut : proposition technique, non implémentée ; aucune acceptation métier.
+Statut : plan initial ; frontières média désormais implémentées (voir la section finale et docs/ARCHITECTURE_MEDIA.md), sans acceptation métier ni MEP.
 Validation : graphe existant interrogé et contrats sources relus ; aucun test exécuté pour ce document. Aucun déploiement, migration ou configuration runtime modifiée. Project privé non consultable avec le connecteur disponible. AGENTS.md préexistant préservé.
 
 ## Décision proposée

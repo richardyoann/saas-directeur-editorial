@@ -1,8 +1,10 @@
 import asyncio
 import os
+import time
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from pathlib import Path
+from uuid import UUID
 
 import httpx
 from dotenv import load_dotenv
@@ -13,9 +15,8 @@ from apps.api.llama_provider import ProviderError, generate_text, generation_gat
 from editorial.api import create_router, get_identity
 from apps.api.studio import router as studio_router
 from editorial.worker_guard import worker_online
+from editorial.runtime_secrets import secret
 from apps.api.request_limits import RequestLimits
-from uuid import UUID
-
 # Existing process variables take precedence; never rewrite the environment file.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
@@ -38,7 +39,19 @@ async def lifespan(application: FastAPI):
             del application.state.internal_client
 
 
-app = FastAPI(title="Directeur éditorial IA", version="0.1.0", lifespan=lifespan)
+# Keep the private API contract out of public documentation by default.
+# Enable explicitly only in a trusted development environment.
+_ENABLE_DOCS = os.getenv("EDITORIAL_ENABLE_API_DOCS", "false").lower() == "true"
+app = FastAPI(
+    title="Directeur éditorial IA", version="0.1.0", lifespan=lifespan,
+    docs_url="/docs" if _ENABLE_DOCS else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if _ENABLE_DOCS else None,
+)
+_READY_TTL_SECONDS = 2.0
+_ready_lock = asyncio.Lock()
+_ready_cache = {"until": 0.0, "key": None, "ok": False}
+
 app.add_middleware(RequestLimits)
 
 
@@ -73,19 +86,27 @@ def health():
 
 def _database_ready():
     import psycopg
-    url = os.getenv("PO_DATABASE_URL", "")
+    url = secret("PO_DATABASE_URL")
     if not url:
         return False
     try:
         with psycopg.connect(url, connect_timeout=2) as connection:
-            return connection.execute("SELECT 1").fetchone() == (1,)
+            # Read-only readiness must validate the application schema,
+            # not merely a reachable database port.
+            row = connection.execute(
+                "SELECT to_regclass('po_entity') IS NOT NULL, "
+                "to_regclass('po_audit') IS NOT NULL, "
+                "to_regclass('po_outbox') IS NOT NULL, "
+                "to_regclass('po_batch') IS NOT NULL"
+            ).fetchone()
+            return bool(row and all(row))
     except (psycopg.Error, OSError):
         return False
 
 
 def _worker_ready():
     """Probe only the configured private tenant, no secrets in response."""
-    url, tenant_id = os.getenv("PO_DATABASE_URL", ""), os.getenv("EDITORIAL_TENANT_ID", "")
+    url, tenant_id = secret("PO_DATABASE_URL"), secret("EDITORIAL_TENANT_ID")
     if not url:
         return False
     try:
@@ -97,25 +118,42 @@ def _worker_ready():
         return False
 
 
-@app.get("/ready")
+@app.get("/ready", include_in_schema=False)
 async def ready(client: httpx.AsyncClient = Depends(get_llm_client)):
-    """Readiness of DB and configured LLM, not proof of a running worker."""
-    base = os.getenv("LLM_BASE_URL", "").rstrip("/")
-    database_ok = await asyncio.to_thread(_database_ready)
-    model_ok = False
-    if base.startswith(("http://", "https://")):
-        try:
-            response = await client.get(base + "/health", timeout=2.0)
-            model_ok = response.status_code == 200
-        except (httpx.HTTPError, ValueError):
-            pass
-    worker_ok = True
-    if os.getenv("EDITORIAL_ASYNC_ENABLED", "").lower() == "true":
-        worker_ok = database_ok and await asyncio.to_thread(_worker_ready)
-    ok = database_ok and model_ok and worker_ok
-    from fastapi.responses import JSONResponse
-    return JSONResponse({"ready": ok}, status_code=200 if ok else 503)
+    """Cached private readiness: avoid opening DB + probing LLM per request.
 
+    This cache is process-local; deploy behind the trusted local reverse proxy
+    or restrict the route to loopback. It never exposes dependency details.
+    """
+    base = os.getenv("LLM_BASE_URL", "").rstrip("/")
+    async_mode = os.getenv("EDITORIAL_ASYNC_ENABLED", "").lower() == "true"
+    key = (secret("PO_DATABASE_URL"), base, async_mode,
+           secret("EDITORIAL_TENANT_ID"))
+    async with _ready_lock:
+        current = time.monotonic()
+        if _ready_cache["key"] != key or current >= _ready_cache["until"]:
+            database_ok = await asyncio.to_thread(_database_ready)
+            model_ok = False
+            if base.startswith(("http://", "https://")):
+                try:
+                    response = await client.get(base + "/health", timeout=2.0)
+                    model_ok = response.status_code == 200
+                except (httpx.HTTPError, ValueError):
+                    pass
+            worker_ok = not async_mode
+            if async_mode:
+                worker_ok = database_ok and await asyncio.to_thread(_worker_ready)
+            _ready_cache.update(
+                ok=bool(database_ok and model_ok and worker_ok),
+                key=key,
+                until=time.monotonic() + _READY_TTL_SECONDS,
+            )
+        ok = _ready_cache["ok"]
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        {"ready": ok}, status_code=200 if ok else 503,
+        headers={"Cache-Control": "no-store"},
+    )
 
 @app.post("/ai/generate")
 async def generate(

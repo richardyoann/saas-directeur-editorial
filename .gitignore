@@ -31,5 +31,14 @@ logs/
 # Mémoire privée et installations locales
 docs/memory/
 .agents/
-.codex/
+# .codex/config.toml et les profils suivis sont versionnés volontairement.
 vendor/skills/
+
+# External credential files / private vault exports
+.secrets/
+secrets/
+credentials/
+*.secret
+*.credentials
+*.key
+*.pem

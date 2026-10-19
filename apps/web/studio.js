@@ -2,7 +2,8 @@
 (() => {
 "use strict";
 const $ = id => document.getElementById(id);
-const s = {csrf:null,runs:[],next:null,run:null,tab:"storyboard",pending:null,step:"storyboard",reviews:[],nextReview:null,openRequest:0,pollBusy:false,conception:null,calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1)};
+const s = {csrf:null,runs:[],next:null,run:null,tab:"storyboard",pending:null,step:"storyboard",reviews:[],nextReview:null,openRequest:0,pollBusy:false,conception:null,calendarMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),composerCategory:"overview",coverToken:0};
+let storyFilter="all";
 const uuid=/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const states={queued:"En attente",waiting_validation:"À valider",changes_requested:"À retravailler",approved:"Approuvé",running:"En cours",failed:"Échec"};
 const names={analysis:"Analyse",storyboard:"Storyboard"};
@@ -38,21 +39,38 @@ function renderList(){
  const runs=s.runs.filter(r=>[r.title,r.topic].filter(Boolean).join(" ").toLocaleLowerCase("fr").includes(q));
  if(!runs.length)put(root,"p","","Aucune histoire correspondante dans les éléments chargés.");
  for(const r of runs){const b=put(root,"button","run-item"+(r.id===s.run?.id?" active":""));b.type="button";put(b,"strong","",r.title||r.topic||"Histoire sans titre");put(b,"small","",(states[r.status]||"Inconnu")+" · "+date(r.created_at));b.addEventListener("click",()=>openRun(r.id));}
- renderCards(runs);
+ const groups={all:()=>true,draft:r=>r.status==="changes_requested",writing:r=>["running","queued"].includes(r.status),review:r=>r.status==="waiting_validation",approved:r=>r.status==="approved"};
+ renderCards(runs.filter(groups[storyFilter]||groups.all));
  $("count").textContent=s.runs.length+(s.next?"+":"");$("total").textContent=$("count").textContent;
  $("pending").textContent=s.runs.filter(r=>["waiting_validation","changes_requested"].includes(r.status)).length;
  $("approved").textContent=s.runs.filter(r=>r.status==="approved").length;$("more").hidden=!s.next;
 }
+document.querySelectorAll("[data-story-filter]").forEach(button=>button.addEventListener("click",()=>{
+ storyFilter=button.dataset.storyFilter;
+ document.querySelectorAll("[data-story-filter]").forEach(item=>{const active=item===button;item.classList.toggle("active",active);item.setAttribute("aria-pressed",String(active));});
+ renderList();
+}));
 function renderCards(runs){
  const root=$("storyCards");root.replaceChildren();
  if(!runs.length){put(root,"p","empty-panel","Aucune histoire dans les éléments chargés. Créez votre premier récit.");return;}
  for(const r of runs){
   const b=put(root,"button","story-tile");b.type="button";
-  put(b,"span","story-tile-art","✧");
+  b.dataset.runId=r.id;
+  const artwork=put(b,"span","story-tile-art","✧");
+  // The private image is displayed only if it actually exists. Never show
+  // demo artwork as a generated output or leak a MinIO object URL.
+  const image=new Image();
+  image.loading="lazy";image.alt="Illustration de la première scène";
+  image.addEventListener("load",()=>{artwork.replaceChildren(image);});
+  image.src="/studio/api/runs/"+encodeURIComponent(r.id)+"/scenes/1/image";
   const meta=put(b,"span","story-tile-content");
+  const badge=put(meta,"span","arvor-story-badge",states[r.status]||"Statut inconnu");
+  badge.dataset.status=r.status||"unknown";
+  if(r.landscape)put(meta,"small","arvor-place","⌖ "+r.landscape);
   put(meta,"strong","",r.title||r.topic||"Histoire sans titre");
-  put(meta,"small","",states[r.status]||"Statut inconnu");
-  put(meta,"small","",date(r.created_at));
+  if(r.synopsis)put(meta,"span","arvor-synopsis",r.synopsis);
+  if(Number.isInteger(r.scene_count))put(meta,"small","arvor-scene-count",r.scene_count+" scène"+(r.scene_count>1?"s":""));
+  put(meta,"small","arvor-updated","Modifiée le "+date(r.updated_at||r.created_at));
   put(meta,"span","story-tile-more","Explorer l’histoire →");
   b.addEventListener("click",()=>openRun(r.id));
  }
@@ -66,10 +84,19 @@ function showWorkspace(view){
  document.querySelector(".metrics").hidden=view!=="library";
  $("home").classList.toggle("selected",view!=="conception");
  $("conceptionNav").classList.toggle("selected",view==="conception");
+ const inStory=view==="detail";
+ $("storyComposer").hidden=!inStory;
+ for(const item of [document.querySelector(".stories-title"),document.querySelector(".search"),$("runList"),$("more")]){
+   if(item)item.classList.toggle("composer-hide",inStory);
+ }
 }
 function safeGithubLink(root,label,path){
  const b=put(root,"a","btn secondary small-btn",label+" ↗");
- b.href="https://github.com/richardyoann/saas-directeur-editorial/"+path;
+ const base=s.conception?.repository_url||"";
+ if(!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(base)){
+  b.removeAttribute("href");b.setAttribute("aria-disabled","true");return b;
+ }
+ b.href=base+"/"+path;
  b.target="_blank";b.rel="noopener noreferrer";
  return b;
 }
@@ -127,6 +154,9 @@ function calendarView(root,data){
 function renderConception(){
  const data=s.conception;
  const root=$("conceptionContent");root.replaceChildren();
+ if(data && Object.values(data.source_truncated||{}).some(Boolean)){
+  put(root,"p","warning","Résultats GitHub partiels : consultez le dépôt pour les éléments non chargés.");
+ }
  if(!data){put(root,"p","empty-panel","Connectez l’intégration GitHub pour afficher les données réelles.");return;}
  const epics=put(root,"section","conception-section");put(epics,"h3","","Epics · "+(data.epics||[]).length);
  for(const epic of data.epics||[]){
@@ -192,7 +222,7 @@ async function openRun(id){
  if(!uuid.test(id))return alertUser("Identifiant UUID invalide.",true);
  const request=++s.openRequest;
  try{const result=await api("/studio/api/runs/"+id);if(request!==s.openRequest||!s.csrf)return;
- s.run=result;s.tab="storyboard";s.reviews=[];s.nextReview=null;
+ s.run=result;s.tab="storyboard";s.composerCategory="overview";s.reviews=[];s.nextReview=null;
  const target="#run/"+id;if(location.hash!==target)history.pushState(null,"",target);
  showWorkspace("detail");render();renderList();closeNav();$("detail").scrollIntoView({behavior:"smooth",block:"start"});}
  catch(e){if(request===s.openRequest)alertUser(message(e),true);}
@@ -202,7 +232,10 @@ function render(){
  $("editStory").disabled=!r.storyboard || !["waiting_validation","changes_requested","approved"].includes(r.status);
  $("editStory").title=$("editStory").disabled?"Révision autorisée uniquement pendant la validation du storyboard.":"";
  $("storyTitle").textContent=title;$("crumb").textContent=title;
- $("storyMeta").textContent=(r.brief?.topic||"Brief indisponible")+" · "+date(r.created_at);
+ $("storyMeta").textContent=(r.storyboard?.synopsis||r.brief?.topic||"Brief indisponible")+" · "+(r.storyboard?.scenes?.length||0)+" scène(s) · "+date(r.created_at);
+ $("detailLocation").textContent=r.storyboard?.scenes?.[0]?.landscape||"";
+ $("exportStory").disabled=!r.storyboard;
+ renderComposer();renderCover();
  $("status").textContent=states[r.status]||"Inconnu";$("status").className="pill "+r.status;
  $("decisionFoot").hidden=!["waiting_validation","changes_requested"].includes(r.status);$("reconcile").hidden=r.status!=="running";tab(s.tab);
 }
@@ -213,6 +246,103 @@ function tab(name){
  if(name==="analysis")analysis();
  if(name==="history")historyView();
  if(name==="reviews")reviews(true);
+}
+
+function renderCover(){
+ const r=s.run,cover=$("storyCover"),token=++s.coverToken;
+ if(!r||!cover)return;
+ cover.replaceChildren();
+ const fallback=put(cover,"div","story-cover-placeholder");
+ put(fallback,"span","","✧");
+ put(fallback,"strong","","La trame de votre récit");
+ put(fallback,"small","","Illustration issue de vos créations, si elle existe");
+ if(!r.storyboard?.scenes?.length)return;
+ const img=new Image();img.alt="Illustration privée de la première scène";img.loading="lazy";
+ img.addEventListener("load",()=>{
+   if(s.coverToken===token && s.run?.id===r.id && cover.isConnected)cover.replaceChildren(img);
+ });
+ img.src="/studio/api/runs/"+encodeURIComponent(r.id)+"/scenes/1/image";
+}
+function renderComposer(){
+ const root=$("storyComposer");if(!root||!s.run)return;
+ root.replaceChildren();
+ put(root,"div","nav-title","COMPOSER");
+ const board=s.run.storyboard,scenes=board?.scenes||[];
+ const cast=new Set([...(board?.cast||[]).map(x=>x.name),...scenes.flatMap(x=>x.characters||[])]);
+ const nav=[
+  ["overview","Vue d’ensemble","⌂",""],
+  ["scenario","Scénario","▤",board?"1":"0"],
+  ["scenes","Scènes","▣",scenes.length],
+  ["characters","Personnages","♙",cast.size],
+  ["landscapes","Paysages","⌁",scenes.filter(x=>x.landscape).length],
+  ["colors","Couleurs","◒",scenes.filter(x=>x.colors?.length).length],
+  ["shots","Plans & cadrages","◫",scenes.filter(x=>x.shot).length],
+  ["emotions","Émotions","♡",scenes.filter(x=>x.emotion).length],
+  ["sound","Sons & voix","♫",scenes.filter(x=>x.sound).length],
+ ];
+ for(const [key,label,icon,count] of nav){
+  const b=put(root,"button","composer-link"+(s.composerCategory===key?" active":""));
+  b.type="button";b.dataset.composer=key;
+  put(b,"span","composer-icon",icon);put(b,"span","composer-label",label);
+  if(count!=="")put(b,"span","composer-count",count);
+  if(s.composerCategory===key)b.setAttribute("aria-current","page");
+  b.addEventListener("click",()=>showComposer(key));
+ }
+ put(root,"div","nav-title composer-memory","MÉMOIRE");
+ const historyButton=put(root,"button","composer-link"+(s.composerCategory==="history"?" active":""));
+ historyButton.type="button";historyButton.dataset.composer="history";
+ put(historyButton,"span","composer-icon","◷");put(historyButton,"span","composer-label","Historique");
+ if(s.composerCategory==="history")historyButton.setAttribute("aria-current","page");
+ historyButton.addEventListener("click",()=>showComposer("history"));
+ put(root,"p","composer-hint","Vos modifications sont versionnées et sauvegardées après validation.");
+}
+function showComposer(key){
+ if(!s.run)return;
+ s.composerCategory=key;
+ if(key==="history"){tab("history");renderComposer();return;}
+ tab("storyboard");
+ if(key==="characters"||["landscapes","colors","shots","emotions","sound"].includes(key))showCollection(key);
+ if(key==="scenes")$("#panel").querySelector(".storyboard-section")?.scrollIntoView({block:"start",behavior:"smooth"});
+ if(key==="scenario")$("#panel").querySelector(".card")?.scrollIntoView({block:"start",behavior:"smooth"});
+ renderComposer();
+ closeNav();
+}
+function showCollection(key){
+ const board=s.run?.storyboard,root=$("panel");if(!board)return;
+ root.replaceChildren();
+ const title={characters:"Personnages",landscapes:"Paysages",colors:"Couleurs",shots:"Plans & cadrages",emotions:"Émotions",sound:"Sons & voix"}[key];
+ detailHeader(root,"LA TRAME DE VOTRE RÉCIT",title,"Retour à l’histoire");
+ const grid=put(root,"div","composer-collection");
+ if(key==="characters"){
+  const names=new Set([...(board.cast||[]).map(x=>x.name),...board.scenes.flatMap(x=>x.characters||[])]);
+  for(const name of names){
+   const b=put(grid,"button","composer-collection-card");b.type="button";
+   put(b,"span","overline","FICHE PERSONNAGE");put(b,"strong","",name);
+   const profile=(board.cast||[]).find(x=>x.name===name);
+   put(b,"p","",profile?.role||profile?.appearance||"Consulter la fiche");
+   b.addEventListener("click",()=>personDetail(name));
+  }
+  if(!names.size)put(root,"p","empty-panel","Aucun personnage enregistré.");
+  return;
+ }
+ const field={landscapes:"landscape",colors:"colors",shots:"shot",emotions:"emotion",sound:"sound"}[key];
+ for(const [i,scene] of board.scenes.entries()){
+  const raw=scene[field];if(!raw||(Array.isArray(raw)&&!raw.length))continue;
+  const b=put(grid,"button","composer-collection-card");b.type="button";
+  put(b,"span","overline","SCÈNE "+(i+1));
+  put(b,"strong","",scene.title);put(b,"p","",Array.isArray(raw)?raw.join(", "):raw);
+  b.addEventListener("click",()=>elementValue(i,field,title));
+ }
+ if(!grid.children.length)put(root,"p","empty-panel","Aucun élément renseigné dans cette catégorie.");
+}
+function exportStory(){
+ const r=s.run;if(!r?.storyboard)return;
+ const file={format:"arvor-storyboard-v1",exported_at:new Date().toISOString(),run_id:r.id,status:r.status,
+  brief:r.brief,storyboard:r.storyboard,review_revision:r.review_revision};
+ const blob=new Blob([JSON.stringify(file,null,2)],{type:"application/json;charset=utf-8"});
+ const url=URL.createObjectURL(blob),link=document.createElement("a");
+ link.href=url;link.download="arvor-"+r.id+".json";document.body.append(link);link.click();link.remove();
+ URL.revokeObjectURL(url);
 }
 function empty(text){$("panel").replaceChildren();put($("panel"),"div","empty-panel",text);}
 function decisions(root,step){
@@ -610,7 +740,7 @@ async function create(ev){
   alertUser(failed?"Cette génération a échoué et reste historisée. Une nouvelle tentative utilisera une nouvelle clé.":message(e)+" La même clé sera conservée tant que l'issue de la requête reste incertaine.",true);
  }finally{b.disabled=false;b.textContent="Générer le storyboard →";}
 }
-function home(push=true){s.openRequest++;s.run=null;showWorkspace("library");$("crumb").textContent="Histoires";if(push&&location.hash)history.pushState(null,"",location.pathname+location.search);renderList();closeNav();}
+function home(push=true){s.coverToken++;s.openRequest++;s.run=null;showWorkspace("library");$("crumb").textContent="Histoires";if(push&&location.hash)history.pushState(null,"",location.pathname+location.search);renderList();closeNav();}
 function bind(){
  $("loginForm").addEventListener("submit",login);$("logout").addEventListener("click",logout);
  for(const id of ["sideCreate","heroCreate","emptyCreate","libraryCreate"])$(id).addEventListener("click",()=>{closeNav();$("newDialog").showModal();});
@@ -621,9 +751,10 @@ function bind(){
  $("newForm").addEventListener("submit",create);$("reviewForm").addEventListener("submit",sendReview);$("reviewAction").addEventListener("change",toggleReview);
  $("menu").addEventListener("click",()=>{const x=$("sidebar").classList.toggle("open");$("menu").setAttribute("aria-expanded",String(x));});
  $("filter").addEventListener("input",renderList);$("more").addEventListener("click",()=>list(false));$("refresh").addEventListener("click",refresh);$("reconcile").addEventListener("click",reconcile);
+ $("detailBack").addEventListener("click",()=>home());$("exportStory").addEventListener("click",exportStory);
  $("quickReview").addEventListener("click",()=>openReview("storyboard"));$("editStory").addEventListener("click",()=>{if(!$("editStory").disabled)openReview("storyboard","revise");});
  const tabs=[...document.querySelectorAll("[data-tab]")];
- tabs.forEach((b,i)=>{b.addEventListener("click",()=>tab(b.dataset.tab));b.addEventListener("keydown",e=>{if(!["ArrowRight","ArrowLeft","Home","End"].includes(e.key))return;e.preventDefault();const position=e.key==="Home"?0:e.key==="End"?tabs.length-1:(i+(e.key==="ArrowRight"?1:tabs.length-1))%tabs.length;const next=tabs[position];next.focus();tab(next.dataset.tab);});});
+ tabs.forEach((b,i)=>{b.addEventListener("click",()=>{s.composerCategory=b.dataset.tab==="history"?"history":"overview";tab(b.dataset.tab);renderComposer();});b.addEventListener("keydown",e=>{if(!["ArrowRight","ArrowLeft","Home","End"].includes(e.key))return;e.preventDefault();const position=e.key==="Home"?0:e.key==="End"?tabs.length-1:(i+(e.key==="ArrowRight"?1:tabs.length-1))%tabs.length;const next=tabs[position];next.focus();tab(next.dataset.tab);});});
 }
 bind();boot();
 window.setInterval(pollRun,4000);

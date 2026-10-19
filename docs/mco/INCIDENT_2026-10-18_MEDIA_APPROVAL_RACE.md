@@ -17,3 +17,5 @@ Dans infrastructure/persistence/media_repository.py, la finalisation verrouille 
 Le test GREEN observe l’attente PostgreSQL, invalide l’approbation puis vérifie RunConflict après commit de l’invalidation. La régression complète et les tests de double réservation, replay d’une ancienne finalisation et isolation tenant sont exécutés sur une base jetable ; compteurs/SHA finaux dans la PR. Les autres appels finalisation et réservation gardent leurs contrats. Aucun gain chiffré, recette GPU ou acceptation métier déduit.
 
 Le verrou par traitement sérialise brièvement les finalisations de ses scènes ; maintenir la section SQL courte. Une perte d’acquittement garde le fichier de reprise et exige une réconciliation explicite, jamais une régénération automatique. Pour la recette et la reprise, voir docs/ARCHITECTURE_MEDIA.md. Le code n’est pas déployé par cette fiche.
+
+Validation locale après intégration du main d08fe0a, le 19 octobre 2026 : 315 tests réussis, 0 échec, 0 erreur, 0 skip, dont le test PostgreSQL de verrouillage. Le SHA candidat final et sa preuve terminale sont liés dans la PR #208.

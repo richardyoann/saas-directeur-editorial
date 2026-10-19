@@ -20,6 +20,7 @@ class GitHubConceptionTests(unittest.IsolatedAsyncioTestCase):
             "EDITORIAL_WEB_PASSWORD": "w" * 48,
             "EDITORIAL_API_TOKEN": "t" * 48,
             "EDITORIAL_GITHUB_READ_TOKEN": "r" * 48,
+            "EDITORIAL_GITHUB_REPOSITORY": "richardyoann/saas-directeur-editorial",
             # Even a stale opt-in must never re-enable Studio writes.
             "EDITORIAL_GITHUB_DELIVERY_WRITE_ENABLED": "true",
         })
@@ -49,7 +50,8 @@ class GitHubConceptionTests(unittest.IsolatedAsyncioTestCase):
         if suffix == "/issues?state=all&per_page=100":
             return [
                 {"number": 2, "title": "[EPIC-001] Qwen", "state": "open",
-                 "created_at": "2026-10-01T08:00:00Z"},
+                 "created_at": "2026-10-01T08:00:00Z",
+                 "body": "- [x] Scénario validé" + chr(10) + "- [ ] Images à créer"},
                 {"number": 3, "title": "Task", "state": "open"},
                 {"number": 4, "title": "Fake", "pull_request": {}},
             ]
@@ -90,6 +92,9 @@ class GitHubConceptionTests(unittest.IsolatedAsyncioTestCase):
             data = response.json()
             self.assertEqual(len(data["epics"]), 1)
             self.assertEqual(data["epics"][0]["number"], 2)
+            self.assertEqual(data["epics"][0]["checklist_done"], 1)
+            self.assertEqual(data["epics"][0]["checklist_total"], 2)
+            self.assertEqual(data["epics"][0]["progress_pct"], 50)
             self.assertEqual(data["pull_requests"][0]["number"], 92)
             self.assertEqual(data["deliveries"][0]["id"], 123)
             self.assertIs(data["delivery_control_enabled"], False)

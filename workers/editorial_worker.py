@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from editorial.service import run_steps
 from editorial.store import PostgresStore
 from editorial.worker_guard import WorkerAlreadyRunning, registered_worker
+from editorial.runtime_secrets import secret
 import psycopg
 
 LOG = logging.getLogger("editorial.worker")
@@ -26,14 +27,14 @@ def configuration():
     load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
     if os.getenv("EDITORIAL_ASYNC_ENABLED", "").lower() != "true":
         raise RuntimeError("Worker disabled: enable EDITORIAL_ASYNC_ENABLED=true only after configuring the service")
-    url = os.getenv("PO_DATABASE_URL", "")
+    url = secret("PO_DATABASE_URL")
     base_url = os.getenv("LLM_BASE_URL", "")
-    token = os.getenv("EDITORIAL_API_TOKEN", "")
+    token = secret("EDITORIAL_API_TOKEN")
     if not url or not base_url or len(token) < 32:
         raise RuntimeError("Worker DB, model endpoint or service credentials missing")
     try:
-        tenant = UUID(os.environ["EDITORIAL_TENANT_ID"])
-        actor = UUID(os.environ["EDITORIAL_ACTOR_ID"])
+        tenant = UUID(secret("EDITORIAL_TENANT_ID"))
+        actor = UUID(secret("EDITORIAL_ACTOR_ID"))
     except (KeyError, ValueError) as exc:
         raise RuntimeError("Worker identity not configured") from exc
     return url, base_url, tenant, actor

@@ -117,6 +117,74 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#submitReview").click()
         self.page.locator("#reviewDialog").wait_for(state="hidden")
 
+    def test_reference_journal_and_admin_navigation(self):
+        self.sign_in()
+        self.create("La lumière de Brocéliande")
+        self.page.locator("#home").click()
+        expect(self.page.locator("#count")).to_be_visible()
+        self.page.locator("#journalNav").click()
+        expect(self.page.locator("#journal")).to_be_visible()
+        expect(self.page.locator("#journal .arvor-entry-main")).to_have_count(1)
+        self.page.locator("#journal .arvor-entry-main").first.click()
+        expect(self.page.locator("#journal .arvor-entry-details")).to_be_visible()
+        expect(self.page.locator("#journal .arvor-trace")).not_to_have_count(0)
+        self.page.locator("#conceptionNav").click()
+        expect(self.page.locator("#conception")).to_be_visible()
+        expect(self.page.locator("#arvorAdminTabs [role=tab]")).to_have_count(5)
+        self.page.locator("#arvorAdminTabs").get_by_role("tab",name="Agenda").click()
+        # No private GitHub token is injected into the browser test fixture.
+        # The UI reports the missing integration instead of inventing events.
+        expect(self.page.locator("#arvorAdminSurface")).to_be_visible()
+        self.page.locator("#home").click()
+        expect(self.page.locator("#library")).to_be_visible()
+        expect(self.page.locator("#count")).to_be_visible()
+
+    def test_admin_real_github_data_statuses_and_calendar_modes(self):
+        self.sign_in()
+        github_base = "https://github.com/richardyoann/saas-directeur-editorial"
+        sha = "a" * 40
+        overview = {
+            "repository_url": github_base,
+            "epics": [{"number": 93, "title": "Epic navigation", "state": "open",
+                        "created_at": "2026-10-16T10:00:00Z"}],
+            "issues": [{"number": 93, "title": "Epic navigation", "state": "open",
+                        "created_at": "2026-10-16T10:00:00Z"}],
+            "pull_requests": [{"number": 97, "title": "Nouvelle interface", "state": "closed",
+                               "draft": False, "merged_at": "2026-10-16T11:00:00Z",
+                               "created_at": "2026-10-16T09:00:00Z",
+                               "updated_at": "2026-10-16T11:00:00Z",
+                               "sha": sha, "merge_commit_sha": sha}],
+            "deliveries": [{"id": 7, "sha": sha, "created_at": "2026-10-16T11:00:00Z",
+                            "conclusion": "success", "status": "completed"}],
+            "source_truncated": {"issues": False, "pull_requests": False,
+                                 "deliveries": False},
+        }
+        commits = {"commits": [{"sha": sha, "message": "Correction de navigation",
+                               "when": "2026-10-16T10:00:00Z"}], "partial": False}
+        ci = {"runs": [{"id": 10, "sha": sha, "event": "push",
+                        "status": "completed", "conclusion": "failure",
+                        "created_at": "2026-10-16T12:00:00Z"}], "partial": False}
+
+        def mocked(route, data):
+            route.fulfill(status=200, content_type="application/json",
+                          body=json.dumps(data))
+
+        self.page.route("**/studio/api/conception", lambda route: mocked(route, overview))
+        self.page.route("**/studio/api/conception/commits?*", lambda route: mocked(route, commits))
+        self.page.route("**/studio/api/conception/ci?*", lambda route: mocked(route, ci))
+        self.page.locator("#conceptionNav").click()
+        expect(self.page.locator("#arvorAdminSurface .arvor-stat")).to_have_count(4)
+        self.page.locator("#arvorAdminTabs").get_by_role("tab", name="Pull requests").click()
+        expect(self.page.locator("#arvorAdminSurface")).to_contain_text("CI KO")
+        self.page.locator("#arvorAdminTabs").get_by_role("tab", name="Commits").click()
+        expect(self.page.locator("#arvorAdminSurface")).to_contain_text("Correction de navigation")
+        self.page.locator("#arvorAdminTabs").get_by_role("tab", name="Agenda").click()
+        expect(self.page.locator(".arvor-calendar-cell")).not_to_have_count(0)
+        self.page.get_by_role("button", name="Semaine").click()
+        expect(self.page.locator(".arvor-calendar-cell")).to_have_count(7)
+        self.page.get_by_role("button", name="Jour", exact=True).click()
+        expect(self.page.locator(".arvor-calendar-cell")).to_have_count(1)
+
     def test_visual_character_to_private_image_after_approval(self):
         self.sign_in()
         run_id = self.create("Le marin d'Ys")
@@ -285,6 +353,67 @@ class StudioBrowserJourneys(unittest.TestCase):
         expect(self.page.locator("#panel")).to_contain_text("Manteau de laine rouge")
         self.page.get_by_role("button", name="Retour à l'histoire").click()
         expect(self.page.locator("#panel .story-tile")).to_have_count(3)
+
+    def test_atelier_composer_and_export_without_mutating_history(self):
+        self.sign_in()
+        self.create("Le phare de Bretagne")
+        composer = self.page.locator("#storyComposer")
+        expect(composer).to_be_visible()
+        expect(composer.locator("[data-composer]")).to_have_count(10)
+        composer.locator('[data-composer="colors"]').click()
+        expect(self.page.locator("#panel")).to_contain_text("Couleurs")
+        expect(self.page.locator("#panel")).to_contain_text("bleu")
+        composer.locator('[data-composer="characters"]').click()
+        expect(self.page.locator("#panel")).to_contain_text("Un marin")
+        composer.locator('[data-composer="overview"]').click()
+        expect(self.page.locator("#panel .story-tile")).to_have_count(3)
+        with self.page.expect_download() as info:
+            self.page.locator("#exportStory").click()
+        exported = json.loads(Path(info.value.path()).read_text(encoding="utf-8"))
+        self.assertEqual(exported["format"], "arvor-storyboard-v1")
+        self.assertEqual(len(exported["storyboard"]["scenes"]), 3)
+        self.page.locator("#detailBack").click()
+        expect(self.page.locator("#library")).to_be_visible()
+        self.assertTrue(composer.is_hidden())
+
+    def test_next_studio_private_login_and_library(self):
+        with httpx.Client(base_url=self.base, headers=AUTH) as client:
+            run = client.post("/editorial/runs", headers={"Idempotency-Key": str(uuid4())}, json={"topic":"Le murmure de Brocéliande"})
+            self.assertEqual(run.status_code, 200)
+        self.page.goto(self.base + "/studio/next")
+        expect(self.page.locator("#login-screen")).to_be_visible()
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        expect(self.page.locator("#studio-shell")).to_be_visible()
+        self.page.locator("#side-create").click()
+        expect(self.page.locator("#editor")).to_be_visible()
+        self.page.locator("#editor-cancel").click()
+        self.assertEqual(self.page.locator(".story-card").count(), 1,
+            "UI: " + self.page.locator("#content").inner_text()[:500]
+            + " / Auth: " + self.page.locator("#login-error").inner_text())
+        self.page.locator(".story-card [data-open]").click()
+        expect(self.page.locator(".outline")).to_be_visible()
+        self.page.locator('[data-panel="scenes"]').click()
+        expect(self.page.locator(".scene-row")).to_have_count(3)
+
+    def test_next_studio_real_creation_and_revision(self):
+        self.page.goto(self.base + "/studio/next")
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        expect(self.page.locator("#studio-shell")).to_be_visible()
+        self.page.locator("#side-create").click()
+        self.page.locator("#edit-topic").fill("La légende du vent")
+        self.page.locator("#editor-form button[type=submit]").click()
+        expect(self.page.locator(".story-banner h1")).to_have_text("La légende du vent")
+        self.page.locator('[data-action="edit-story"]').first.click()
+        self.page.locator("#edit-summary").fill("Une histoire de vent et de mémoire")
+        with self.page.expect_response("**/studio/api/runs/*/steps/storyboard/review") as response_info:
+            self.page.locator("#editor-form button[type=submit]").click()
+        result = response_info.value
+        self.assertEqual(result.status, 200, result.text()[:500])
+        self.page.wait_for_timeout(300)
+        self.assertIn("Une histoire de vent", self.page.locator(".story-banner").inner_text(),
+                      "Révision: " + self.page.locator("#toast").inner_text())
 
     def test_accessible_tab_navigation_and_small_text_contrast(self):
         self.sign_in()

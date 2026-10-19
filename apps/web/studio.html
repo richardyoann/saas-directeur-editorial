@@ -6,7 +6,9 @@
   <meta name="color-scheme" content="light">
   <title>Arvor Studio · Directeur éditorial</title>
   <link rel="stylesheet" href="/studio/assets/studio.css">
+  <link rel="stylesheet" href="/studio/assets/arvor_reference.css">
   <script defer src="/studio/assets/studio.js"></script>
+  <script defer src="/studio/assets/arvor_reference.js"></script>
 </head>
 <body>
 <a class="skip" href="#main">Aller au contenu</a>
@@ -24,6 +26,7 @@
     <div class="nav-title stories-title">MES HISTOIRES</div>
     <label class="search"><span class="sr-only">Rechercher dans les histoires chargées</span><input id="filter" type="search" placeholder="⌕  Rechercher une histoire…"></label>
     <div id="runList" class="run-list" aria-live="polite"></div>
+    <nav id="storyComposer" class="story-composer" aria-label="Atelier de création de l’histoire" hidden></nav>
     <button type="button" class="load" id="more" hidden>Charger les suivantes ↓</button>
     <div class="sidebar-foot"><div class="aside-note"><span>✧</span><b>Atelier privé</b><p>L’IA propose. Vous décidez. Chaque action est historisée.</p></div><button id="logout" class="nav-item" type="button">⎋ &nbsp; Se déconnecter</button></div>
   </aside>
@@ -33,7 +36,7 @@
       <section class="hero"><div><div class="overline">✧ &nbsp; L'ATELIER DES HISTOIRES</div><h1>Les légendes prennent <em>vie.</em></h1><p>Imaginez, structurez et affinez vos récits de Bretagne, de la première idée au storyboard prêt à créer.</p><div class="hero-row"><button type="button" class="btn primary" id="heroCreate">＋ &nbsp; Nouvelle histoire</button><span>L'IA propose. Vous décidez.</span></div></div><div class="hero-art" aria-hidden="true"><span>✦</span><small>CRÉATIVITÉ & TRANSMISSION</small></div></section>
       <div class="metrics"><div class="metric"><small>Histoires chargées</small><strong id="total">0</strong><span>Dans votre bibliothèque</span></div><div class="metric"><small>À valider</small><strong id="pending">0</strong><span>Décision humaine requise</span></div><div class="metric"><small>Scénarios approuvés</small><strong id="approved">0</strong><span>Sur les histoires chargées</span></div></div>
       <div id="notice" class="notice" role="status" hidden></div>
-      <section id="library" class="library" aria-label="Histoires"><div class="library-heading"><div><div class="overline">BIBLIOTHÈQUE DES RÉCITS</div><h2>Explorer mes histoires</h2><p>Ouvrez une histoire pour parcourir son scénario, ses scènes et les données de chaque élément.</p></div><button id="libraryCreate" type="button" class="btn primary">＋ Nouvelle histoire</button></div><div id="storyCards" class="story-cards" aria-live="polite"></div></section>
+      <section id="library" class="library" aria-label="Histoires"><div class="arvor-story-filters" role="group" aria-label="Filtrer les histoires"><button type="button" class="active" data-story-filter="all" aria-pressed="true">Toutes</button><button type="button" data-story-filter="draft" aria-pressed="false">Brouillon</button><button type="button" data-story-filter="writing" aria-pressed="false">En écriture</button><button type="button" data-story-filter="review" aria-pressed="false">À relire</button><button type="button" data-story-filter="approved" aria-pressed="false">Validée</button></div><div class="library-heading"><div><div class="overline">BIBLIOTHÈQUE DES RÉCITS</div><h2>Explorer mes histoires</h2><p>Ouvrez une histoire pour parcourir son scénario, ses scènes et les données de chaque élément.</p></div><button id="libraryCreate" type="button" class="btn primary">＋ Nouvelle histoire</button></div><div id="storyCards" class="story-cards" aria-live="polite"></div></section>
       <section id="conception" class="conception" hidden>
         <div class="overline">PILOTAGE DU PRODUIT</div>
         <h2>Conception et livraisons</h2>
@@ -42,7 +45,9 @@
       </section>
       <section id="empty" class="empty" hidden><div class="empty-icon">✧</div><div class="overline">VOTRE BIBLIOTHÈQUE</div><h2>Chaque histoire commence ici.</h2><p>Sélectionnez un récit dans le menu, retrouvez une exécution par son identifiant, ou lancez une nouvelle création.</p><div class="actions"><button class="btn secondary" id="openId" type="button">Ouvrir un identifiant</button><button class="btn primary" id="emptyCreate" type="button">Créer une histoire</button></div></section>
       <section id="detail" hidden>
-        <div class="detail-header"><div><div class="overline">FICHE DE CRÉATION</div><h2 id="storyTitle">Histoire</h2><p id="storyMeta"></p></div><div class="actions"><span id="status" class="pill">En cours</span><button type="button" class="btn secondary small-btn" id="editStory">✎ Réviser l’histoire</button><button type="button" class="btn secondary small-btn" id="refresh">↻ Actualiser</button><button type="button" class="btn secondary small-btn" id="reconcile" hidden>Vérifier un blocage</button></div></div>
+        <div class="story-back"><button type="button" class="btn secondary small-btn" id="detailBack">← Toutes les histoires</button><span id="detailLocation" class="story-location"></span></div>
+        <div class="detail-header"><div><div class="overline">L’ATELIER DE VOTRE HISTOIRE</div><h2 id="storyTitle">Histoire</h2><p id="storyMeta"></p></div><div class="actions"><span id="status" class="pill">En cours</span><button type="button" class="btn secondary small-btn" id="editStory">✎ Réviser l’histoire</button><button type="button" class="btn secondary small-btn" id="exportStory">↓ Exporter le récit</button><button type="button" class="btn secondary small-btn" id="refresh">↻ Actualiser</button><button type="button" class="btn secondary small-btn" id="reconcile" hidden>Vérifier un blocage</button></div></div>
+        <div class="story-detail-banner" id="storyCover" aria-label="Illustration privée de l’histoire"><div class="story-cover-placeholder" id="storyCoverEmpty">✧ <span>La trame de votre récit</span></div></div>
         <div class="progress"><div><span>01</span><b>Brief</b><small>Intention & format</small></div><div><span>02</span><b>Analyse IA</b><small>Angle & cohérence</small></div><div><span>03</span><b>Storyboard</b><small>Scènes & narration</small></div><div><span>04</span><b>Validation</b><small>Décision humaine</small></div></div>
         <div class="tabs" role="tablist" aria-label="Contenu de l'histoire"><button type="button" role="tab" id="tab-storyboard" aria-controls="panel" aria-selected="true" tabindex="0" data-tab="storyboard" class="active">Storyboard</button><button type="button" role="tab" id="tab-visuals" aria-controls="panel" aria-selected="false" tabindex="-1" data-tab="visuals">Personnages & images</button><button type="button" role="tab" id="tab-analysis" aria-controls="panel" aria-selected="false" tabindex="-1" data-tab="analysis">Analyse</button><button type="button" role="tab" id="tab-history" aria-controls="panel" aria-selected="false" tabindex="-1" data-tab="history">Historique IA</button><button type="button" role="tab" id="tab-reviews" aria-controls="panel" aria-selected="false" tabindex="-1" data-tab="reviews">Décisions</button></div>
         <div id="panel" role="tabpanel" aria-labelledby="tab-storyboard" tabindex="0" aria-live="polite"></div>
