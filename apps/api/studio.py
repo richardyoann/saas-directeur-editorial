@@ -104,6 +104,13 @@ async def body(request):
 @router.get("")
 @router.get("/")
 async def index(request: Request):
+    """The clean, API-connected Arvor is the canonical private Studio."""
+    transport(request)
+    return no_store(FileResponse(ASSETS / "arvor_next.html", media_type="text/html"))
+
+@router.get("/legacy")
+async def legacy_studio(request: Request):
+    """Temporary read/write-compatible escape hatch for older Studio journeys."""
     transport(request)
     return no_store(FileResponse(ASSETS / "studio.html", media_type="text/html"))
 
