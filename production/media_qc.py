@@ -5,6 +5,7 @@ perception. No generated media, no remote I/O, no secrets or paths in output.
 """
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -23,6 +24,37 @@ def _hash(path):
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+
+def validate_subtitles(text, duration_ms=75000):
+    """Validate SRT structure/timing only, never infer speech alignment."""
+    if not isinstance(text, str) or not text.strip():
+        return "subtitles_empty"
+    text = text.removeprefix("\ufeff").replace("\r\n", "\n")
+    blocks = re.split(r"\n[ \t]*\n", text.strip())
+    previous_end = 0
+    timestamp = r"(\d{2}):([0-5]\d):([0-5]\d),(\d{3})"
+    for number, block in enumerate(blocks, 1):
+        lines = block.splitlines()
+        if len(lines) < 3 or lines[0] != str(number):
+            return "subtitles_structure_invalid"
+        match = re.fullmatch(timestamp + r" --> " + timestamp, lines[1])
+        if not match:
+            return "subtitles_timestamp_invalid"
+        values = [int(value) for value in match.groups()]
+        def milliseconds(parts):
+            hours, minutes, seconds, millis = parts
+            return ((hours * 60 + minutes) * 60 + seconds) * 1000 + millis
+        start, end = milliseconds(values[:4]), milliseconds(values[4:])
+        if start >= end or end > duration_ms:
+            return "subtitles_timing_invalid"
+        if start < previous_end:
+            return "subtitles_overlap"
+        if not any(line.strip() for line in lines[2:]):
+            return "subtitles_text_missing"
+        previous_end = end
+    return None
 
 
 def inspect_export(directory):
@@ -47,8 +79,9 @@ def inspect_export(directory):
             checks.append("receipt_format_not_vertical")
         if receipt.get("audio") is not True:
             checks.append("voice_not_present_in_receipt")
-        if subtitles.stat().st_size == 0:
-            checks.append("subtitles_empty")
+        subtitle_error = validate_subtitles(subtitles.read_text(encoding="utf-8"))
+        if subtitle_error:
+            checks.append(subtitle_error)
         executable = shutil.which("ffprobe")
         if not executable:
             checks.append("ffprobe_missing")
