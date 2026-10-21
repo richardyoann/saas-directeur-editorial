@@ -53,6 +53,29 @@ class EpisodeExportTests(unittest.TestCase):
         self.assertFalse((self.root / "export").exists())
         self.assertEqual((self.root / "scene.png").read_bytes(), b"invalid PNG")
 
+
+    def test_arvor_75_rejects_short_video_before_creating_files(self):
+        (self.root / "scene.png").write_bytes(b"input preserved")
+        self.save()
+        with self.assertRaisesRegex(ValueError, "arvor_75_duration_mismatch"):
+            module.render(self.manifest, self.root / "export", arvor_75=True)
+        self.assertFalse((self.root / "export").exists())
+        self.assertEqual((self.root / "scene.png").read_bytes(), b"input preserved")
+
+    def test_arvor_75_accepts_exact_total_and_rejects_near_misses(self):
+        module.validate_duration(75, arvor_75=True)
+        for seconds in (74, 76, 30, 60):
+            with self.subTest(seconds=seconds):
+                with self.assertRaisesRegex(ValueError, "arvor_75_duration_mismatch"):
+                    module.validate_duration(seconds, arvor_75=True)
+        with self.assertRaisesRegex(ValueError, "episode_duration_invalid"):
+            module.validate_duration(181, arvor_75=True)
+        module.validate_duration(2)  # Historical exports remain possible.
+
+    def test_studio_creation_form_presets_75_seconds(self):
+        html = (Path(__file__).resolve().parents[1] / "apps/web/studio.html").read_text(encoding="utf-8")
+        self.assertIn('id="duration" type="number" min="75" max="75" value="75" readonly', html)
+
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg export prerequisite absent")
     def test_real_mp4_audio_subtitles_and_reproducible_folder(self):
         subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=64x64", "-frames:v", "1", "-threads", "1", str(self.root / "scene.png")], check=True)

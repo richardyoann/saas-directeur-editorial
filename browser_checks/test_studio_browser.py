@@ -102,11 +102,12 @@ class StudioBrowserJourneys(unittest.TestCase):
 
     def create(self, topic="La ville d'Ys"):
         self.page.locator("#heroCreate").click()
-        # Historical browser journeys explicitly use 60s / 3 scenes.
-        # The production UX now defaults to 75s / 5 scenes.
-        self.page.locator("#duration").fill("60")
+        # Historical browser journeys explicitly use 3 scenes.
+        # The Studio duration is locked to the Arvor 75 s standard.
         self.page.locator("#scenes").fill("3")
         self.page.locator("#topic").fill(topic)
+        self.assertEqual(self.page.locator("#duration").input_value(), "75")
+        self.assertTrue(self.page.locator("#duration").evaluate("el => el.readOnly"))
         self.page.locator("#submitNew").click()
         self.page.locator("#detail").wait_for(state="visible")
         self.page.locator("#panel .story-tile").first.wait_for(state="visible")
@@ -339,14 +340,17 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#edit-scene-0-narration").fill("Narration humaine de la forêt")
         self.page.locator("#edit-scene-0-characters").fill("Merlin\nViviane")
         self.page.locator("#edit-scene-0-colors").fill("vert\nbleu")
-        self.page.locator("#edit-scene-0-duration_seconds").fill("21")
+        duration = self.page.locator("#edit-scene-0-duration_seconds")
+        original_duration = duration.input_value()
+        self.assertEqual(original_duration, "25")
+        duration.fill(str(int(original_duration) + 1))
         self.page.locator("#confirmReview").check()
         self.page.locator("#submitReview").click()
         self.page.locator("#reviewError").wait_for(state="visible")
         self.assertIn("durée totale", self.page.locator("#reviewError").inner_text())
         self.assertTrue(self.page.locator("#reviewDialog").is_visible())
         self.assertNotIn("editorial_studio_session", self.page.evaluate("document.cookie"))
-        self.page.locator("#edit-scene-0-duration_seconds").fill("20")
+        duration.fill(original_duration)
         self.page.locator("#submitReview").click()
         self.page.locator("#reviewDialog").wait_for(state="hidden")
         self.assertEqual(self.page.locator("#storyTitle").inner_text(), "Brocéliande — version éditée")
@@ -474,6 +478,10 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#login-submit").click()
         expect(self.page.locator("#studio-shell")).to_be_visible()
         self.page.locator("#side-create").click()
+        # Non-regression: the promoted Studio offers the Arvor 75 s standard.
+        expect(self.page.locator("#edit-duration_seconds")).to_have_value("75")
+        self.assertTrue(self.page.locator("#edit-duration_seconds").evaluate("el => el.readOnly"))
+        expect(self.page.locator("#edit-scene_count")).to_have_value("5")
         self.page.locator("#edit-topic").fill("La légende du vent")
         self.page.locator("#editor-form button[type=submit]").click()
         expect(self.page.locator(".story-banner h1")).to_have_text("La légende du vent")
