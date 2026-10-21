@@ -138,6 +138,35 @@ class StructuredOutputHardeningTests(unittest.TestCase):
         self.assertEqual(payload["scene_durations_seconds"], [21, 20, 20])
         self.assertEqual(payload["brief"]["topic"], brief.topic)
 
+    def test_storyboard_schema_inlines_local_references_and_keeps_constraints(self):
+        brief = Brief(topic="Le roi d'Ys", scene_count=6, duration_seconds=90)
+        schema = output_schema("storyboard", brief)
+        encoded = json.dumps(schema, allow_nan=False)
+        self.assertNotIn('"$ref"', encoded)
+        self.assertNotIn('"$defs"', encoded)
+        self.assertEqual(schema["properties"]["scenes"]["minItems"], 6)
+        self.assertEqual(schema["properties"]["scenes"]["maxItems"], 6)
+        self.assertEqual(schema["properties"]["scenes"]["items"]["type"], "object")
+        self.assertIn("narration", schema["properties"]["scenes"]["items"]["required"])
+        self.assertEqual(schema["properties"]["cast"]["items"]["type"], "object")
+        self.assertIn("appearance", schema["properties"]["cast"]["items"]["required"])
+        self.assertLess(len(encoded.encode("utf-8")), 32768)
+        with self.assertRaises(ValueError):
+            output_schema("unexpected", brief)
+
+    def test_unknown_and_recursive_grammar_references_fail_closed(self):
+        from editorial.service import _inline_schema_refs
+
+        examples = [
+            {"$defs": {"Scene": {"$ref": "#/$defs/Scene"}},
+             "properties": {"scene": {"$ref": "#/$defs/Scene"}}},
+            {"properties": {"scene": {"$ref": "https://external.test/schema"}}},
+            {"properties": {"scene": {"$ref": "#/$defs/Missing"}}},
+        ]
+        for schema in examples:
+            with self.subTest(schema=schema), self.assertRaises(ValueError):
+                _inline_schema_refs(schema)
+
     def test_deep_oversized_and_nonfinite_json_are_rejected(self):
         for value in ('{"angle":"A","message":"B","historical_checks":[],"bad":NaN}',
                       "[" * 2000 + "]" * 2000, "x" * 131073):

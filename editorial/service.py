@@ -17,10 +17,44 @@ SYSTEM_PROMPT = (
 )
 
 
+def _inline_schema_refs(schema):
+    """Inline local Pydantic definitions before sending llama.cpp a grammar.
+
+    Some llama.cpp builds silently ignore complex $ref/$defs grammars; Python
+    validation remains the final authority regardless of server behavior.
+    Never silently discard an unknown or recursive definition.
+    """
+    definitions = schema.get("$defs", {})
+
+    def expand(value, active=frozenset()):
+        if isinstance(value, list):
+            return [expand(item, active) for item in value]
+        if not isinstance(value, dict):
+            return value
+        if "$ref" in value:
+            ref = value["$ref"]
+            prefix = "#/$defs/"
+            if not isinstance(ref, str) or not ref.startswith(prefix):
+                raise ValueError("unsupported_schema_reference")
+            name = ref[len(prefix):]
+            if (not name or "/" in name or name not in definitions
+                    or name in active or len(value) != 1):
+                raise ValueError("invalid_or_recursive_schema_reference")
+            return expand(definitions[name], active | {name})
+        return {key: expand(item, active) for key, item in value.items()
+                if key != "$defs"}
+
+    return expand(schema)
+
+
 def output_schema(step, brief):
+    if step not in {"analysis", "storyboard"}:
+        raise ValueError("unknown_editorial_step")
     schema = (Analysis if step == "analysis" else Storyboard).model_json_schema()
+    schema = _inline_schema_refs(schema)
     if step == "storyboard":
-        schema["properties"]["scenes"].update(minItems=brief.scene_count, maxItems=brief.scene_count)
+        schema["properties"]["scenes"].update(minItems=brief.scene_count,
+                                               maxItems=brief.scene_count)
     return schema
 
 
