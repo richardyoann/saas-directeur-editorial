@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import shutil
 import subprocess
 import sys
 import time
@@ -53,8 +54,12 @@ class StudioBrowserJourneys(unittest.TestCase):
             raise RuntimeError("Browser fixture did not start")
         cls.playwright = sync_playwright().start()
         try:
-            cls.browser = cls.playwright.chromium.launch(
-                channel="chrome", headless=True, args=["--no-sandbox"])
+            # Use Chrome when installed on Linux; otherwise reuse an existing
+            # Playwright-managed Chromium binary. Never download browsers here.
+            browser_args = {"headless": True, "args": ["--no-sandbox"]}
+            if shutil.which("google-chrome") or shutil.which("google-chrome-stable"):
+                browser_args["channel"] = "chrome"
+            cls.browser = cls.playwright.chromium.launch(**browser_args)
         except Exception:
             cls.playwright.stop()
             cls.server.terminate()
@@ -97,6 +102,10 @@ class StudioBrowserJourneys(unittest.TestCase):
 
     def create(self, topic="La ville d'Ys"):
         self.page.locator("#heroCreate").click()
+        # Historical browser journeys explicitly use 60s / 3 scenes.
+        # The production UX now defaults to 75s / 5 scenes.
+        self.page.locator("#duration").fill("60")
+        self.page.locator("#scenes").fill("3")
         self.page.locator("#topic").fill(topic)
         self.page.locator("#submitNew").click()
         self.page.locator("#detail").wait_for(state="visible")
@@ -116,6 +125,69 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#confirmReview").check()
         self.page.locator("#submitReview").click()
         self.page.locator("#reviewDialog").wait_for(state="hidden")
+
+    def test_new_75_second_crew_cockpit_requires_manual_start(self):
+        """Chromium UI + simulated backend, no live Qwen or user PostgreSQL."""
+        self.sign_in()
+        self.page.locator("#heroCreate").click()
+        expect(self.page.locator("#duration")).to_have_value("75")
+        expect(self.page.locator("#scenes")).to_have_value("5")
+        self.page.locator("#topic").fill("La gardienne du phare imaginaire")
+        self.page.locator("#submitNew").click()
+        expect(self.page.locator("#panel .story-tile")).to_have_count(5)
+        self.review("analysis")
+        self.review("storyboard")
+        expect(self.page.locator("#status")).to_have_text("Approuvé")
+
+        state = {"phase": "ready", "next_roles": [
+            "screenwriter", "art_director", "cinematographer",
+            "animator", "sound_designer", "editor", "critic"],
+            "outputs": {}, "cycle": 0, "revision": 0,
+            "critique": None, "quality": None}
+        calls = {"created": 0, "advance": 0}
+
+        def mocked_production(route):
+            url = route.request.url
+            method = route.request.method
+            if url.endswith("/production") and method == "GET" and not calls["created"]:
+                route.fulfill(status=404, content_type="application/json",
+                              body='{"detail":"not_started"}')
+                return
+            if url.endswith("/production") and method == "POST":
+                assert route.request.headers.get("x-csrf-token")
+                calls["created"] += 1
+                route.fulfill(status=201, content_type="application/json",
+                              body=json.dumps(state))
+                return
+            if url.endswith("/production/advance") and method == "POST":
+                assert route.request.headers.get("x-csrf-token")
+                payload = route.request.post_data_json
+                assert payload["expected_revision"] == state["revision"]
+                calls["advance"] += 1
+                state["revision"] += 2
+                state["next_roles"].pop(0)
+                state["outputs"]["screenwriter"] = {
+                    "summary": "Le récit adopte un crescendo narratif clair et précis.",
+                    "directions": ["Introduire une tension claire au début."],
+                    "constraints_checked": ["Cinq scènes sur 75 secondes."],
+                    "handoff": "Transmettre le dossier à la direction artistique."}
+                route.fulfill(status=200, content_type="application/json",
+                              body=json.dumps(state))
+                return
+            route.fulfill(status=200, content_type="application/json",
+                          body=json.dumps(state))
+
+        self.page.route("**/studio/api/runs/*/production**", mocked_production)
+        self.page.locator('[data-tab="crew"]').click()
+        expect(self.page.locator("#panel")).to_contain_text("Démarrer la préproduction")
+        self.assertEqual(calls, {"created": 0, "advance": 0})
+        self.page.get_by_role("button", name="Démarrer la préproduction").click()
+        expect(self.page.locator("#panel")).to_contain_text("Lancer : Scénariste")
+        self.assertEqual(calls["created"], 1)
+        self.assertEqual(calls["advance"], 0)
+        self.page.get_by_role("button", name="Lancer : Scénariste").click()
+        expect(self.page.locator("#panel")).to_contain_text("Lancer : Direction artistique")
+        self.assertEqual(calls["advance"], 1)
 
     def test_reference_journal_and_admin_navigation(self):
         self.sign_in()
@@ -359,7 +431,7 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.create("Le phare de Bretagne")
         composer = self.page.locator("#storyComposer")
         expect(composer).to_be_visible()
-        expect(composer.locator("[data-composer]")).to_have_count(10)
+        expect(composer.locator("[data-composer]")).to_have_count(11)
         composer.locator('[data-composer="colors"]').click()
         expect(self.page.locator("#panel")).to_contain_text("Couleurs")
         expect(self.page.locator("#panel")).to_contain_text("bleu")
