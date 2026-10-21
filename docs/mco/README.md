@@ -144,4 +144,6 @@ La gravité est à adapter à l'impact réel : un `/ready=503` peut relever de P
 
 - [18 octobre 2026 — PR #208 : démarrage CI bloqué par facturation/quota](INCIDENT_2026-10-18_CI_PR208.md).
 
+- [21 octobre 2026 — intégration Arvor des huit PR bloquée par le même démarrage CI](INCIDENT_2026-10-21_CI_BILLING_INTEGRATION_ARVOR.md).
+
 - [18 octobre 2026 — verrou d’approbation à la finalisation média](INCIDENT_2026-10-18_MEDIA_APPROVAL_RACE.md).
