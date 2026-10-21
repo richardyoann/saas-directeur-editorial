@@ -200,6 +200,9 @@ class ImageLimitTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_long_prompt_returns_422_and_releases_gate_before_reservation(self):
         class Store:
+            def media_repository(self):
+                return self
+
             def visual_plan(self, *args):
                 raise ImagePromptTooLong()
 

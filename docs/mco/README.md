@@ -140,3 +140,7 @@ La gravité est à adapter à l'impact réel : un `/ready=503` peut relever de P
 
 **Responsabilités :** l'opérateur MCO valide les actions système, secrets et sauvegardes ; le responsable code revoit les correctifs ; le responsable éditorial valide le contenu produit. Une CI verte ne vaut pas recette utilisateur ni acceptation métier.
 
+
+- [18 octobre 2026 — PR #208 : démarrage CI bloqué par facturation/quota](INCIDENT_2026-10-18_CI_PR208.md).
+
+- [18 octobre 2026 — verrou d’approbation à la finalisation média](INCIDENT_2026-10-18_MEDIA_APPROVAL_RACE.md).

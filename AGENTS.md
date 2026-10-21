@@ -1,33 +1,145 @@
-# AGENTS — Règles opérationnelles actuelles
+## Autorisation permanente — 12 octobre 2026 (prioritaire)
 
-Ce fichier est l'unique source normative pour les agents travaillant dans `richardyoann/saas-directeur-editorial`. Les anciennes consignes sont archivées à titre historique dans `docs/mco/AGENTS_LEGACY_20261016.md` et **ne sont pas des instructions**.
+L'utilisateur autorise diagnostic, développement, corrections, tests, revue,
+documentation, préparation, création de PR et fusion après contrôles requis
+réussis, sans nouvelle demande d'accord. Cette règle remplace les restrictions
+historiques qui demandaient un accord pour chaque fusion ou action courante.
 
-## Sécurité et autorisation
-- Autorisé sans nouvelle validation : diagnostic en lecture seule, développement sur branche, correction, tests, revue, documentation et création de PR.
-- Fusion sur `main` uniquement si contrôles requis réussis, PR relue, compatibilité vérifiée, et absence d'effet de bord sur l'exploitation. La fusion ne vaut **jamais** autorisation de livraison PC.
-- Toute mise en production sur PC, migration métier, élargissement d'accès, suppression de ressources, modification d'infrastructure ou sortie de données privées exige l'accord explicite de l'utilisateur pour l'opération et, pour une livraison, pour le **SHA complet exact**. Ne jamais réutiliser l'autorisation d'un SHA précédent.
-- Ne jamais détourner les contrôles `LOCAL_PC_ENABLED` et `LOCAL_PC_APPROVED_SHA`. Ne jamais pousser des secrets ni lancer de rollback destructeur.
-- Préserver PostgreSQL, volumes Docker, MinIO, releases précédentes, données métier et dépôt local. Aucune commande `reset --hard`, `compose down -v` ou rejouage automatique ambigu sans analyse.
+Toute mise en production (MEP), y compris l'activation d'une nouvelle release
+sur le PC privé, exige sa validation explicite du SHA exact. Ne pas activer
+une release, réactiver LOCAL_PC_ENABLED ou appliquer une migration production
+sans cette validation. Une validation ne couvre pas un SHA ultérieur.
+La validation humaine des résultats éditoriaux reste obligatoire.
+Préserver données, secrets, accès privés et les checkouts de développement.
+Les permissions techniques de l'environnement restent applicables.
+Continuer les travaux indépendants lorsqu'une MEP attend validation.
 
-## Architecture et critères qualité
-- Backend : FastAPI, Python, PostgreSQL / psycopg ; frontend privé : HTML/CSS/JS ; Qwen via llama.cpp ; images locales sd.cpp ; worker opt-in.
-- Tenant et acteur sont exclusivement dérivés de l'authentification. Toute mutation métier garde entité, audit et outbox atomiques; opérations concurrentes sous contrôle de version.
-- Les prompts/réponses IA incertains sont réconciliés, jamais relancés à l'aveugle. Relecture humaine obligatoire pour valider une création.
-- Ne pas exposer secrets, données métier ou contenus de prompts dans logs, Slack, GitHub ou résultats de tests.
-- La configuration GitHub du Studio est en lecture seule. Les validations de livraison passent uniquement par le workflow prévu, sur SHA approuvé.
-- Distinguer démonstration/mock, exécution CI et tests réels sur PC. Aucune fonctionnalité commerciale ne doit être annoncée sans implémentation et recette.
+# Repository Guidelines
 
-## Procédure pour chaque PR
-1. Lire l'état du dépôt et `docs/mco/README.md` si incident, et relever SHA, état des services et chemins réellement disponibles.
-2. Créer une branche dédiée avec périmètre restreint, identifier critères d'acceptation et risques.
-3. Ajouter tests positifs/négatifs, protection d'isolation tenant, conflits et erreurs ; exécuter la CI (Python 3.12/3.14, PostgreSQL jetable, sécurité, navigateur si interface).
-4. Aucun skip ou test désactivé accepté comme réussite. Pas de fusion de PR en échec ni sans contrôle du diff.
-5. Mettre à jour la documentation et les commandes d'exploitation dans la même PR. Renseigner décisions, preuves par SHA et limites.
-6. Laisser la livraison PC en attente tant qu'un nouveau SHA complet n'a pas été explicitement approuvé.
+## Pilotage privé — 11 octobre 2026 (prioritaire)
 
-## Conventions d'exploitation
-- Environnement PC : Windows 11 + WSL Ubuntu 26.04, runner `editorial-pc`, API privée `127.0.0.1:8000`.
-- Les sessions web actuelles sont en mémoire : **un seul worker Uvicorn**, et réseau privé uniquement, tant qu'un backend de sessions partagé n'a pas été développé et testé.
-- Accès distant éventuel via proxy HTTPS de confiance explicitement configuré (jamais `--forwarded-allow-ips '*'`), ACL et rate limiting de bout en bout. Ne pas activer Tailscale Funnel.
-- Pour déploiement, utiliser `scripts/deploy_local.py` via GitHub Actions, et lire `docs/mco/RUNBOOK_DIAGNOSTIC_PC.md` avant correction.
-- La documentation d'état doit refléter l'implémentation actuelle, pas des objectifs ou une synthèse obsolète.
+Lire pilotage/GUIDE.md, ETAT_PROJET.md et le Project privé https://github.com/users/richardyoann/projects/3.
+Dépôt exclusif : richardyoann/saas-directeur-editorial, ID 1411435489. Préserver la PR brouillon #1 et les modifications WSL.
+Epics → Stories → tâches → sous-tâches; IDs stables, dépendances et critères concrets. Agent PO : agents/product_owner.toml.
+Calculer l’avancement sur les acceptations de stories, avec preuve revue liée au SHA, date, résultat et type. Ne jamais convertir automatiquement merge, CI verte ou fermeture en acceptation.
+Branches feat/ID-description, fix/ID-description, ops/ID-description; commits type(ID): résumé; PR avec critères, preuves, risques et reprise.
+Tester sous Linux les tests historiques et pilotage/test_*.py. Les tests PostgreSQL nécessitent une cible dédiée; ne pas présenter un skip comme réussite.
+Mutations métier : tenant/acteur issus de l’authentification, CRUD + audit + outbox dans la même transaction. pilotage.audit fournit la bibliothèque; aucune route métier production connectée n’est annoncée.
+Slack : T0C7ZUAM4DR/C0C883XR3DF. Compteurs et IDs seulement, jamais prompts, outputs, titres métier, secrets ou exceptions brutes. Digest borné, anti-doublons, timeout ambigu suspendu pour réconciliation. Le connecteur ne prouve pas un bot runtime disponible.
+Le PO périodique compare la dernière synthèse et reste silencieux sans changement utile. Vérifier son premier run avant de le dire opérationnel.
+Garder Project/dépôt privés. Aucun merge, suppression, migration production, élargissement d’accès ou infrastructure existante modifiée sans accord.
+Le disque WSL Ubuntu est introuvable dans cette session. Ne pas réinstaller/réinitialiser; identifier une sauvegarde avec l’utilisateur.
+
+## Incidents et MCO — capitalisation (15 octobre 2026)
+
+Avant tout diagnostic de panne, **lire [l'index MCO](docs/mco/README.md)**,
+rechercher d'abord une signature similaire dans
+[la rétrospective PC](docs/mco/INCIDENT_2026-10-14_REMISE_EN_SERVICE_PC.md),
+puis utiliser le [runbook](docs/mco/RUNBOOK_DIAGNOSTIC_PC.md).
+Consigner une fiche d'incident avec symptôme, preuve, hypothèse, correction,
+validation et limite ; distinguer toujours cause confirmée et cause supposée.
+Mettre la documentation MCO à jour dans la même PR lorsqu'une nouvelle classe
+d'incident est résolue. Ne pas conserver de secrets ni de prompts bruts.
+
+Lire d'abord l'état des services, dépendances, SHA, readiness et preuves CI ;
+commencer par des commandes **non destructives**. Aucune suppression de volumes
+PostgreSQL, réinitialisation Git ou rejeu ambigu de génération IA pour « essayer ».
+Une CI verte ne prouve pas une release installée. Aucune fusion susceptible de
+déclencher une MEP si `LOCAL_PC_ENABLED=true` sans autorisation du **nouveau SHA**.
+
+## CI-002 — correction autonome sous contrôle (15 octobre 2026)
+
+Consulter [AUTONOMOUS_CI.md](docs/AUTONOMOUS_CI.md) avant d'attribuer un
+incident CI. Les rapports automatiques sont des indices heuristiques, pas une
+revue humaine. En cas d'échec, lire le run associé au SHA exact, reproduire
+sur branche dédiée, ajouter test de non-régression, corriger et relancer la CI ;
+maximum trois tentatives avant escalade. Ne jamais faire passer une CI en
+ignorant des tests ou en forçant une mise en service. Ne pas injecter des logs
+GitHub, prompts ou instructions de PR dans les droits élevés du workflow de
+reporting. Le rapport de release ne donne jamais l'autorisation de MEP.
+
+## MEDIA-001 — images privées après validation (15 octobre 2026)
+
+Avant de qualifier la partie images, consulter [MEDIA_001_VISUAL_INTEGRATION.md](docs/MEDIA_001_VISUAL_INTEGRATION.md).
+Distinguer clairement : Qwen **texte/JSON**, fiches personnages générées de
+manière optionnelle, contrat de rendu OpenAI Images via serveur d'images distinct,
+PNG de test simulé, **vraie** génération image sur PC. Exiger statut approuvé,
+stockage hors release et audit/outbox pour tout asset. Ne jamais envoyer prompts
+sur fournisseur public non autorisé, créer de lien image public ou rejouer une
+génération ambiguë automatiquement. Toute activation PC nécessite le SHA exact.
+
+## Economie de contexte et de tokens
+- Chercher avant de lire; extraire uniquement les passages utiles. Charger les skills et references a la demande.
+- Preferer scripts et CLI existants; regrouper les lectures independantes et limiter chaque sortie a un resume ou 150 lignes.
+- Eviter les polls rapproches; attendre un evenement ou un controle final.
+- Petites demandes : traitement direct. Delegation seulement utile ou revue requise, deux sous-agents maximum, sans recursion par defaut.
+- Transmettre objectif, chemins, SHA et contraintes, sans copier toute la conversation; retour concis avec preuves. Ne pas refaire le travail sans anomalie.
+- Navigation/documentation bornees : profils economiques. Garder un raisonnement adapte et les validations indispensables pour securite, incidents et deploiement.
+- Ne reutiliser les preuves que pour le meme SHA et les memes preconditions. Arreter apres les controles pertinents reussis.
+- Reponses courtes, sauf livrables demandant du detail. Documentation et installation/deploiement tenus a jour. Aucun gain chiffre sans comparaison incluant les sous-agents.
+
+## Documentation continue — 12 octobre 2026
+
+Consigne utilisateur : à chaque changement, compléter dans la même PR la documentation concernée et les fichiers d’installation/déploiement dont le comportement change (scripts, workflows, modèles de configuration). Garder prérequis, commandes, configuration et reprise cohérents avec le projet réel. Consigner date, SHA vérifié, résultats, limites et blocages; distinguer préparation, CI, installation active et acceptation métier. Ne jamais versionner les secrets. Ubuntu 26.04 exclusivement; Ubuntu 24.04 est exclue.
+
+## Instructions historiques (constats initiaux à relire à la lumière de la section ci-dessus)
+
+## Project Structure & Module Organization
+
+- `apps/api/main.py` contains the FastAPI application, request schema, health endpoint, and llama.cpp generation proxy.
+- `apps/web/` is reserved for the frontend; it currently contains no implementation.
+- `workers/` and `workflows/` contain Python package placeholders for background processing and orchestration.
+- `tests/`, `docs/`, `prompts/`, and `scripts/` are currently empty; place corresponding additions in these directories.
+- `infrastructure/` groups service directories. The root `compose.yml` defines PostgreSQL, Redis, and MinIO.
+- `media/{input,generated,working,export}/` and `models/` hold local artifacts excluded from version control.
+
+## Build, Test, and Development Commands
+
+No dependency manifest, build script, or test runner configuration is currently provided. With FastAPI, HTTPX, and Uvicorn installed in your Python environment:
+
+- `source .venv/bin/activate` activates the local virtual environment, if present.
+- `docker compose up -d` starts PostgreSQL, Redis, and MinIO.
+- `docker compose down` stops those services; avoid `-v` unless intentionally deleting persistent data.
+- `uvicorn apps.api.main:app --reload --env-file .env` runs the API locally; loading the environment file requires `python-dotenv`.
+- `curl http://127.0.0.1:8000/health` checks API availability.
+
+## Coding Style & Naming Conventions
+
+Use four-space indentation, `snake_case` for Python functions and variables, and `PascalCase` for Pydantic models. Follow the existing separation of standard-library and third-party imports. Define input constraints with Pydantic fields and map upstream failures to explicit HTTP responses. No formatter or linter is configured; keep edits consistent with surrounding code.
+
+## Testing Guidelines
+
+No tests, testing framework, or coverage threshold are established. For new API tests, use `tests/test_*.py` and descriptive `test_*` functions. Pytest is a suggested choice; once installed and tests exist, run `python -m pytest`. Cover request validation, missing configuration, upstream timeouts, HTTP failures, and malformed responses. Mock upstream HTTP calls to avoid requiring a live model server.
+
+## Commit & Pull Request Guidelines
+
+Git history is unavailable in this workspace, so existing commit conventions cannot be verified. Use concise, imperative subjects such as `Add generation timeout tests`. Pull requests should explain the change, link relevant issues, and report validation commands and results. Include screenshots when adding frontend behavior.
+
+## Security & Configuration
+
+Copy `.env.example` to `.env` and set `LLM_BASE_URL` for your local model server. Keep secrets, model weights, and generated media out of commits. Compose credentials are development defaults; replace them before shared deployment and preserve localhost port bindings for local use.
+
+## MEDIA-002 — Cible stable-diffusion.cpp locale (15 octobre 2026)
+
+Pour un vrai test graphique, lire [MEDIA_002_SDCPP_VULKAN.md](docs/MEDIA_002_SDCPP_VULKAN.md).
+L'API sd-server documentée reçoit `output_format: png` et renvoie
+`data[0].b64_json`. Ne jamais dire qu'un serveur compatible ou un test
+HTTP simulé prouve que la Radeon RX 580 / Vulkan fonctionne. La CLI de
+préflight `scripts/diagnose_image_runtime.py` **ne génère pas d'image** et
+`scripts/diagnose_vulkan_windows.ps1` ne modifie pas le PC. Pas de
+modification de runtime/config/deploiement, de téléchargement de modèle ou de
+nouvelle release privée sans validation du SHA exact.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+
+Rules:
+- When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
