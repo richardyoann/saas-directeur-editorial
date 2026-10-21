@@ -64,7 +64,11 @@ class ProductionStudioDefaultsTests(unittest.TestCase):
         html = (Path(__file__).resolve().parents[1] / "apps/web/studio.html").read_text(
             encoding="utf-8"
         )
-        self.assertIn('id="duration" type="number" min="15" max="180" value="75"', html)
+        # Arvor 75 s standard: the creation duration is locked to 75 seconds
+        # (contract of PR #209) and the scene count stays free, defaulting to
+        # the five scenes on 75 seconds of the production cockpit.
+        self.assertIn('id="duration" type="number" min="75" max="75" value="75" readonly', html)
+        self.assertIn('Format Arvor : 75 secondes', html)
         self.assertIn('id="scenes" type="number" min="1" max="6" value="5"', html)
 
 
