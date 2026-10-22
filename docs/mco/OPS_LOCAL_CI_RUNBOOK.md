@@ -87,3 +87,41 @@ Un statut PASS, même authentifié, **ne constitue pas une autorisation de fusio
 ## Commande de tests du module
 
     python -m unittest tests.test_arvor_local_ci -v
+
+## Bac à sable Docker : préparation opérationnelle (22/10/2026)
+
+Fichiers livrés : ci/local/Dockerfile, ci/local/requirements-ci.txt, scripts/arvor_ci_sandbox.py, scripts/arvor_ci_entrypoint.sh et tests/test_arvor_ci_sandbox.py.
+
+Le Dockerfile est basé sur PostgreSQL 16 et prévoit Python 3.12/3.14, Chromium, FFmpeg, Node, Playwright, Gitleaks 8.28.0 vérifié par SHA256 et pip-audit. Il reste à construire et tester sur une machine Docker opérationnelle.
+
+### Préparation sur WSL, sans déploiement applicatif
+
+Après revue et épinglage du commit de la branche CI dans une copie fiable :
+
+    docker build -f ci/local/Dockerfile -t arvor-ci:review .
+    docker image inspect --format '{{.Id}}' arvor-ci:review
+
+Utiliser l'identifiant sha256 immuable retourné, jamais seulement un tag Docker. Préparer un clone Git autonome et propre au SHA de la PR à tester, un dossier de code CI de confiance hors du clone (avec arvor_local_ci.py et arvor_ci_entrypoint.sh), et un dossier privé de preuves accessible à l'UID 999 du conteneur.
+
+Simulation du lanceur, sans exécution de tests :
+
+    python scripts/arvor_ci_sandbox.py --image-id "$IMAGE_ID" --checkout "$CANDIDATE_CLONE" --trusted "$TRUSTED_CONTROLLER" --evidence "$PRIVATE_EVIDENCE" --sha "$PR_HEAD_SHA" --base-sha "$PR_BASE_SHA" --pr "$PR_NUMBER"
+
+Une fois l'image et la séparation des volumes/identités vérifiées, l'option --execute lance seulement les tests locaux dans un conteneur jetable, sans réseau, sans privilèges, sans socket Docker ni secrets et sans volumes métier. Elle n'installe pas Arvor.
+
+Le cache pip-audit est préchargé au build et recopié en espace temporaire. Si l'audit hors ligne échoue, la gate échoue et l'attestation PASS est interdite.
+
+### Critères bloquants restants
+
+- 16 gates sont maintenant définies : 6 Python/Postgres/benchmark, 3 JS, 1 syntaxe Python, 1 navigateur, 1 dépendances, 1 Gitleaks, 1 policy, 1 revue de risques, 1 vidéo synthétique 75 s.
+- La gate vidéo appelle scripts.smoke_video_75 : ce script est présent sur la PR #214 et absent du main actuel. L'absence doit produire un échec, jamais un PASS.
+- Le signataire Ed25519 vérifie schéma et cohérence mais ne prouve pas, à lui seul, qu'un log reçu du sandbox est authentique : le superviseur extérieur au code candidat doit contrôler les logs, l'image, les commandes, les codes de retour et l'identité Git distante AVANT signature.
+- Une réussite 75 s synthétique ne remplace pas les recettes Qwen réel, voix, GPU, ni la validation éditoriale.
+- Aucun test sur l'image Docker complète n'a été lancé dans cet environnement, qui n'a pas de Docker et n'est pas le PC de l'utilisateur.
+- Le workflow de notification GitHub/Slack n'est pas branché automatiquement à OpenCode et aucun webhook privé n'est configuré.
+- Ne jamais considérer ARVOR_LOCAL_CI_FULL_PARITY_APPROVED comme une preuve d'isolation en soi. Le laisser désactivé avant certification.
+- Aucun workflow GitHub Actions existant n'est encore désactivé; #214 reste en brouillon; aucun merge ni déploiement PC autorisé par cette préparation.
+
+### Tests locaux de développement
+
+Dans un environnement de test distinct, 16 tests unitaires ont passé (signature, fraude SHA, tests skipped, cache de publication, isolation du lanceur), ainsi que la compilation Python et la syntaxe shell. Cela ne constitue pas la recette complète de la CI sur Arvor.
