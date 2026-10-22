@@ -18,7 +18,7 @@ from uuid import uuid4
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 GATES = ("db_prepare_312", "regression_312", "sql_benchmark_312",
          "db_prepare_314", "regression_314", "sql_benchmark_314",
-         "syntax_js", "syntax_py", "browser", "dependencies", "secrets",
+         "syntax_js", "syntax_js_reference", "syntax_js_next", "syntax_py", "browser", "dependencies", "secrets",
          "supply_chain", "risk_review")
 
 
@@ -74,6 +74,8 @@ def commands(p312, p314, base):
         "regression_314": py(314, "scripts/run_regression.py"),
         "sql_benchmark_314": py(314, "scripts/benchmark_editorial_sql.py", "--rows", "1200", "--disposable"),
         "syntax_js": ["node", "--check", "apps/web/studio.js"],
+        "syntax_js_reference": ["node", "--check", "apps/web/arvor_reference.js"],
+        "syntax_js_next": ["node", "--check", "apps/web/arvor_next.js"],
         "syntax_py": py(314, "-m", "py_compile", "apps/api/studio.py"),
         "browser": py(312, "-m", "unittest", "discover", "-s", "browser_checks", "-p", "test_studio_browser.py", "-v"),
         "dependencies": py(312, "-m", "pip_audit", "-r", "requirements.txt", "--progress-spinner", "off"),
