@@ -11,6 +11,10 @@ umask 077
 command -v initdb >/dev/null 2>&1 || { echo 'Postgres 16 initdb missing'; exit 2; }
 command -v pg_ctl >/dev/null 2>&1 || { echo 'Postgres 16 pg_ctl missing'; exit 2; }
 cd /workspace
+# Docker source checkout belongs to the host, not to uid 999.
+git config --global --add safe.directory /workspace
+mkdir -p /tmp/audit-cache
+cp -a /opt/arvor/audit-cache/. /tmp/audit-cache/
 initdb -D /var/lib/postgresql/data --auth-local=trust --auth-host=trust --no-sync >/dev/null
 pg_ctl -D /var/lib/postgresql/data -o '-c listen_addresses=127.0.0.1 -c unix_socket_directories=/run/postgresql' -w start >/dev/null
 trap 'pg_ctl -D /var/lib/postgresql/data -m immediate stop >/dev/null 2>&1 || true' EXIT
