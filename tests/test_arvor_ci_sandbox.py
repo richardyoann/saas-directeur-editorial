@@ -45,6 +45,14 @@ class SandboxTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_docker_command(IMAGE, self.checkout, self.trusted, self.evidence, SHA, BASE, 215)
 
+    def test_audit_cache_access_for_non_root_sandbox(self):
+        root = Path(__file__).resolve().parents[1]
+        dockerfile = (root / "ci/local/Dockerfile").read_text(encoding="utf-8")
+        entry = (root / "scripts/arvor_ci_entrypoint.sh").read_text(encoding="utf-8")
+        self.assertIn("chown -R 999:999 /opt/arvor/audit-cache", dockerfile)
+        self.assertIn("cp -R /opt/arvor/audit-cache/. /tmp/audit-cache/", entry)
+        self.assertNotIn("\\ncp -a /opt/arvor/audit-cache", entry)
+
     def test_refuses_mutable_image_and_invalid_target(self):
         with self.assertRaises(ValueError):
             build_docker_command('arvor/ci:latest', self.checkout, self.trusted, self.evidence, SHA, BASE, 215)
