@@ -53,7 +53,7 @@ Le contrôleur écrit 9 résultats, y compris les échecs, et refuse un SHA inco
 
 ## Phase d'acceptation et limites
 
-- Les **7 tests du format d'attestation** ont été exécutés avec succès hors du PC Arvor ; les images Docker, les neuf portes du dépôt, les permissions et l'envoi Slack par ce nouveau dispositif n'ont **pas** été testés sur ton PC.
+- Les **11 tests d'attestation et publication** ont été exécutés avec succès hors du PC Arvor ; les images Docker, les neuf portes du dépôt, les permissions et l'envoi Slack par ce nouveau dispositif n'ont **pas** été testés sur ton PC.
 - La protection de branche GitHub n'est pas disponible actuellement dans ce dépôt privé avec son offre actuelle. Un statut externe seul **n'empêche pas techniquement une fusion** : la revue humaine et la vérification explicite du statut/SHA restent obligatoires. Ne pas ajouter d'auto-merge.
 - Les exigences anciennes de CI GitHub verte des PR #208/#209 ne sont pas rétroactivement levées : leur modification nécessite une décision de gouvernance et des preuves sur le SHA exact. Ne pas fusionner la PR #214 à ce stade.
 - Conserver `LOCAL_PC_ENABLED`, `LOCAL_PC_APPROVED_SHA`, `local-delivery.yml` et `chat-approved-delivery.yml` inchangés. L'installation ou la MEP PC exige une autorisation distincte mentionnant le SHA **complet**. Pas de migration métier, pas de rollback ni de modification de services.
