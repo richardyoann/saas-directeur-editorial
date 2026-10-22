@@ -1,0 +1,11 @@
+[Unit]
+Description=Arvor PR CI automatic polling
+
+[Timer]
+OnCalendar=*:0/10
+Persistent=true
+RandomizedDelaySec=20
+Unit=arvor-ci-poll.service
+
+[Install]
+WantedBy=timers.target
