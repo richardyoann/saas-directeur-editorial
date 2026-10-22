@@ -32,6 +32,11 @@ RUN uv pip install --python /opt/arvor/py312/bin/python \
  && mkdir -p /opt/google/chrome \
  && ln -s /usr/bin/chromium /opt/google/chrome/chrome
 
+# Prewarm the vulnerability cache during this trusted networked build.
+# The candidate runtime has --network=none: cache misses then fail closed.
+RUN /opt/arvor/py312/bin/python -m pip_audit -r /tmp/arvor-requirements.txt \\
+      --progress-spinner off --cache-dir /opt/arvor/audit-cache
+
 # Browser fixtures currently use Playwright channel="chrome". The symlink
 # must be verified with a real browser run before this image is approved.
 ENV PATH="/usr/lib/postgresql/16/bin:/opt/arvor/py314/bin:/usr/local/bin:/usr/bin:/bin"
