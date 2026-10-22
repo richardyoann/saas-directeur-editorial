@@ -1,0 +1,17 @@
+[Unit]
+Description=Arvor unattended local CI PR monitor (never merges or deploys)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/arvor-ci/autopilot.env
+LoadCredential=github_token:%h/.config/arvor-ci/github.token
+LoadCredential=slack_token:%h/.config/arvor-ci/slack.token
+LoadCredential=hmac_key:%h/.config/arvor-ci/attestation.key
+ExecStart=/usr/bin/env bash -c 'exec /usr/bin/python3 "$ARVOR_CI_CONTROLLER_ROOT/scripts/arvor_ci_watch.py" --controller "$ARVOR_CI_CONTROLLER_ROOT" --max-prs 1'
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=%h/.local/state/arvor-ci %h/saas-directeur-editorial-github
