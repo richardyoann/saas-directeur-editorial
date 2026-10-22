@@ -51,7 +51,7 @@ class SandboxTests(unittest.TestCase):
         entry = (root / "scripts/arvor_ci_entrypoint.sh").read_text(encoding="utf-8")
         self.assertIn("chown -R 999:999 /opt/arvor/audit-cache", dockerfile)
         self.assertIn("cp -R /opt/arvor/audit-cache/. /tmp/audit-cache/", entry)
-        self.assertNotIn("\\ncp -a /opt/arvor/audit-cache", entry)
+        self.assertNotIn("\ncp -a /opt/arvor/audit-cache", entry)
 
     def test_refuses_mutable_image_and_invalid_target(self):
         with self.assertRaises(ValueError):
