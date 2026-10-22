@@ -35,7 +35,8 @@ RUN uv pip install --python /opt/arvor/py312/bin/python \
 # Prewarm the vulnerability cache during this trusted networked build.
 # The candidate runtime has --network=none: cache misses then fail closed.
 RUN /opt/arvor/py312/bin/python -m pip_audit -r /tmp/arvor-requirements.txt \
-      --progress-spinner off --cache-dir /opt/arvor/audit-cache
+      --progress-spinner off --cache-dir /opt/arvor/audit-cache \
+ && chown -R 999:999 /opt/arvor/audit-cache
 
 # Browser fixtures currently use Playwright channel="chrome". The symlink
 # must be verified with a real browser run before this image is approved.
