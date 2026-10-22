@@ -58,3 +58,12 @@ Le contrôleur écrit 9 résultats, y compris les échecs, et refuse un SHA inco
 - Les exigences anciennes de CI GitHub verte des PR #208/#209 ne sont pas rétroactivement levées : leur modification nécessite une décision de gouvernance et des preuves sur le SHA exact. Ne pas fusionner la PR #214 à ce stade.
 - Conserver `LOCAL_PC_ENABLED`, `LOCAL_PC_APPROVED_SHA`, `local-delivery.yml` et `chat-approved-delivery.yml` inchangés. L'installation ou la MEP PC exige une autorisation distincte mentionnant le SHA **complet**. Pas de migration métier, pas de rollback ni de modification de services.
 - Avant activation : exécuter les neuf contrôles sur une PR témoin dans des conteneurs isolés, vérifier les signatures, l'absence de secrets, les retours Slack et les permissions GitHub ; revue indépendante puis décision explicite de fusion de la PR de migration.
+
+
+## Contrôles supplémentaires — identité de base et images (22/10/2026)
+
+Le publisher refuse dorénavant d'afficher un nouveau succès si la tête de la PR ou le SHA de base `main` ne correspond plus exactement aux SHA couverts par les tests. Il ne modifie pas les statuts historiques ; vérifier à nouveau les rapports après toute évolution de la branche de base.
+
+**Images : refus par défaut jusqu'à validation manuelle.** Après examen de la provenance du Dockerfile et des composants, relever les trois IDs locaux via `docker image inspect --format '{{.Id}}' arvor-ci:3.12`, `arvor-ci:3.14` et `postgres:16`. Configurer hors du dépôt `ARVOR_CI_IMAGE_ID_312`, `ARVOR_CI_IMAGE_ID_314` et `ARVOR_CI_POSTGRES_IMAGE_ID`, chacune à `sha256:` suivi de 64 hexadécimaux. Le contrôleur compare l'ID de chaque tag exécuté à l'ID approuvé. Les étiquettes seules ne sont plus suffisantes.
+
+Ces identifiants ne prouvent ni la provenance des images, ni le succès d'un audit CVE. Épingler aussi les images de base par digest revu avant exploitation pérenne ; ne pas introduire de secret dans les conteneurs. Sans les trois identifiants, les neuf portes sont bloquées et ne peuvent produire une preuve verte.

@@ -58,6 +58,7 @@ def publish(envelope, sha, key, pr_number, github_token, slack_token, slack_chan
     pr = request_json(api + "/pulls/" + str(pr_number), github_token)
     if (pr.get("state") != "open" or pr.get("head", {}).get("sha") != sha or
         pr.get("base", {}).get("ref") != "main" or
+        pr.get("base", {}).get("sha") != envelope["report"]["base_sha"] or
         pr.get("head", {}).get("repo", {}).get("full_name") != REPO):
         raise ValueError("PR stale or wrong base/head; no status published")
     link = f"https://github.com/{REPO}/pull/{pr_number}"

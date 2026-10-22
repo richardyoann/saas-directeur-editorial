@@ -21,6 +21,30 @@ except ModuleNotFoundError:
 IMAGES = {"3.12": "arvor-ci:3.12", "3.14": "arvor-ci:3.14"}
 DB_URL = "postgresql://po_test:ephemeral_ci_only@localhost:5432/po_test"
 
+IMAGE_ENV_IDS = {
+    "arvor-ci:3.12": "ARVOR_CI_IMAGE_ID_312",
+    "arvor-ci:3.14": "ARVOR_CI_IMAGE_ID_314",
+    "postgres:16": "ARVOR_CI_POSTGRES_IMAGE_ID",
+}
+IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}\Z")
+
+
+def check_approved_images():
+    """Compare reviewed local image identities to loaded Docker image IDs.
+
+    This prevents mutable tags from silently selecting a different image;
+    image provenance must still be reviewed separately.
+    """
+    for tag, variable in IMAGE_ENV_IDS.items():
+        expected = os.environ.get(variable, "")
+        if not IMAGE_ID.fullmatch(expected):
+            return False
+        observed = cmd(["docker", "image", "inspect", "--format", "{{.Id}}", tag], timeout=20)
+        if observed.returncode or observed.stdout.strip() != expected:
+            return False
+    return True
+
+
 
 def cmd(args, *, timeout=1200, cwd=None):
     return subprocess.run(args, cwd=cwd, text=True, stdout=subprocess.PIPE,
@@ -87,7 +111,7 @@ def run(target, sha, base, output):
     if output.exists() or output.is_symlink():
         raise FileExistsError("refusing to overwrite CI evidence")
     docker = cmd(["docker", "version", "--format", "{{.Server.Version}}"], timeout=20)
-    images_ok = docker.returncode == 0 and all(cmd(["docker", "image", "inspect", x], timeout=20).returncode == 0 for x in (*IMAGES.values(), "postgres:16"))
+    images_ok = docker.returncode == 0 and check_approved_images()
     specs = {
         "regression_312": (IMAGES["3.12"], ["sh", "-c", "python scripts/prepare_test_database.py && python scripts/run_regression.py"], True, False),
         "regression_314": (IMAGES["3.14"], ["sh", "-c", "python scripts/prepare_test_database.py && python scripts/run_regression.py"], True, False),
@@ -105,7 +129,7 @@ def run(target, sha, base, output):
     for gate in GATES:
         tests = skipped = 0
         if not images_ok:
-            rc, content = 2, "Docker or pinned local CI images unavailable"
+            rc, content = 2, "Docker or explicitly approved immutable local CI image IDs unavailable"
         elif gate == "secret_scan":
             # Host-side scanner parses Git data only; it must not execute PR code.
             scan = cmd(["gitleaks", "git", "--no-banner", "--redact", "--exit-code", "1",
