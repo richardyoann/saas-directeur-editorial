@@ -49,6 +49,18 @@ class AutopilotTests(unittest.TestCase):
             ci.slack_failure(pr(), "preflight_or_publisher_unavailable", "token", "channel")
             self.assertIn("214", send.call_args.args[2]["text"])
             self.assertNotIn("token", send.call_args.args[2]["text"])
+    def test_unavailable_is_recorded_before_slack_alert(self):
+        with TemporaryDirectory() as d:
+            folder = Path(d)
+            item = pr()
+            with patch.object(ci, "confirmed_shas", side_effect=RuntimeError("offline")), \
+                 patch.object(ci, "slack_failure", side_effect=RuntimeError("slack offline")):
+                with self.assertRaisesRegex(RuntimeError, "slack offline"):
+                    ci.run_pr(Path(d), folder, item, "github", "slack", "channel")
+            record = __import__("json").loads(ci.state_path(folder, item["number"]).read_text())
+            self.assertEqual(record["result"], "unavailable")
+            self.assertFalse(ci.should_run(item, folder, datetime.now(timezone.utc)))
+
     def test_runs_only_one_pr_per_tick(self):
         with TemporaryDirectory() as d, patch.object(ci, "validate_controller"), \
              patch.object(ci, "discover", return_value=[pr(216), pr(214)]), \
