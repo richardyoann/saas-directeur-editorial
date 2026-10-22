@@ -61,6 +61,8 @@ Configurer dans le processus de publication externe, jamais dans le dépôt ou l
 - ARVOR_SLACK_WEBHOOK_URL : URL du webhook Slack privé du destinataire cible, sur hooks.slack.com.
 - Clé publique épinglée et dossier d'anti-rejeu privé.
 
+La publication est également **bloquée par défaut** : le superviseur de confiance doit définir ARVOR_LOCAL_CI_FULL_PARITY_APPROVED=true seulement après les contrôles d'isolation et de parité 7/7. Ne pas définir cette variable pour contourner la recette.
+
 Après recette et approbation du mécanisme de publication :
 
     python -m scripts.arvor_ci_publish \
