@@ -1,5 +1,6 @@
 """Trusted external GitHub status + Slack publisher; opt-in only. No merge or deployment."""
 import argparse
+import fcntl
 from datetime import datetime, timezone, timedelta
 import json
 import os
@@ -61,29 +62,46 @@ def publish(envelope, key, key_id, token, slack_url, sent_dir, *, request=http_j
         raise ValueError("Missing GitHub publisher token")
     if os.environ.get("ARVOR_LOCAL_CI_FULL_PARITY_APPROVED") != "true":
         raise ValueError("Local CI parity and supervisor are not yet approved")
-    if slack_url and not slack_url.startswith("https://hooks.slack.com/"):
-        raise ValueError("Slack webhook host is not allowed")
+    if not slack_url or not slack_url.startswith("https://hooks.slack.com/"):
+        raise ValueError("Dedicated private Slack webhook is mandatory for publication")
     sent_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if sent_dir.is_symlink():
+        raise ValueError("Publisher state directory must not be a symlink")
     sent_dir.chmod(0o700)
     UUID(receipt["run_id"])
-    marker = sent_dir / (receipt["run_id"] + ".sent")
-    if marker.exists():
-        raise ValueError("Run has already been published")
-    verify_remote(receipt, token, request)
-    description = "Local CI evidence: " + state + "; human review still required"
-    url = "https://github.com/" + REPO + "/pull/" + str(receipt["pr"])
-    response = request("POST", "https://api.github.com/repos/" + REPO + "/statuses/" + receipt["sha"], token,
-                       {"state": state, "context": CONTEXT, "description": description, "target_url": url})
-    if response.get("state") != state:
-        raise ValueError("GitHub status publication not acknowledged")
-    marker.write_text(state + "\n", encoding="utf-8")
-    marker.chmod(0o600)
-    if slack_url:
-        message = ("Arvor CI locale " + ("OK" if state == "success" else "KO") +
-                   " | PR #" + str(receipt["pr"]) + " | SHA " + receipt["sha"] +
-                   " | Gates " + str(sum(bool(g["passed"]) for g in receipt["gates"])) + "/" +
-                   str(len(receipt["gates"])) + " | Revue humaine obligatoire | " + url)
-        request("POST", slack_url, None, {"text": message, "unfurl_links": False})
+    github_marker = sent_dir / (receipt["run_id"] + ".github")
+    slack_marker = sent_dir / (receipt["run_id"] + ".slack")
+    lockfile = sent_dir / (receipt["run_id"] + ".lock")
+    # Keep GitHub and Slack acknowledgments independently to permit a Slack
+    # retry without publishing a second GitHub status for the same run.
+    with lockfile.open("a+", encoding="utf-8") as lock:
+        lockfile.chmod(0o600)
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        if github_marker.exists() and slack_marker.exists():
+            raise ValueError("Run has already been published and notified")
+        verify_remote(receipt, token, request)
+        url = "https://github.com/" + REPO + "/pull/" + str(receipt["pr"])
+        if not github_marker.exists():
+            response = request("POST", "https://api.github.com/repos/" + REPO + "/statuses/" + receipt["sha"], token,
+                               {"state": state, "context": CONTEXT,
+                                "description": "Local CI " + state + "; human review still required",
+                                "target_url": url})
+            if response.get("state") != state:
+                raise ValueError("GitHub status publication not acknowledged")
+            with github_marker.open("x", encoding="utf-8") as marker:
+                marker.write(state + "\n")
+            github_marker.chmod(0o600)
+        if not slack_marker.exists():
+            message = ("Arvor CI locale " + ("OK" if state == "success" else "KO") +
+                       " | run " + receipt["run_id"] + " | PR #" + str(receipt["pr"]) +
+                       " | SHA " + receipt["sha"] +
+                       " | Gates " + str(sum(bool(g["passed"]) for g in receipt["gates"])) +
+                       "/" + str(len(receipt["gates"])) +
+                       " | Revue humaine obligatoire | " + url)
+            request("POST", slack_url, None, {"text": message, "unfurl_links": False})
+            with slack_marker.open("x", encoding="utf-8") as marker:
+                marker.write("notified\n")
+            slack_marker.chmod(0o600)
     return state
 
 
