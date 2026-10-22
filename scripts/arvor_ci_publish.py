@@ -59,6 +59,8 @@ def publish(envelope, key, key_id, token, slack_url, sent_dir, *, request=http_j
     receipt, state = prepare(envelope, key, key_id)
     if not token:
         raise ValueError("Missing GitHub publisher token")
+    if os.environ.get("ARVOR_LOCAL_CI_FULL_PARITY_APPROVED") != "true":
+        raise ValueError("Local CI parity and supervisor are not yet approved")
     if slack_url and not slack_url.startswith("https://hooks.slack.com/"):
         raise ValueError("Slack webhook host is not allowed")
     sent_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
