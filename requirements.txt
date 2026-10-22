@@ -7,4 +7,5 @@ uvicorn==0.54.0
 # PostgreSQL runtime adapter used by editorial and the existing audit library.
 psycopg[binary]==3.3.6
 boto3==1.40.0
-
+# Ed25519 signatures for the local CI attestation verifier and its test suite.
+cryptography==46.0.4
