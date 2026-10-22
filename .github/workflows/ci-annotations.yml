@@ -1,19 +1,5 @@
 name: CI annotation incident watch
 on:
-  workflow_run:
-    workflows:
-      - Full regression
-      - Dependency security audit
-      - Studio browser journeys
-      - Automated PR risk review
-      - Automated CI triage and release evidence
-      - Private PC delivery
-      - Chat approved PC delivery
-      - CI supply-chain guardrails
-      - Secret exposure scan
-    types: [completed]
-  schedule:
-    - cron: '7 7 * * *'
   workflow_dispatch:
 permissions:
   contents: read
