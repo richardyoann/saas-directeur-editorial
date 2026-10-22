@@ -137,5 +137,28 @@ class LocalCITests(unittest.TestCase):
         self.assertEqual(calls, ["GET", "POST", "POST"])
 
 
+    def test_slack_retry_does_not_repost_github_status(self):
+        calls = {"github": 0, "slack": 0}
+        def fake(method, url, token=None, payload=None):
+            if method == "GET":
+                return {"state": "open", "merged": False,
+                        "head": {"sha": SHA, "repo": {"full_name": pub.REPO}},
+                        "base": {"sha": BASE, "ref": "main"}}
+            if "/statuses/" in url:
+                calls["github"] += 1
+                return {"state": "success"}
+            calls["slack"] += 1
+            if calls["slack"] == 1:
+                raise ConnectionError("simulated Slack outage")
+            return {"ok": True}
+        e = self.signed()
+        with patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}), TemporaryDirectory() as folder:
+            with self.assertRaises(ConnectionError):
+                pub.publish(e, self.public, "k1", "mock", "https://hooks.slack.com/services/mock", Path(folder), request=fake)
+            self.assertEqual(pub.publish(e, self.public, "k1", "mock", "https://hooks.slack.com/services/mock",
+                                         Path(folder), request=fake), "success")
+        self.assertEqual(calls, {"github": 1, "slack": 2})
+
+
 if __name__ == "__main__":
     unittest.main()
