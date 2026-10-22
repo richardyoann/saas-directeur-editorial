@@ -20,6 +20,7 @@ class SandboxTests(unittest.TestCase):
         self.evidence = self.root / 'evidence'
         for p in (self.checkout, self.trusted, self.evidence):
             p.mkdir()
+        (self.checkout / '.git').mkdir()
 
     @patch('scripts.arvor_ci_sandbox.subprocess.run')
     def test_secure_docker_run(self, run):
