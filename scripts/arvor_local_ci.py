@@ -19,7 +19,7 @@ SHA = re.compile(r"[0-9a-f]{40}\Z")
 GATES = ("db_prepare_312", "regression_312", "sql_benchmark_312",
          "db_prepare_314", "regression_314", "sql_benchmark_314",
          "syntax_js", "syntax_js_reference", "syntax_js_next", "syntax_py", "browser", "dependencies", "secrets",
-         "supply_chain", "risk_review")
+         "supply_chain", "risk_review", "video_75")
 
 
 def utcnow():
@@ -82,6 +82,7 @@ def commands(p312, p314, base):
         "secrets": ["gitleaks", "git", "--no-banner", "--redact", "--exit-code", "1", "--log-opts=" + base + "..HEAD", "."],
         "supply_chain": py(314, "scripts/ci_policy.py"),
         "risk_review": py(314, "scripts/ci_autonomy.py", "--base", base, "--head", "HEAD"),
+        "video_75": py(314, "-m", "scripts.smoke_video_75"),
     }
 
 
@@ -96,6 +97,9 @@ def execute(root, sha, base_sha, pr, repo, python312, python314, output, *, env=
         raise ValueError("Wrong or dirty candidate checkout")
     if git(root, "rev-parse", base_sha) != base_sha:
         raise ValueError("Unknown base SHA")
+    if subprocess.run(["git", "merge-base", "--is-ancestor", base_sha, sha], cwd=root,
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20).returncode != 0:
+        raise ValueError("The attested base is not an ancestor of HEAD")
     output.mkdir(mode=0o700, parents=True, exist_ok=True)
     output.chmod(0o700)
     run_id = str(uuid4())
@@ -115,6 +119,18 @@ def execute(root, sha, base_sha, pr, repo, python312, python314, output, *, env=
             result["log_sha256"] = hashlib.sha256(output_text.encode()).hexdigest()
             result["returncode"] = proc.returncode
             counts = regression_counts(output_text) if name.startswith("regression_") else browser_counts(output_text) if name == "browser" else None
+            if name == "video_75":
+                try:
+                    video = next((json.loads(line) for line in reversed(output_text.splitlines())
+                                  if line.strip().startswith("{") and "\"verified\"" in line), None)
+                except ValueError:
+                    video = None
+                result["passed"] = (proc.returncode == 0 and isinstance(video, dict)
+                                    and video.get("verified") is True
+                                    and video.get("synthetic") is True
+                                    and video.get("video_duration_seconds") == 75
+                                    and video.get("resolution") == "720x1280"
+                                    and video.get("ffprobe") == "passed")
             if name.startswith("regression_") or name == "browser":
                 result["tests"] = counts
                 result["passed"] = proc.returncode == 0 and counts is not None and counts["tests"] > 0 and all(counts[k] == 0 for k in ("failures", "errors", "skipped"))
