@@ -125,3 +125,20 @@ Le cache pip-audit est préchargé au build et recopié en espace temporaire. Si
 ### Tests locaux de développement
 
 Dans un environnement de test distinct, 16 tests unitaires ont passé (signature, fraude SHA, tests skipped, cache de publication, isolation du lanceur), ainsi que la compilation Python et la syntaxe shell. Cela ne constitue pas la recette complète de la CI sur Arvor.
+
+## Incident de recette PC : cache pip-audit UID 999 (22 octobre 2026)
+
+Preuve utilisateur : image Docker initiale `sha256:8dfa40b5b4a59157b3f85f0ef34597c468dba753b2245144605b019a32629353` avec PostgreSQL 16, Python 3.12/3.14, Chromium, FFmpeg, Gitleaks et Node vérifiés. Le lanceur `--execute` renvoyait `returncode: 1` avant toute gate : `cp -a /opt/arvor/audit-cache/. /tmp/audit-cache/` échouait avec `Permission denied`, puis aucun JSON dans `evidence`. Ce n'est pas une régression du projet.
+
+Correction proposée dans la PR #215 : le Dockerfile termine le préchauffage de cache par `chown -R 999:999 /opt/arvor/audit-cache`; le point d'entrée exige un cache lisible puis emploie `cp -R`, sans conservation de la propriété du cache construit par root. Un test statique de non-régression vérifie les deux instructions. La correction n'est pas considérée comme validée tant que l'image n'a pas été reconstruite et testée sous WSL.
+
+Depuis le clone `ci-source` non modifié localement :
+
+    git fetch origin feat/OPS-LOCAL-CI-ATTEST-20261022
+    git switch --detach FETCH_HEAD
+    cp scripts/arvor_ci_entrypoint.sh "$HOME/arvor-ci-lab/trusted/"
+    chmod 755 "$HOME/arvor-ci-lab/trusted/arvor_ci_entrypoint.sh"
+    docker build -f ci/local/Dockerfile -t arvor-ci:review .
+    docker image inspect --format '{{.Id}}' arvor-ci:review
+
+Récupérer le **nouvel** ID d'image complet `sha256:...` et refaire le diagnostic de lecture/copie du cache dans un conteneur jetable UID 999. Les anciens IDs sont immuables et **ne sont pas corrigés** par le rebuild. N'effectuer ni fusion GitHub ni livraison PC pour ce diagnostic.
