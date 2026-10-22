@@ -165,9 +165,11 @@ def run_pr(root, folder, pr, github_token, slack_token, channel):
                 git(root, "worktree", "remove", "--force", str(checkout))
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired):
         result = "unavailable"
+    # Persist the retry deadline before alerting. If Slack is unavailable,
+    # the timer must not immediately repeat partial GitHub writes every ten minutes.
+    record_outcome(folder, pr, result, datetime.now(timezone.utc))
     if result == "unavailable":
         slack_failure(pr, "preflight_or_publisher_unavailable", slack_token, channel)
-    record_outcome(folder, pr, result, datetime.now(timezone.utc))
     return result
 
 
