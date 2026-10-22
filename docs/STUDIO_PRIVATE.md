@@ -90,3 +90,17 @@ La profondeur JSON est limitée explicitement à 128 conteneurs imbriqués
 s'applique au middleware et au décodage Studio, y compris sans Content-Type.
 Vérifier tests/test_qa_lot1.py puis la CI complète sur DB jetable.
 La [revue Lot 1](QA_LOT1_2026-10-15.md) distingue les correctifs de la recette PC.
+
+## Consolidation UX et conflits (22 octobre 2026)
+
+`/studio/next` permet la relecture puis l'approbation humaine de chaque étape.
+Une étape acceptée propose une révision plutôt qu'une nouvelle approbation.
+Dans les deux interfaces, un conflit 409 conserve les champs du dialogue et
+propose une comparaison avec la dernière révision. Son adoption est explicite ;
+aucune décision n'est renvoyée automatiquement. Le Studio classique redemande
+la confirmation de relecture après cette adoption.
+
+Le détail d'un run expose une projection `recovery` en lecture seule. Au seuil
+existant de dix minutes, une interruption **suspectée** est signalée ; la
+réconciliation reste une action manuelle, sans rejeu Qwen. Voir le
+[rapport de qualification et ses limites](plans/AUDIT_UX_01_CONSOLIDATION.md).
