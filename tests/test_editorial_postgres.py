@@ -238,3 +238,61 @@ class EditorialPostgresTests(unittest.TestCase):
                     os.environ, {"EDITORIAL_CODE_VERSION": "configured-development"}):
                 run_id = self.run_start()
             self.assertEqual(self.store.get(self.tenant, run_id)["code_version"], "configured-development")
+
+    def test_worker_failures_remain_uncertain_until_manual_reconciliation(self):
+        import asyncio
+        import psycopg
+        from datetime import datetime, timedelta, timezone
+        from unittest.mock import patch
+        import httpx
+        from editorial.store import recovery_status
+        from workers.editorial_worker import once
+        for failure in ('after_begin', 'save_connection_loss', 'save_ack_loss', 'begin_connection_loss'):
+            with self.subTest(failure=failure):
+                calls=[]
+                async def provider(request):
+                    calls.append(1)
+                    if failure == 'after_begin':
+                        raise RuntimeError('synthetic interruption')
+                    return httpx.Response(200, json={'choices': [{'message': {'content': json.dumps(outputs()[0])}, 'finish_reason': 'stop'}]})
+                async def consume():
+                    async with httpx.AsyncClient(transport=httpx.MockTransport(provider)) as client:
+                        self.assertTrue(await once(self.store, self.tenant, self.actor, client, 'http://model.test'))
+                        self.assertFalse(await once(self.store, self.tenant, self.actor, client, 'http://model.test'))
+                with registered_worker(self.store.database_url, self.tenant):
+                    run, _ = self.store.enqueue(self.tenant, self.actor, uuid4(), self.brief)
+                    run_id=UUID(run['id'])
+                    if failure == 'save_ack_loss':
+                        original_save = self.store.save_step
+                        def save_then_lose_ack(*args, **kwargs):
+                            original_save(*args, **kwargs)
+                            raise psycopg.OperationalError('synthetic acknowledgement loss')
+                        with patch.object(self.store,'save_step',side_effect=save_then_lose_ack):
+                            asyncio.run(consume())
+                    elif failure == 'save_connection_loss':
+                        with patch.object(self.store,'save_step',side_effect=psycopg.OperationalError()):
+                            asyncio.run(consume())
+                    elif failure == 'begin_connection_loss':
+                        with patch.object(self.store,'begin_step',side_effect=psycopg.OperationalError()):
+                            asyncio.run(consume())
+                    else:
+                        asyncio.run(consume())
+                restarted=PostgresStore(self.store.database_url)
+                uncertain=restarted.get(self.tenant,run_id)
+                self.assertEqual(uncertain['status'],'running')
+                self.assertEqual(len(calls),0 if failure=='begin_connection_loss' else 1)
+                old=(datetime.now(timezone.utc)-timedelta(minutes=20)).isoformat()
+                with self.store.connect() as conn:
+                    if uncertain.get('current_step'):
+                        conn.execute("UPDATE po_entity SET content=jsonb_set(content,'{current_step,started_at}',to_jsonb(%s::text)) WHERE tenant_id=%s AND entity_id=%s",(old,self.tenant,run_id))
+                    else:
+                        conn.execute("UPDATE po_entity SET content=jsonb_set(content,'{updated_at}',to_jsonb(%s::text)) WHERE tenant_id=%s AND entity_id=%s",(old,self.tenant,run_id))
+                self.assertTrue(recovery_status(self.store.get(self.tenant,run_id))['reconciliation_required'])
+                recovered=restarted.reconcile_interrupted(self.tenant,self.actor,run_id)
+                self.assertEqual(recovered['status'],'failed')
+                self.assertEqual(recovered['error_code'],'run_interrupted')
+                if failure == 'save_ack_loss':
+                    self.assertEqual(len(restarted.history(self.tenant,run_id)),1)
+                    self.assertEqual(recovered['steps'][0]['status'],'success')
+                self.assertEqual(self.store.reconcile_interrupted(self.tenant,self.actor,run_id),recovered)
+                self.assertEqual(len(calls),0 if failure=='begin_connection_loss' else 1)

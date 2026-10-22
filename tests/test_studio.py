@@ -156,3 +156,54 @@ class StudioTests(unittest.IsolatedAsyncioTestCase):
                                      base_url="http://example.test") as remote:
             self.assertEqual((await remote.get("/studio")).status_code, 403)
             self.assertEqual((await remote.get("/studio/session")).status_code, 403)
+
+    async def test_interruption_signal_is_readonly_and_tenant_scoped(self):
+        from datetime import datetime, timedelta, timezone
+        await self.sign_in()
+        run={'id':str(self.store.run_id),'status':'running','current_step':{
+            'name':'analysis','started_at':(datetime.now(timezone.utc)-timedelta(minutes=20)).isoformat()}}
+        with patch.object(self.store,'get',return_value=run) as get_run, \
+             patch.object(self.store,'reconcile_interrupted') as reconcile:
+            response=await self.client.get('/studio/api/runs/'+str(self.store.run_id))
+            self.assertEqual(response.status_code,200)
+            self.assertTrue(response.json()['recovery']['reconciliation_required'])
+            self.assertFalse(response.json()['recovery']['automatic_retry_allowed'])
+            get_run.assert_called_once_with(self.tenant,self.store.run_id)
+            reconcile.assert_not_called()
+            self.assertNotIn('recovery',run)
+
+    async def test_all_mutations_refuse_csrf_before_relay(self):
+        from unittest.mock import AsyncMock
+        csrf=await self.sign_in()
+        run='/studio/api/runs/'+str(self.store.run_id)
+        paths=['/studio/api/runs',run+'/reconcile',run+'/steps/analysis/review',run+'/scenes/1/image','/studio/logout']
+        variants=[{'X-CSRF-Token':csrf},{'Origin':'https://untrusted.invalid','X-CSRF-Token':csrf},self.origin|{'X-CSRF-Token':'incorrect'}]
+        with patch.object(app.state, 'internal_client', create=True) as internal:
+            internal.request = AsyncMock()
+            for path in paths:
+                for headers in variants:
+                    with self.subTest(path=path,headers=list(headers)):
+                        response=await self.client.post(path,json={},headers=headers)
+                        self.assertEqual(response.status_code,403)
+            internal.request.assert_not_awaited()
+
+
+class ConcurrentLoginTests(unittest.IsolatedAsyncioTestCase):
+    async def test_concurrent_streamed_passwords_respect_existing_attempt_budget(self):
+        import asyncio
+        sessions.clear()
+        failures.clear()
+        self.addCleanup(sessions.clear)
+        self.addCleanup(failures.clear)
+        async def fragmented_body():
+            yield b'{"password":'
+            await asyncio.sleep(0.01)
+            yield b'"incorrect"}'
+        with patch.dict(os.environ, {'EDITORIAL_WEB_PASSWORD':'w'*48,'EDITORIAL_API_TOKEN':'t'*48}):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://localhost') as client:
+                replies=await asyncio.gather(*[client.post('/studio/session',
+                    headers={'Origin':'http://localhost','Content-Type':'application/json'},
+                    content=fragmented_body()) for _ in range(20)])
+        self.assertEqual(sum(r.status_code==401 for r in replies),5)
+        self.assertEqual(sum(r.status_code==429 for r in replies),15)
+        self.assertEqual(len(sessions),0)

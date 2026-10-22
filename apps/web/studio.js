@@ -202,7 +202,7 @@ async function pollRun(){
   if(!s.run||s.run.id!==id||!s.csrf)return;
   const changed=latest.status!==s.run.status||
     (latest.current_step?.name||"")!==(s.run.current_step?.name||"")||
-    (latest.steps||[]).length!==(s.run.steps||[]).length;
+    (latest.steps||[]).length!==(s.run.steps||[]).length||!!latest.recovery?.interruption_suspected!==!!s.run.recovery?.interruption_suspected;
   s.run=latest;
   if(changed){
    render();
@@ -237,7 +237,9 @@ function render(){
  $("exportStory").disabled=!r.storyboard;
  renderComposer();renderCover();
  $("status").textContent=states[r.status]||"Inconnu";$("status").className="pill "+r.status;
- $("decisionFoot").hidden=!["waiting_validation","changes_requested"].includes(r.status);$("reconcile").hidden=r.status!=="running";tab(s.tab);
+ $("decisionFoot").hidden=!["waiting_validation","changes_requested"].includes(r.status);$("reconcile").hidden=!r.recovery?.reconciliation_required;
+ $("quickReview").disabled=!!stepAccepted(r,"storyboard")||!!r.storyboard_stale;
+ if(r.recovery?.interruption_suspected)$("status").textContent+=" · Résultat incertain, réconciliation requise";tab(s.tab);
 }
 function tab(name){
  s.tab=name;document.querySelectorAll("[data-tab]").forEach(b=>{b.classList.toggle("active",b.dataset.tab===name);b.setAttribute("aria-selected",String(b.dataset.tab===name));b.tabIndex=b.dataset.tab===name?0:-1;});$("panel").setAttribute("aria-labelledby","tab-"+name);
@@ -345,10 +347,12 @@ function exportStory(){
  URL.revokeObjectURL(url);
 }
 function empty(text){$("panel").replaceChildren();put($("panel"),"div","empty-panel",text);}
+function stepAccepted(run,step){return run.status==="approved"||(run.reviews?.[step]?.action==="accept"&&run.reviews[step].valid);}
 function decisions(root,step){
  if(!["waiting_validation","changes_requested","approved"].includes(s.run.status))return;
  const bar=put(root,"div","review-buttons");
  for(const [action,label] of [["accept","Accepter"],["reject","Demander des changements"],["revise","Réviser"]]){
+  if((stepAccepted(s.run,step)&&action!=="revise")||(step==="storyboard"&&s.run.storyboard_stale&&action==="accept"))continue;
   const b=put(bar,"button","btn "+(action==="accept"?"primary":"secondary"),label);b.type="button";b.addEventListener("click",()=>openReview(step,action));
  }
 }
@@ -696,6 +700,9 @@ function revisedOutput(){
  return {title:$("edit-title").value.trim(),synopsis:$("edit-synopsis").value.trim(),cast,scenes};
 }
 function openReview(step,action="accept"){
+ if((stepAccepted(s.run,step)&&action!=="revise")||(step==="storyboard"&&s.run.storyboard_stale&&action==="accept"))return alertUser("Cette étape nécessite une révision, pas une nouvelle approbation.",true);
+ s.reviewBaseRevision=s.run.review_revision||0;s.reviewConflict=false;$("submitReview").disabled=false;
+ $("reviewAction").querySelectorAll("option").forEach(o=>o.disabled=stepAccepted(s.run,step)&&o.value!=="revise");
  s.step=step;$("reviewError").hidden=true;$("reviewError").textContent="";
  $("reviewTitle").textContent=names[step];$("reviewAction").value=action;
  $("reviewComment").value="";$("confirmReview").checked=false;
@@ -709,17 +716,34 @@ function toggleReview(){
  $("reviewComment").required=$("reviewAction").value!=="accept";
  $("commentRequired").textContent=$("reviewAction").value==="accept"?"(facultatif)":"(obligatoire)";
 }
+async function reviewConflict(){
+ s.reviewConflict=true;const root=$("reviewError");root.hidden=false;
+ root.replaceChildren();put(root,"p","","Conflit : votre brouillon est conservé. Comparez la version courante avant toute nouvelle soumission.");
+ try{
+  const latest=await api("/studio/api/runs/"+s.run.id);
+  const details=put(root,"details","");put(details,"summary","","Version courante du serveur");
+  put(details,"pre","",JSON.stringify(latest[s.step],null,2));
+  const button=put(root,"button","btn secondary","Utiliser la révision actualisée");button.type="button";
+  button.addEventListener("click",()=>{
+   s.run=latest;s.reviewBaseRevision=latest.review_revision||0;s.reviewConflict=false;
+   $("confirmReview").checked=false;$("submitReview").disabled=false;
+   $("reviewAction").querySelectorAll("option").forEach(o=>o.disabled=stepAccepted(latest,s.step)&&o.value!=="revise");
+   if(stepAccepted(latest,s.step))$("reviewAction").value="revise";
+   toggleReview();root.textContent="Brouillon conservé. Relisez la comparaison et confirmez avant de soumettre.";
+  });
+ }catch(e){put(root,"p","","Actualisation impossible : le brouillon reste ouvert. Fermez seulement après l’avoir conservé.");}
+}
 async function sendReview(ev){
- ev.preventDefault();const r=s.run;if(!r)return;const b=$("submitReview");b.disabled=true;
+ ev.preventDefault();if(s.reviewConflict)return;const r=s.run;if(!r)return;const b=$("submitReview");b.disabled=true;
  $("reviewError").hidden=true;
- const payload={action:$("reviewAction").value,expected_revision:r.review_revision||0,comment:$("reviewComment").value.trim()};
+ const payload={action:$("reviewAction").value,expected_revision:s.reviewBaseRevision,comment:$("reviewComment").value.trim()};
  if(payload.action==="revise"){
   try{payload.revised_output=revisedOutput();}
   catch(error){$("reviewError").hidden=false;$("reviewError").textContent=error.message;b.disabled=false;return;}
  }
  try{s.run=await api("/studio/api/runs/"+r.id+"/steps/"+s.step+"/review","POST",payload);$("reviewDialog").close();render();await list(true);alertUser("Décision enregistrée et historisée.");}
- catch(e){if(e.status===409){$("reviewDialog").close();await refresh();alertUser(message(e),true);}else{$("reviewError").hidden=false;$("reviewError").textContent=message(e);}}
- finally{b.disabled=false;}
+ catch(e){if(e.status===409){await reviewConflict();}else{$("reviewError").hidden=false;$("reviewError").textContent=message(e);}}
+ finally{b.disabled=!!s.reviewConflict;}
 }
 async function create(ev){
  ev.preventDefault();const b=$("submitNew");b.disabled=true;b.textContent="Génération en cours…";

@@ -75,3 +75,14 @@ L'outil lit seulement le lien `current`, le reçu `last_delivery.json`, les éta
 Interprétation : `current_sha != expected_sha` signale une release obsolète ; `/studio=404` signifie que cette release n'inclut probablement pas Studio ; `/ready=503` requiert de diagnostiquer PostgreSQL, Qwen et, si async, le worker ; `worker_service=inactive` indique qu'aucun service worker utilisateur de ce nom n'est actif. Un nom de service personnalisé requiert une vérification adaptée.
 
 **La correction de code ne débloque pas la MEP** : `.github/workflows/local-delivery.yml` est toujours protégé par `LOCAL_PC_ENABLED`, la réussite CI et la validation explicite du SHA. Ne pas l'activer ni relancer la livraison sans cette validation. L'audit GitHub du 14/10 montre une régression verte mais une livraison PC `skipped` pour `eebec8ef`. Aucun contrôle Qwen réel de cette version ne doit être annoncé.
+
+### Signal de réconciliation dans Studio — 22 octobre 2026
+
+GET détail ajoute `recovery.interruption_suspected`, `reconciliation_required`
+et `automatic_retry_allowed` (toujours false). Le calcul réutilise le seuil et
+les timestamps de `interrupted()` ; il ne modifie pas le run et ne prouve pas
+l'arrêt effectif du fournisseur. Les deux Studios affichent ce signal et
+proposent uniquement la réconciliation manuelle existante. Les polls GET ne
+relancent pas une tâche. Les tests de pertes PostgreSQL avant/après commit et
+les limites de recette sont consignés dans
+[la consolidation AUDIT-UX-01](plans/AUDIT_UX_01_CONSOLIDATION.md).

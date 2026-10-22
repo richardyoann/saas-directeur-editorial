@@ -35,6 +35,14 @@ def interrupted(run, reference_time=None):
 
 
 
+def recovery_status(run, reference_time=None):
+    """Read-only eligibility for manual reconciliation, never proof of model completion."""
+    suspected = interrupted(run, reference_time)
+    return {"interruption_suspected": suspected,
+            "reconciliation_required": suspected,
+            "automatic_retry_allowed": False}
+
+
 def now():
     return datetime.now(timezone.utc).isoformat()
 

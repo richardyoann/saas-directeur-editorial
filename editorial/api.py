@@ -12,7 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from apps.api.llama_provider import generation_gate
 from editorial.models import Brief, ReviewDecision
 from editorial.service import run_workflow
-from editorial.store import PostgresStore, RunConflict, RunMissing, ReviewInvalid
+from editorial.store import PostgresStore, RunConflict, RunMissing, ReviewInvalid, recovery_status
 from editorial.worker_guard import WorkerOffline
 from editorial.runtime_secrets import secret
 from editorial.media.contracts import Identity
@@ -104,7 +104,8 @@ def create_router(get_llm_client):
     async def get_run(run_id: UUID, identity: Identity = Depends(get_identity),
                       store: PostgresStore = Depends(get_store)):
         try:
-            return await run_in_threadpool(store.get, identity.tenant, run_id)
+            run = await run_in_threadpool(store.get, identity.tenant, run_id)
+            return run | {"recovery": recovery_status(run)}
         except RunMissing:
             raise HTTPException(404, "Exécution introuvable.") from None
         except psycopg.Error:

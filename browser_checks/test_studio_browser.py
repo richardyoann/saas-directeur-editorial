@@ -301,10 +301,8 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.assertIn("Mémoire des cités", self.page.locator("#panel").inner_text())
         self.page.locator('[data-tab="storyboard"]').click()
         self.assertIn("obsolète", self.page.locator("#panel").inner_text())
-        self.page.locator("#panel .review-buttons").get_by_role("button", name="Accepter").click()
-        self.page.locator("#confirmReview").check()
-        self.page.locator("#submitReview").click()
-        expect(self.page.locator("#notice")).to_contain_text("Conflit")
+        expect(self.page.locator("#panel .review-buttons").get_by_role("button", name="Accepter")).to_have_count(0)
+        expect(self.page.locator("#panel .review-buttons").get_by_role("button", name="Réviser")).to_be_visible()
         self.assertNotEqual(self.page.locator("#status").inner_text(), "Approuvé")
 
     def test_pagination_search_navigation_and_mobile(self):
@@ -454,9 +452,11 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator("#panel .review-buttons").get_by_role("button", name="Accepter").click()
         self.page.locator("#confirmReview").check()
         self.page.locator("#submitReview").click()
-        self.page.locator("#reviewDialog").wait_for(state="hidden")
+        expect(self.page.locator("#reviewDialog")).to_be_visible()
+        expect(self.page.locator("#reviewError")).to_contain_text("brouillon est conservé")
+        self.page.locator("#reviewDialog .close").first.click()
         self.assertEqual(len(calls), 1)
-        expect(self.page.locator("#notice")).to_contain_text("Conflit")
+        # Conflict is reported inside the preserved dialog rather than discarding it.
         self.page.unroute(pattern)
         self.review("storyboard")
         self.assertEqual(self.page.locator("#status").inner_text(), "À valider")
@@ -497,7 +497,8 @@ class StudioBrowserJourneys(unittest.TestCase):
         with httpx.Client(base_url=self.base) as client:
             self.assertEqual(client.post("/__fixture__/stale/" + run_id).status_code, 200)
         self.page.locator("#refresh").click()
-        expect(self.page.locator("#status")).to_have_text("En cours")
+        expect(self.page.locator("#status")).to_contain_text("En cours")
+        expect(self.page.locator("#status")).to_contain_text("Résultat incertain")
         expect(self.page.locator("#reconcile")).to_be_visible()
         self.page.locator("#reconcile").click()
         expect(self.page.locator("#status")).to_have_text("Échec")
@@ -527,6 +528,146 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.assertEqual(self.page.locator("#storyTitle").inner_text(), "Les korrigans")
         with httpx.Client(base_url=self.base) as client:
             self.assertEqual(client.get("/__fixture__/counts").json()["generate"], 1)
+
+    def next_sign_in(self):
+        self.context.clear_cookies()
+        self.page.goto(self.base + '/studio/next')
+        self.page.locator('#login-password').fill(PASSWORD)
+        self.page.locator('#login-submit').click()
+        expect(self.page.locator('#studio-shell')).to_be_visible()
+
+    def next_create(self):
+        self.page.locator('#side-create').click()
+        self.page.locator('#edit-topic').fill('Recette privée synthétique')
+        self.page.locator('#editor-form button[type=submit]').click()
+        expect(self.page.locator('.story-banner')).to_be_visible()
+
+    def test_audit_next_human_approval_and_approved_actions(self):
+        self.next_sign_in()
+        self.next_create()
+        self.page.locator('[data-accept="analysis"]').click()
+        expect(self.page.locator('#toast')).to_contain_text('relecture humaine')
+        self.page.locator('#review-next-analysis').check()
+        self.page.locator('[data-accept="analysis"]').click()
+        expect(self.page.locator('#review-next-analysis')).to_have_count(0)
+        self.page.locator('#review-next-storyboard').check()
+        self.page.locator('[data-accept="storyboard"]').click()
+        expect(self.page.locator('[data-accept]')).to_have_count(0)
+        expect(self.page.locator('.story-banner')).to_contain_text('Validée')
+        self.page.locator('[data-action="edit-story"]').first.click()
+        expect(self.page.locator('#editor')).to_be_visible()
+
+    def test_audit_classic_conflict_preserves_revision_draft(self):
+        self.sign_in()
+        self.create('Brouillon concurrent')
+        self.page.locator('#panel .review-buttons').get_by_role('button', name='Réviser').click()
+        self.page.locator('#edit-synopsis').fill('Mon brouillon local à conserver')
+        self.page.locator('#reviewComment').fill('Révision synthétique de test')
+        calls=[]
+        def conflict(route):
+            calls.append(1)
+            route.fulfill(status=409, content_type='application/json', body='{"detail":"conflict"}')
+        self.page.route('**/studio/api/runs/*/steps/*/review', conflict)
+        self.page.locator('#confirmReview').check()
+        self.page.locator('#submitReview').click()
+        expect(self.page.locator('#reviewDialog')).to_be_visible()
+        expect(self.page.locator('#edit-synopsis')).to_have_value('Mon brouillon local à conserver')
+        expect(self.page.locator('#submitReview')).to_be_disabled()
+        expect(self.page.locator('#reviewError')).to_contain_text('Version courante')
+        self.assertEqual(len(calls),1)
+
+    def test_audit_next_conflict_preserves_editor_draft(self):
+        self.next_sign_in()
+        self.next_create()
+        self.page.locator('[data-action="edit-story"]').first.click()
+        self.page.locator('#edit-summary').fill('Brouillon next à conserver')
+        calls=[]
+        def conflict(route):
+            calls.append(1)
+            route.fulfill(status=409, content_type='application/json', body='{"detail":"conflict"}')
+        self.page.route('**/studio/api/runs/*/steps/*/review', conflict)
+        self.page.locator('#editor-form button[type=submit]').click()
+        expect(self.page.locator('#edit-summary')).to_have_value('Brouillon next à conserver')
+        expect(self.page.locator('.edit-conflict')).to_contain_text('Version courante')
+        expect(self.page.locator('#editor-form button[type=submit]')).to_be_disabled()
+        self.assertEqual(len(calls),1)
+
+    def test_audit_xss_dynamic_story_scene_character_and_history(self):
+        self.sign_in()
+        self.create('XSS synthétique')
+        payload='"><img src=x onerror="window.__xss=1"><svg onload="window.__xss=2">'
+        def hostile(route):
+            response=route.fetch()
+            data=response.json()
+            def inject(value):
+                if isinstance(value,dict):
+                    for key,item in list(value.items()):
+                        if key in {'title','synopsis','topic','narration','landscape','appearance','name','angle','message','prompt','image_prompt','shot','emotion','sound','role','personality'} and isinstance(item,str):value[key]=payload
+                        else:inject(item)
+                elif isinstance(value,list):
+                    for item in value:inject(item)
+            inject(data)
+            route.fulfill(response=response,json=data)
+        self.page.route('**/studio/api/runs**', hostile)
+        self.page.locator('#refresh').click()
+        expect(self.page.locator('#storyTitle')).to_have_text(payload)
+        self.page.locator('[data-tab="analysis"]').click()
+        self.assertEqual(self.page.locator('#panel img[src="x"], #panel svg[onload]').count(),0)
+        self.assertIsNone(self.page.evaluate('window.__xss'))
+        self.next_sign_in()
+        self.page.locator('.story-card [data-open]').first.click()
+        expect(self.page.locator('.story-banner h1')).to_have_text(payload)
+        for panel in ('overview','scenario','scenes','characters','landscapes','colors','shots','emotions','sounds','history','media'):
+            self.page.locator('[data-panel="'+panel+'"]').click()
+            self.assertEqual(self.page.locator('#content img[src="x"], #content svg[onload]').count(),0)
+        self.assertIsNone(self.page.evaluate('window.__xss'))
+
+    def test_audit_xss_journal_and_all_admin_tabs(self):
+        payload='<img src=x onerror="window.__xss=3">'
+        overview={'repository_url':'https://github.com/richardyoann/saas-directeur-editorial',
+          'epics':[{'number':1,'title':payload,'state':'open'}],
+          'issues':[{'number':1,'title':payload,'state':'open'}],
+          'pull_requests':[{'number':2,'title':payload,'state':'open','draft':True,
+                            'created_at':'2026-10-21T00:00:00Z'}], 'deliveries':[], 'source_truncated':{}}
+        commits={'commits':[{'sha':'a'*40,'message':payload,'when':'2026-10-21T00:00:00Z'}],'partial':False}
+        def metadata(route):
+            data=commits if '/commits' in route.request.url else {'runs':[]} if '/ci' in route.request.url else overview
+            route.fulfill(status=200,json=data)
+        self.page.route('**/studio/api/conception**',metadata)
+        self.sign_in()
+        self.create(payload)
+        self.page.locator('#journalNav').click()
+        expect(self.page.locator('#journal')).to_contain_text(payload)
+        self.page.locator('#conceptionNav').click()
+        expect(self.page.locator('#arvorAdminSurface')).to_contain_text(payload)
+        for title in ('Epics & stories','Pull requests','Commits','Agenda'):
+            self.page.locator('#arvorAdminTabs').get_by_role('tab',name=title).click()
+            self.assertEqual(self.page.locator('#arvorAdminSurface img[src="x"]').count(),0)
+        self.next_sign_in()
+        self.page.locator('#sidebar [data-route="admin"]').click()
+        expect(self.page.locator('#admin-stage')).to_contain_text(payload)
+        for title in ('Epics & stories','Pull requests','Commits','Agenda'):
+            self.page.locator('.admin-tabs').get_by_role('tab',name=title).click()
+            self.assertEqual(self.page.locator('#content img[src="x"]').count(),0)
+        self.assertIsNone(self.page.evaluate('window.__xss'))
+
+    def test_audit_next_interruption_is_visible_and_reconciled_only_on_click(self):
+        self.next_sign_in()
+        self.next_create()
+        with httpx.Client(base_url=self.base,headers=AUTH) as client:
+            run_id=client.get('/editorial/runs').json()['runs'][0]['id']
+            self.assertEqual(client.post('/__fixture__/stale/'+run_id).status_code,200)
+        self.page.reload()
+        expect(self.page.locator('.story-card [data-open]')).to_be_visible()
+        self.page.locator('.story-card [data-open]').click()
+        expect(self.page.locator('[data-reconcile]')).to_be_visible()
+        expect(self.page.locator('#workbench')).to_contain_text('Résultat IA incertain')
+        with httpx.Client(base_url=self.base) as client:
+            self.assertEqual(client.get('/__fixture__/counts').json()['generate'],1)
+        self.page.locator('[data-reconcile]').click()
+        expect(self.page.locator('.story-banner')).to_contain_text('Échec')
+        with httpx.Client(base_url=self.base) as client:
+            self.assertEqual(client.get('/__fixture__/counts').json()['generate'],1)
 
 
 if __name__ == "__main__":

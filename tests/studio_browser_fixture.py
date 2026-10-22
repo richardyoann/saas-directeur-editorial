@@ -154,7 +154,8 @@ def detail(run_id: UUID, authorization: str = Header("")):
             record["status"] = "running"
         if record["_test_polls"] >= 3:
             record["status"] = "waiting_validation"
-    return record
+    from editorial.store import recovery_status
+    return record | {"recovery": recovery_status(record)}
 
 
 @app.post("/editorial/runs/{run_id}/reconcile")

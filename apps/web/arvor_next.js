@@ -12,7 +12,7 @@ const formatDay=iso=>{const d=new Date(iso||0);return iso&&!isNaN(d.getTime())?d
 const today=()=>new Date().toISOString().slice(0,10);
 let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null;
 const state={route:'stories',storyId:null,panel:'overview',sceneIndex:0,filter:'Toutes',query:'',journalFilter:'Tout',journalQuery:'',adminTab:'Vue d’ensemble',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarMode:'Mois'};
-let editorAction=null,toastTimer;
+let editorAction=null,toastTimer,editorBaseRevision=0,runPoll=null;
 const persist=()=>{};
 const story=id=>stories.find(s=>s.id===id);
 const editorialStories=()=>stories.filter(s=>!/^Contrôle technique privé de la chaîne éditoriale/i.test(s.title||''));
@@ -98,6 +98,7 @@ function mapRun(run){
  return item;
 }
 async function navigate(route,storyId=null,panel='overview'){
+ clearTimeout(runPoll);
  state.route=route;state.storyId=storyId;state.panel=panel;state.sceneIndex=0;historyData=null;
  closeMobile();render();window.scrollTo({top:0,behavior:'auto'});
  if(route==='stories'&&storyId){
@@ -105,7 +106,7 @@ async function navigate(route,storyId=null,panel='overview'){
    const run=await api('/studio/api/runs/'+encodeURIComponent(storyId));
    const i=stories.findIndex(s=>s.id===storyId);
    if(i>=0)stories[i]=mapRun(run);
-   if(state.storyId===storyId)render();
+   if(state.storyId===storyId){render();if(['queued','running'].includes(run.status))runPoll=setTimeout(()=>navigate(route,storyId,state.panel),2000);}
   }catch(e){showToast(e.message);if(state.storyId===storyId){state.storyId=null;render()}}
  }
  if(route==='admin')await loadAdmin();
@@ -144,7 +145,7 @@ function renderAtelier(){
  const counts={scenes:s.scenes.length,characters:s.characters.length,landscapes:s.scenes.length,colors:s.scenes.length,shots:s.scenes.length,emotions:s.scenes.length,sounds:s.scenes.length};
  return `<div class="backline"><button type="button" data-action="library">${ico('left')} Toutes les histoires</button><div class="right-tools">${btn('Exporter','download','', 'data-action="export"')}${btn('Modifier','edit','primary','data-action="edit-story"')}</div></div>
  <section class="story-banner">${coverMarkup(s)}<div class="banner-content"><span class="eyebrow">ATELIER / HISTOIRE</span><h1>${escapeHtml(s.title)}</h1><p>${escapeHtml(s.summary)}</p><div class="mini-meta"><span>⌖ ${escapeHtml(s.place)}</span><span>${s.scenes.length} scène${s.scenes.length>1?'s':''}</span><span>${escapeHtml(s.status)}</span></div></div></section>
- <div class="workshop"><aside class="outline" aria-label="Contenu de l’histoire"><div class="outline-title">COMPOSER LE RÉCIT</div><nav class="outline-nav">${atelierMenu.map(([k,n,ic])=>`<button type="button" class="outline-btn ${state.panel===k?'active':''}" data-panel="${k}">${ico(ic)}${n}${counts[k]!==undefined?`<span class="num">${counts[k]}</span>`:''}</button>`).join('')}</nav><div class="outline-sep"></div><div class="outline-hint">Chaque révision est conservée et nécessite une validation humaine.</div></aside><div class="workbench" id="workbench">${renderAtelierPanel(s)}</div></div>`;
+ <div class="workshop"><aside class="outline" aria-label="Contenu de l’histoire"><div class="outline-title">COMPOSER LE RÉCIT</div><nav class="outline-nav">${atelierMenu.map(([k,n,ic])=>`<button type="button" class="outline-btn ${state.panel===k?'active':''}" data-panel="${k}">${ico(ic)}${n}${counts[k]!==undefined?`<span class="num">${counts[k]}</span>`:''}</button>`).join('')}</nav><div class="outline-sep"></div><div class="outline-hint">Chaque révision est conservée et nécessite une validation humaine.</div></aside><div class="workbench" id="workbench">${humanReview(s)}${renderAtelierPanel(s)}</div></div>`;
 }
 const panelHeader=(label,title,desc,act='')=>`<div class="section-head"><div><div class="eyebrow">${label}</div><h2>${title}</h2><p>${desc}</p></div>${act}</div>`;
 function sceneRows(s){return `<div class="scene-list">${s.scenes.map((sc,i)=>`<button class="scene-row" type="button" data-scene="${i}"><span class="scene-index">${String(i+1).padStart(2,'0')}</span><span><b>${escapeHtml(sc.title)}</b><small>${escapeHtml(sc.landscape)} · ${sc.duration} s</small></span><span class="arrow">${ico('arrow')}</span></button>`).join('')||'<p class="muted">Aucune scène pour le moment.</p>'}</div>`}
@@ -247,6 +248,8 @@ function renderCalendar(){
  <p class="muted">Événements datés renvoyés par GitHub. Historique potentiellement partiel.</p></section>`;
 }
 function bindContent(){
+ $$('[data-accept]').forEach(b=>b.addEventListener('click',()=>acceptNext(b.dataset.accept)));
+ $$('[data-reconcile]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await api('/studio/api/runs/'+encodeURIComponent(state.storyId)+'/reconcile','POST');await navigate('stories',state.storyId,state.panel);}catch(e){showToast(e.message);b.disabled=false}}));
  document.querySelectorAll('[data-action="more"]').forEach(x=>x.addEventListener('click',()=>fetchStories(true).catch(e=>showToast(e.message))));
  document.querySelectorAll('[data-action="new"]').forEach(x=>x.addEventListener('click',()=>openEditor('new')));
  $$('[data-action="library"]').forEach(x=>x.addEventListener('click',()=>navigate('stories')));
@@ -273,7 +276,7 @@ function openEditor(mode){
  if(mode!=='new'&&(!current?.run?.storyboard||!['approved','waiting_validation','changes_requested'].includes(current.rawStatus))){
   showToast('Révision indisponible avant la génération du storyboard.');return
  }
- const s=story(state.storyId),sc=s?.scenes[state.sceneIndex];editorAction=mode;
+ const s=story(state.storyId),sc=s?.scenes[state.sceneIndex];editorAction=mode;$('#editor-form').querySelector('[type=submit]').disabled=false;editorBaseRevision=s?.run?.review_revision||0;$('#editor-form').querySelector(".edit-conflict")?.remove();
  let rows=[];let title='';let kick='RÉVISION HISTORISÉE';
  if(mode==='new'){title='Créer une histoire';rows=[['topic','Sujet de la légende','','textarea'],['duration_seconds','Durée totale (s)',60,'number'],['scene_count','Nombre de scènes',3,'number']];}
  if(mode==='story'){title='Modifier le récit';rows=[['title','Titre de l’histoire',s.title,'text'],['place','Lieu / univers',s.place,'text'],['summary','Synopsis',s.summary,'textarea']];}
@@ -322,17 +325,45 @@ async function reviseRemote(input){
  }
  const duration=board.scenes.reduce((total,x)=>total+x.duration_seconds,0);
  if(duration!==run.brief.duration_seconds)throw Error('La durée totale doit rester à '+run.brief.duration_seconds+' secondes.');
- const payload={action:'revise',expected_revision:run.review_revision||0,comment:'Révision depuis le Studio Arvor',revised_output:board};
+ const payload={action:'revise',expected_revision:editorBaseRevision,comment:'Révision depuis le Studio Arvor',revised_output:board};
  const saved=await api('/studio/api/runs/'+encodeURIComponent(st.id)+'/steps/storyboard/review','POST',payload);
  stories[stories.findIndex(x=>x.id===st.id)]=mapRun(saved);
  $('#editor').close();render();showToast('Nouvelle version enregistrée. Validation requise.');
+}
+async function editorConflict(){
+ const form=$('#editor-form');form.querySelector('.edit-conflict')?.remove();
+ const root=document.createElement('div');root.className='edit-conflict';root.setAttribute('role','alert');
+ root.textContent='Conflit : brouillon conservé. Comparez avant de soumettre à nouveau.';form.append(root);
+ const submit=form.querySelector('[type=submit]');submit.disabled=true;
+ try{
+  const latest=await api('/studio/api/runs/'+encodeURIComponent(state.storyId));
+  const details=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');
+  summary.textContent='Version courante du serveur';pre.textContent=JSON.stringify(latest.storyboard,null,2);details.append(summary,pre);root.append(details);
+  const button=document.createElement('button');button.type='button';button.textContent='Utiliser la révision actualisée';root.append(button);
+  button.addEventListener('click',()=>{const i=stories.findIndex(x=>x.id===latest.id);if(i>=0)stories[i]=mapRun(latest);editorBaseRevision=latest.review_revision||0;submit.disabled=false;root.textContent='Brouillon conservé. Vérifiez vos modifications puis soumettez explicitement.';});
+ }catch{root.append(document.createTextNode(' Actualisation impossible : aucun nouvel envoi automatique.'));}
+}
+function humanReview(st){
+ const run=st.run;if(!run)return '';
+ if(run.recovery?.interruption_suspected)return '<section class="panel" role="alert">Résultat IA incertain : réconciliation manuelle requise. Aucun rejeu automatique.'+btn('Réconcilier sans rejouer',null,'','data-reconcile')+'</section>';
+ if(!['waiting_validation','changes_requested','approved'].includes(run.status))return '';
+ return '<section class="panel"><h2>Validation humaine</h2>'+['analysis','storyboard'].map(step=>{
+  const accepted=run.status==='approved'||(run.reviews?.[step]?.action==='accept'&&run.reviews[step].valid);
+  const blocked=!run[step]||(step==='storyboard'&&run.storyboard_stale);
+  return '<section><h3>'+ (step==='analysis'?'Analyse':'Storyboard') +'</h3><details><summary>Relire la proposition</summary><pre>'+escapeHtml(JSON.stringify(run[step]||{},null,2))+'</pre></details>'+(accepted?'<p>Étape déjà approuvée. Une modification nécessite une révision.</p>':blocked?'<p>Révision nécessaire avant approbation.</p>':'<label><input type="checkbox" id="review-next-'+step+'"> J’ai relu cette proposition</label>'+btn('Approuver '+(step==='analysis'?"l’analyse":'le storyboard'),null,'','data-accept="'+step+'"'))+'</section>';
+ }).join('')+'</section>';
+}
+async function acceptNext(step){
+ const st=story(state.storyId);if(!st?.run||!$('#review-next-'+step)?.checked)return showToast('La relecture humaine doit être confirmée.');
+ try{const saved=await api('/studio/api/runs/'+encodeURIComponent(st.id)+'/steps/'+step+'/review','POST',{action:'accept',expected_revision:st.run.review_revision||0});stories[stories.findIndex(x=>x.id===st.id)]=mapRun(saved);render();showToast('Approbation enregistrée et historisée.');}
+ catch(e){showToast('Approbation non enregistrée : '+e.message);if(e.status===409)await navigate('stories',st.id,state.panel);}
 }
 async function saveRemoteEditor(input){
  try{
   if(editorAction==='new')await createRemote(input);
   else if(editorAction==='story'||editorAction==='scene')await reviseRemote(input);
   else showToast('Ajout autonome de scène non disponible : le nombre de scènes est fixé par le brief.');
- }catch(error){showToast('Enregistrement refusé : '+error.message)}
+ }catch(error){if(error.status===409)await editorConflict();else showToast('Enregistrement refusé : '+error.message)}
 }
 async function saveEditor(e){e.preventDefault();const input=Object.fromEntries(new FormData($('#editor-form')).entries());await saveRemoteEditor(input)}
 function exportStory(){
