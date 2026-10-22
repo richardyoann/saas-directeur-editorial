@@ -1,6 +1,11 @@
 name: Automated CI triage and release evidence
 on:
-  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - Full regression
+      - Dependency security audit
+      - Studio browser journeys
+    types: [completed]
 permissions:
   contents: read
   actions: read

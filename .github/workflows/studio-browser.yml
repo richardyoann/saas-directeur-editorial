@@ -1,5 +1,12 @@
 name: Studio browser journeys
 on:
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'apps/api/studio.py'
+      - 'tests/studio_browser_fixture.py'
+      - 'browser_checks/test_studio_browser.py'
+      - '.github/workflows/studio-browser.yml'
   workflow_dispatch:
 permissions:
   contents: read
