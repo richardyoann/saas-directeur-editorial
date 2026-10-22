@@ -24,6 +24,10 @@ def build_docker_command(image_id, checkout, trusted, evidence, sha, base_sha, p
     out = evidence.resolve(strict=True)
     if not root.is_dir() or not code.is_dir() or not out.is_dir():
         raise ValueError("Paths must be existing directories")
+    if any(any(ch in str(p) for ch in (",", "\\n", "\\r")) for p in (root, code, out)):
+        raise ValueError("Unsafe Docker mount path")
+    if not (root / ".git").is_dir() or (root / ".git").is_symlink():
+        raise ValueError("Standalone clone with self-contained git objects required")
     if root == code or code == out or root == out or code.is_relative_to(root) or out.is_relative_to(root):
         raise ValueError("Trusted files and evidence must be outside PR checkout")
     proc = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, text=True, capture_output=True, check=True, timeout=10)
@@ -43,7 +47,7 @@ def build_docker_command(image_id, checkout, trusted, evidence, sha, base_sha, p
         "--mount=type=bind,source=" + str(root) + ",target=/workspace,readonly",
         "--mount=type=bind,source=" + str(code) + ",target=/trusted,readonly",
         "--mount=type=bind,source=" + str(out) + ",target=/evidence",
-        "--env=ARVOR_CI_ISOLATED=1", "--env=PYTHONDONTWRITEBYTECODE=1",
+        "--env=ARVOR_CI_ISOLATED=1", "--env=PYTHONDONTWRITEBYTECODE=1", "--env=HOME=/tmp",
         image_id, "/trusted/arvor_ci_entrypoint.sh", sha, base_sha, str(pr)
     ]
 
