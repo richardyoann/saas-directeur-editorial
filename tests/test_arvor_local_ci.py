@@ -1,6 +1,8 @@
 """Negative-path tests for the local CI evidence and publisher. No network calls."""
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+import os
+from unittest.mock import patch
 from tempfile import TemporaryDirectory
 import unittest
 from cryptography.hazmat.primitives import serialization
@@ -127,7 +129,7 @@ class LocalCITests(unittest.TestCase):
                 return {"state": "success"}
             return {"ok": True}
         envelope = self.signed()
-        with TemporaryDirectory() as folder:
+        with patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}), TemporaryDirectory() as folder:
             self.assertEqual(pub.publish(envelope, self.public, "k1", "mock", "https://hooks.slack.com/services/mock",
                                          Path(folder), request=fake), "success")
             with self.assertRaises(ValueError):
