@@ -32,3 +32,20 @@ Exécuter les contrôles coûteux localement, en isolation, sans confondre exéc
 - Vérification d'une PR témoin complète sur les deux versions Python, avec PostgreSQL isolé.
 - Comparaison des résultats locaux et des résultats GitHub lorsque les runners sont de nouveau accessibles.
 - Validation humaine du modèle de confiance avant bascule.
+
+## Modèle de confiance à implémenter
+- La liste des gates et leurs versions provient d'une politique approuvée et épinglée hors du checkout candidat. Une PR ne peut ni retirer une gate, ni assouplir un seuil, ni substituer une commande tout en conservant un statut vert.
+- La préparation des dépendances utilise des versions verrouillées dans une phase séparée; l'exécution du candidat est ensuite hors ligne, sans secrets, sans socket Docker hôte et sans montage des données métier.
+- L'attestation contient au minimum dépôt, numéro de PR, SHA de tête et de base complets, identifiant d'exécution non réutilisable, horodatages début/fin, version de politique, gates attendues/exécutées, commandes normalisées, codes de retour, compteurs de tests et hashes des artefacts.
+- Le JSON est sérialisé canoniquement avant signature. La signature asymétrique, son algorithme, l'identifiant de clé et la clé publique épinglée sont vérifiés par le service de publication; la clé privée reste hors du checkout, du conteneur testé et des logs.
+- Le service de publication refuse une attestation expirée, rejouée, liée à un autre dépôt/PR/SHA, incomplète ou signée par une clé inconnue. Il relit le HEAD distant juste avant publication et publie `failure` ou aucun statut si le SHA a changé.
+- Les contextes de statut sont fixes et documentés. Tant que `main` n'est pas protégé par un ruleset ou une règle équivalente, ces statuts restent informatifs et ne constituent pas une barrière technique de fusion.
+- Les journaux détaillés restent dans un stockage privé à rétention bornée avec filtrage des secrets; Slack ne reçoit que les métadonnées prévues et un identifiant de preuve.
+
+## Critères d'échec supplémentaires
+- Politique de gates absente, modifiée par le candidat ou version non approuvée.
+- Attestation périmée, rejouée, non canonique, d'un autre dépôt/PR/base/HEAD, ou clé révoquée/inconnue.
+- Dépendance non verrouillée, accès réseau imprévu pendant l'exécution, montage d'un volume métier ou accès au socket Docker hôte.
+- Publication impossible ou HEAD distant modifié entre la recette et l'envoi du statut.
+- Absence de protection de branche : aucune automatisation ne doit alors interpréter le statut local comme autorisation de fusion.
+
