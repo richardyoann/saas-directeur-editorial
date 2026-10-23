@@ -83,7 +83,7 @@ class SandboxTests(unittest.TestCase):
         self.assertNotIn('/tmp/arvor-requirements.txt', entry)
         # Preflight Python is embedded in the trusted shell entrypoint.
         source = entry.split('for python_bin in /opt/arvor/py312/bin/python /opt/arvor/py314/bin/python', 1)[1]
-        source = source.split("<<'PY'\\n", 1)[1].split('\\nPY\\ndone', 1)[0]
+        source = source.split("<<'PY'\n", 1)[1].split('\nPY\ndone', 1)[0]
         compile(source, "arvor-ci-requirements-preflight", "exec")
 
     def test_refuses_mutable_image_and_invalid_target(self):
