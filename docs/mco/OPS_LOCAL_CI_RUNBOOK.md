@@ -172,3 +172,18 @@ Correction dans la branche CI #215 :
 **Reconstruction requise :** contrairement au correctif tmpfs Piper, le Dockerfile change. L'ancien ID d'image ne contient PAS Chromium headless shell de Playwright. Recuperer le dernier SHA #215, construire docker build -f ci/local/Dockerfile -t arvor-ci:review . ; recuperer son nouvel ID sha256 puis recopier arvor_local_ci.py et arvor_ci_entrypoint.sh de la branche CI approuvee dans le dossier trusted.
 
 Valider sous Docker --network=none et UID 999 que sync_playwright().start().chromium.launch(headless=True, args=['--no-sandbox']) fonctionne, puis relancer la CI --execute. Aucun succes global de 16 gates annonce a ce stade.
+
+## Incident pip-audit hors reseau (23 octobre 2026)
+
+Le rapport de PR #214 a valide les 11 premieres gates, dont les 18 parcours navigateur et 390 tests en Python 3.12 et 3.14. La gate dependencies echouait avec Failed to upgrade pip, wheel, setuptools dans /tmp : l'ancienne commande pip-audit -r requirements.txt tente une resolution avec pip alors que le conteneur n'a pas de reseau.
+
+Sur CI #215, changement en audit local strict :
+- docker build (avec reseau) lance /opt/arvor/py312/bin/python -m pip_audit --local --strict pour auditer l'environnement complet installe, outils et dependances transitives inclus, et preremplir le cache HTTP de vulnérabilites.
+- controle sandbox (reseau interdit) lance pip-audit --local --strict avec le cache prechauffe, sans resolver pip, sans --fix, sans ignorer les vulnérabilites.
+- le point d'entree refuse de tester un requirements.txt candidat demandant une dependance absente/differente de la liste directe installee dans l'image de confiance.
+- ces modifications imposent une reconstruction de l'image Docker et un nouvel ID sha256. Il faut recopier arvor_local_ci.py et arvor_ci_entrypoint.sh depuis le dernier SHA CI #215.
+- si le cache HTTP est indisponible ou expire, l'audit hors-ligne doit echouer ferme ; reconstruire l'image avec acces a la base de vulnerabilites et examiner les raisons avant toute approbation.
+
+Ce mecanisme evalue les dependances au regard des avis disponibles lors de la construction de l'image ; il ne garantit pas leur fraicheur indefiniment. Les 16 portes restent obligatoires, sans skip, sans publication d'un resultat vert avant recette integre.
+
+Aucune modification de la PR #214, des donnees metier, du PC Arvor ou des protections GitHub existantes.
