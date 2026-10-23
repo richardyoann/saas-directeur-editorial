@@ -10,6 +10,18 @@ umask 077
 [ -x /opt/arvor/py312/bin/python ] && [ -x /opt/arvor/py314/bin/python ] || { echo 'Python matrix missing'; exit 2; }
 command -v initdb >/dev/null 2>&1 || { echo 'Postgres 16 initdb missing'; exit 2; }
 command -v pg_ctl >/dev/null 2>&1 || { echo 'Postgres 16 pg_ctl missing'; exit 2; }
+# Playwright's default headless mode requires its own bundled shell binary,
+# not the Debian system Chromium. Validate it before database/test startup.
+[ "${PLAYWRIGHT_BROWSERS_PATH:-}" = "/opt/arvor/playwright-browsers" ] || {
+  echo 'CI preflight: browser path not pinned'; exit 2;
+}
+/opt/arvor/py312/bin/python - <<'PY'
+from playwright.sync_api import sync_playwright
+with sync_playwright() as playwright:
+    browser = playwright.chromium.launch(headless=True, args=["--no-sandbox"])
+    browser.close()
+print("CI preflight: Playwright Chromium headless shell launched")
+PY
 # Voice timeline tests execute a deterministic local Piper stub in /tmp.
 # Check executable tmpfs explicitly; refuse silent skips or modified PR tests.
 /opt/arvor/py312/bin/python - <<'PY'
