@@ -8,7 +8,7 @@ Aucune migration, aucun changement de Compose, de service systemd, de secret, de
 Comparer les mesures d'un appel réel à Qwen/llama.cpp dans MLflow avec un prompt **synthétique** sans exporter de données métier :
 
 - Un run et une trace LLM dans l'expérience arvor-qwen-local-poc.
-- Hash SHA-256 du prompt, identité du modèle filtrée, durée, statut, finish_reason, longueur de sortie, compteurs tokens disponibles.
+- Hash SHA-256 du prompt, identité technique fixe du connecteur, durée, statut, finish_reason, longueur de sortie, compteurs tokens disponibles.
 - Aucun prompt/réponse brute, jeton, tenant, acteur, IP ou URL fournisseur dans les traces.
 - La commande sans --execute ne lance pas de génération.
 - Une seule génération explicite, sans retry automatique.

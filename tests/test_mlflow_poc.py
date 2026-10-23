@@ -30,7 +30,7 @@ class TestPrivateUrls(unittest.TestCase):
 class TestMetadataOnly(unittest.TestCase):
     def test_ignores_upstream_text_and_secret(self):
         result = safe_summary({
-            "model": "qwen-local", "duration_seconds": 0.23,
+            "model": "DO_NOT_EXPORT_MODEL_SECRET", "duration_seconds": 0.23,
             "prompt": "DO_NOT_EXPORT_PROMPT",
             "response": "DO_NOT_EXPORT_ANSWER",
             "finish_reason": "stop",
@@ -38,8 +38,10 @@ class TestMetadataOnly(unittest.TestCase):
         })
         encoded = json.dumps(result)
         for sensitive in ("DO_NOT_EXPORT_PROMPT", "DO_NOT_EXPORT_ANSWER",
-                          "DO_NOT_EXPORT_TOKEN"):
+                          "DO_NOT_EXPORT_TOKEN", "DO_NOT_EXPORT_MODEL_SECRET"):
             self.assertNotIn(sensitive, encoded)
+        self.assertEqual(result["provider_adapter"], "llama.cpp-qwen")
+        self.assertNotIn("model", result)
         self.assertEqual(result["response_characters"], len("DO_NOT_EXPORT_ANSWER"))
         self.assertEqual(result["tokens"]["total_tokens"], 23)
 

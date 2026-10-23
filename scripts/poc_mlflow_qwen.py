@@ -11,7 +11,6 @@ import hashlib
 import ipaddress
 import json
 import os
-import re
 from urllib.parse import urlsplit
 
 # Deliberately synthetic: the real story, prompts and answers are never exported.
@@ -64,10 +63,9 @@ def token_metrics(usage: object) -> dict[str, int]:
 
 def safe_summary(result: dict) -> dict:
     """Reduce Qwen's response to non-content operational metadata."""
-    model = result.get("model", "unknown")
-    if not isinstance(model, str):
-        model = "unknown"
-    model = re.sub(r"[^a-zA-Z0-9_.:/-]", "_", model)[:100]
+    # Never trust an upstream model identifier: it is arbitrary provider content.
+    # Record only the adapter identity defined by this code.
+    provider_adapter = "llama.cpp-qwen"
     duration = result.get("duration_seconds", 0)
     if type(duration) not in (float, int) or not 0 <= duration < 100_000:
         duration = 0
@@ -77,7 +75,7 @@ def safe_summary(result: dict) -> dict:
     response = result.get("response", "")
     return {
         "status": "ok",
-        "model": model,
+        "provider_adapter": provider_adapter,
         "duration_seconds": float(duration),
         "response_characters": len(response) if isinstance(response, str) else 0,
         "finish_reason": finish,
@@ -114,8 +112,8 @@ async def execute_probe(mlflow, *, tracking_uri: str, model_url: str) -> dict:
             span.set_outputs(summary)
             span.set_attribute("status", summary["status"])
             if summary["status"] == "ok":
-                span.set_attribute("model", summary["model"])
-                mlflow.log_param("model", summary["model"])
+                span.set_attribute("provider_adapter", summary["provider_adapter"])
+                mlflow.log_param("provider_adapter", summary["provider_adapter"])
                 mlflow.log_param("finish_reason", summary["finish_reason"])
                 mlflow.log_metric("duration_seconds", summary["duration_seconds"])
                 mlflow.log_metric("response_characters", summary["response_characters"])
