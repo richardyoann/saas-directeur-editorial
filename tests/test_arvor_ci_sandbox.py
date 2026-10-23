@@ -54,6 +54,17 @@ class SandboxTests(unittest.TestCase):
         self.assertIn("cp -R /opt/arvor/audit-cache/. /tmp/audit-cache/", entry)
         self.assertNotIn("\ncp -a /opt/arvor/audit-cache", entry)
 
+    def test_playwright_headless_browser_is_installed_and_pinned(self):
+        root = Path(__file__).resolve().parents[1]
+        dockerfile = (root / "ci/local/Dockerfile").read_text(encoding="utf-8")
+        controller = (root / "scripts/arvor_local_ci.py").read_text(encoding="utf-8")
+        entry = (root / "scripts/arvor_ci_entrypoint.sh").read_text(encoding="utf-8")
+        self.assertIn("ENV PLAYWRIGHT_BROWSERS_PATH=/opt/arvor/playwright-browsers", dockerfile)
+        self.assertIn("playwright install --with-deps --only-shell chromium", dockerfile)
+        self.assertIn('"PLAYWRIGHT_BROWSERS_PATH", "PO_TEST_DATABASE_URL"', controller)
+        self.assertIn("playwright.chromium.launch(headless=True", entry)
+        self.assertIn("CI preflight: Playwright Chromium headless shell launched", entry)
+
     def test_refuses_mutable_image_and_invalid_target(self):
         with self.assertRaises(ValueError):
             build_docker_command('arvor/ci:latest', self.checkout, self.trusted, self.evidence, SHA, BASE, 215)
