@@ -187,3 +187,11 @@ Sur CI #215, changement en audit local strict :
 Ce mecanisme evalue les dependances au regard des avis disponibles lors de la construction de l'image ; il ne garantit pas leur fraicheur indefiniment. Les 16 portes restent obligatoires, sans skip, sans publication d'un resultat vert avant recette integre.
 
 Aucune modification de la PR #214, des donnees metier, du PC Arvor ou des protections GitHub existantes.
+
+## Blocage preflight inventaire (23 octobre 2026)
+
+Le nouveau build de l'image était réussi. Sur le PC WSL : pip-audit --local --strict sans reseau a signale No known vulnerabilities found et 21 tests unitaires ont réussi. Cependant, avant les gates, la prevalidation a levé FileNotFoundError pour /tmp/arvor-requirements.txt. Cause : le script comparait les dépendances à un manifeste copié dans /tmp pendant le build, masqué à l'exécution par --tmpfs=/tmp.
+
+Correctif PR #215 : verification preflight des pins exacts de /workspace/requirements.txt contre les distributions réellement installées, dans les deux environnements Python 3.12 et 3.14, via importlib.metadata + packaging.requirements. Controles explicites des extras demandés (ex: psycopg[binary]); refus des dépendances non épinglées, manquantes ou de versions différentes. Aucun telechargement, aucune ecriture source et aucune suppression d'audit.
+
+Le Dockerfile est inchangé depuis le build de l'image qui a déjà passé pip-audit hors ligne. Image à réutiliser sans rebuild : sha256:ecc09ca2b26f007b940631a8ebcf3fa4b60a757114de2fa6567220637207a5b1. Actualiser la branche CI, recopier uniquement scripts/arvor_ci_entrypoint.sh dans le trusted, puis executer tests unitaires et sandbox --execute avec les SHA de la PR #214. Le correctif ne vaut pas recette réussie tant que les 16 portes ne sont pas toutes passées.
