@@ -32,6 +32,14 @@ RUN uv pip install --python /opt/arvor/py312/bin/python \
  && mkdir -p /opt/google/chrome \
  && ln -s /usr/bin/chromium /opt/google/chrome/chrome
 
+# Playwright 1.58.0 needs its own exact-revision Chromium headless shell.
+# Debian's /usr/bin/chromium is NOT the matching Playwright executable.
+# Download and install system dependencies only at trusted image build time.
+# This image is used with --network=none at candidate test runtime.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/arvor/playwright-browsers
+RUN /opt/arvor/py312/bin/python -m playwright install --with-deps --only-shell chromium \
+ && chmod -R a+rX /opt/arvor/playwright-browsers
+
 # Prewarm the vulnerability cache during this trusted networked build.
 # The candidate runtime has --network=none: cache misses then fail closed.
 RUN /opt/arvor/py312/bin/python -m pip_audit -r /tmp/arvor-requirements.txt \
