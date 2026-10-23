@@ -40,26 +40,58 @@ with tempfile.TemporaryDirectory(prefix="arvor-tts-probe-") as temp:
 print("CI preflight: Piper stub executable and ffmpeg path checked")
 PY
 cd /workspace
-# The built image is the audited environment. Candidate pinned packages must
-# match packages included during the trusted image build.
-/opt/arvor/py312/bin/python - <<'PY'
+# /tmp is mounted as an ephemeral tmpfs, hiding build-time files there.
+# Verify candidate's exact direct pins against installed distributions audited
+# inside the immutable Docker image; never resolve/install anything at runtime.
+for python_bin in /opt/arvor/py312/bin/python /opt/arvor/py314/bin/python; do
+  "$python_bin" - <<'PY'
+from importlib import metadata
 from pathlib import Path
-def requirements(path):
-    values = set()
-    for raw in Path(path).read_text(encoding='utf-8').splitlines():
-        value = raw.split('#', 1)[0].strip().lower()
-        if not value:
-            continue
-        if '==' not in value or any(c in value for c in (';', ' ', '\\', '/')):
-            raise SystemExit('CI: unsupported or unpinned requirement')
-        values.add(value)
-    if not values:
-        raise SystemExit('CI: empty requirements')
-    return values
-if not requirements('/workspace/requirements.txt') <= requirements('/tmp/arvor-requirements.txt'):
-    raise SystemExit('CI: candidate requirements not covered by audited image')
-print('CI preflight: candidate requirements are covered')
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+
+pins = {}
+for raw in Path("/workspace/requirements.txt").read_text(encoding="utf-8").splitlines():
+    line = raw.split("#", 1)[0].strip()
+    if not line:
+        continue
+    try:
+        requirement = Requirement(line)
+    except Exception:
+        raise SystemExit("CI: invalid requirement declaration") from None
+    specifications = list(requirement.specifier)
+    if (requirement.url or requirement.marker or len(specifications) != 1
+            or specifications[0].operator != "=="
+            or "*" in specifications[0].version):
+        raise SystemExit("CI: only exact unconditional version pins are supported")
+    name = canonicalize_name(requirement.name)
+    expected = specifications[0].version
+    if name in pins and pins[name] != expected:
+        raise SystemExit("CI: conflicting pinned versions")
+    pins[name] = expected
+    try:
+        actual = metadata.version(name)
+    except metadata.PackageNotFoundError:
+        raise SystemExit("CI: candidate requirement missing in audited image: " + name) from None
+    if actual != expected:
+        raise SystemExit("CI: candidate pin differs from audited image: " + name)
+
+    # Verify that requested optional extras are also present and compatible.
+    for extra in requirement.extras:
+        for child in metadata.requires(name) or ():
+            dependency = Requirement(child)
+            if dependency.marker and dependency.marker.evaluate({"extra": extra}):
+                try:
+                    installed = metadata.version(dependency.name)
+                except metadata.PackageNotFoundError:
+                    raise SystemExit("CI: missing dependency for requested extra: " + extra) from None
+                if dependency.specifier and installed not in dependency.specifier:
+                    raise SystemExit("CI: incompatible dependency for requested extra: " + extra)
+if not pins:
+    raise SystemExit("CI: empty requirements")
+print("CI preflight: exact direct pins and extras match audited image")
 PY
+done
 # Docker source checkout belongs to the host, not to uid 999.
 git config --global --add safe.directory /workspace
 mkdir -p /tmp/audit-cache
