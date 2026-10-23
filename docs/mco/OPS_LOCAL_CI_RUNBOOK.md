@@ -157,3 +157,18 @@ Modifications CI sur #215 :
 Pour retester : recuperer le nouveau SHA de #215, mettre a jour les deux fichiers externes arvor_ci_entrypoint.sh et arvor_local_ci.py dans trusted, executer les tests unitaires puis le sandbox --execute. L'image Docker SHA256 existante peut etre reutilisee, car aucun changement de Dockerfile dans cet incident. Cette correction doit etre confirmee par la recette reelle WSL.
 
 Aucun merge #214, statut GitHub vert, publication Slack automatisee ni deploiement PC autorise par ce diagnostic.
+
+## Incident navigateur Playwright sur WSL (23 octobre 2026)
+
+Observations de la recette PR #214 : 390/390 Python 3.12 et 390/390 Python 3.14 sont OK, preparation PG, benchmarks SQL, 3 syntaxes JS et syntaxe Python sont OK (10/16 gates). Le controle browser a echoue avant execution des 18 parcours : setUpClass de StudioBrowserJourneys, Playwright 1.58.0 cherchait le binaire Chromium headless shell sous /tmp/.cache/ms-playwright/chromium_headless_shell-1208 alors que l'image avait seulement Debian Chromium installe par apt.
+
+Correction dans la branche CI #215 :
+- ci/local/Dockerfile utilise PLAYWRIGHT_BROWSERS_PATH=/opt/arvor/playwright-browsers et execute lors du build avec reseau disponible : /opt/arvor/py312/bin/python -m playwright install --with-deps --only-shell chromium. Les fichiers du navigateur sont lisibles par UID 999.
+- scripts/arvor_local_ci.py transmet uniquement ce chemin aux sous-processus Python a travers la liste d'environnement limitee.
+- scripts/arvor_ci_entrypoint.sh demarre Playwright Chromium headless avant le demarrage de PG et des tests; echec ferme si navigateur indisponible.
+- scripts/arvor_ci_sandbox.py reserve un /dev/shm prive de 512 Mo sans utiliser --ipc=host et preserve --network=none, --read-only, --cap-drop=ALL, aucune credentielle.
+- tests/test_arvor_ci_sandbox.py verifie les caracteristiques precedentes statiquement.
+
+**Reconstruction requise :** contrairement au correctif tmpfs Piper, le Dockerfile change. L'ancien ID d'image ne contient PAS Chromium headless shell de Playwright. Recuperer le dernier SHA #215, construire docker build -f ci/local/Dockerfile -t arvor-ci:review . ; recuperer son nouvel ID sha256 puis recopier arvor_local_ci.py et arvor_ci_entrypoint.sh de la branche CI approuvee dans le dossier trusted.
+
+Valider sous Docker --network=none et UID 999 que sync_playwright().start().chromium.launch(headless=True, args=['--no-sandbox']) fonctionne, puis relancer la CI --execute. Aucun succes global de 16 gates annonce a ce stade.
