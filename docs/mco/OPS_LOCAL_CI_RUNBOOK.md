@@ -195,3 +195,36 @@ Le nouveau build de l'image était réussi. Sur le PC WSL : pip-audit --local 
 Correctif PR #215 : verification preflight des pins exacts de /workspace/requirements.txt contre les distributions réellement installées, dans les deux environnements Python 3.12 et 3.14, via importlib.metadata + packaging.requirements. Controles explicites des extras demandés (ex: psycopg[binary]); refus des dépendances non épinglées, manquantes ou de versions différentes. Aucun telechargement, aucune ecriture source et aucune suppression d'audit.
 
 Le Dockerfile est inchangé depuis le build de l'image qui a déjà passé pip-audit hors ligne. Image à réutiliser sans rebuild : sha256:ecc09ca2b26f007b940631a8ebcf3fa4b60a757114de2fa6567220637207a5b1. Actualiser la branche CI, recopier uniquement scripts/arvor_ci_entrypoint.sh dans le trusted, puis executer tests unitaires et sandbox --execute avec les SHA de la PR #214. Le correctif ne vaut pas recette réussie tant que les 16 portes ne sont pas toutes passées.
+## Recette integrale WSL constatee le 23 octobre 2026
+
+L'utilisateur a communique la sortie du dernier rapport local : **16 portes sur 16 reussies**, code retour 0 sur chaque porte, statut `success`. Identite candidate : PR #214, SHA `24072acbe12d65b3963b7e99d6c48fa6a7afb855`. Le build immuable utilise pendant cette recette est `sha256:ecc09ca2b26f007b940631a8ebcf3fa4b60a757114de2fa6567220637207a5b1`. Les suites Python 3.12 et 3.14 ont chacune execute 390 tests sans erreur ni skip ; Chromium a execute 18 tests. L'audit hors reseau a aussi retourne `No known vulnerabilities found`.
+
+Cette information est une **observation transmise du poste WSL**, pas une execution directement observee par le developpeur de ce script, ni une attestation independante deja signee. Garder les preuves originales et leurs journaux dans le dossier prive ; ne pas modifier `main`, la PR #214 ou le runtime PC.
+
+## Verificateur de coherence externe et limites de confiance
+
+`scripts/arvor_ci_evidence_verify.py` controle en lecture seule :
+- correspondance PR / HEAD / base du recu avec le checkout Git et l'ancetre de la base ;
+- correspondance SHA256 des **16 journaux** avec les empreintes declarees ;
+- coherence des compteurs de regression et du navigateur ;
+- preuve JSON synthetique de 75 s, 720x1280, ffprobe et absence de mutation metier ;
+- refus des fichiers absents, liens symboliques, fichiers non reguliers ou de taille excessive.
+
+A executer depuis le clone de confiance `ci-source`, **hors du conteneur**. Selectionner l'exact recu issu de la recette reussie ; ici `RECU` est a remplacer :
+
+    RECU="$HOME/arvor-ci-lab/evidence/IDENTIFIANT_DE_LA_RECETTE_SUCCESS.json"
+    sudo "$HOME/arvor-ci-lab/ci-venv/bin/python" -m scripts.arvor_ci_evidence_verify \
+      --receipt "$RECU" \
+      --evidence-dir "$HOME/arvor-ci-lab/evidence" \
+      --checkout "$HOME/arvor-ci-lab/pr214" \
+      --sha 24072acbe12d65b3963b7e99d6c48fa6a7afb855 \
+      --base-sha d08fe0afe62f0ea209da239aeade0bd5f042d30d \
+      --pr 214
+
+Le script sort `log-integrity-verified` uniquement quand ces verifications passent. Il affiche explicitement `independent_execution_provenance_verified: false`, `attestation_signed: false` et `merge_or_deploy_authorized: false`.
+
+**Limite de securite fondamentale :** les journaux et le recu ont ete montes en ecriture dans le sandbox sous UID 999 ; un code candidat malveillant pourrait potentiellement manipuler les deux. La coherence de SHA256 et la signature qui suit ne constituent **pas**, a elles seules, une preuve independante de l'execution. Pour un statut externe de confiance, il reste a separer l'ecriture des preuves du code candidat, disposer d'un superviseur hote controle, pinner le code de politique et les empreintes du conteneur, reverifier la tete de PR distante et tester l'anti-rejeu et la publication reelle. Le mode de publication reste desactive.
+
+Le CLI `arvor_ci_attestation sign` exige maintenant `--evidence-dir`, `--checkout`, `--sha`, `--base-sha`, `--pr` pour rendre cette verification **obligatoire avant signature**. Il ne faut toujours pas signer la preuve de succes a des fins de statut externe avant certification de la provenance independante.
+
+Les anciennes sections de ce runbook restent utiles comme historique des incidents, mais leurs mentions d'anciens nombres de tests ou d'un etat Docker non teste sont **perimees** apres la recette du 23 octobre.
