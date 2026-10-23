@@ -63,6 +63,18 @@ class EvidenceVerificationTests(unittest.TestCase):
             return verify_receipt(self.receipt, self.evidence, self.checkout,
                                   SHA, BASE, 214)
 
+    def test_sign_cli_refuses_signature_without_independent_log_check(self):
+        from scripts.arvor_ci_attestation import main as attest_main
+        with patch("sys.argv", ["attestation", "sign",
+                                 "--input", str(self.receipt),
+                                 "--key", str(self.root / "missing-private.key"),
+                                 "--key-id", "ci-v1",
+                                 "--output", str(self.root / "signed.json")]):
+            with self.assertRaises(SystemExit) as error:
+                attest_main()
+        self.assertEqual(error.exception.code, 2)
+        self.assertFalse((self.root / "signed.json").exists())
+
     def test_consistent_receipt_and_sixteen_logs(self):
         result = self.run_verification()
         self.assertEqual(result["verified_logs"], 16)
