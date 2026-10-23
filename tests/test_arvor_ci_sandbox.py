@@ -67,6 +67,17 @@ class SandboxTests(unittest.TestCase):
         self.assertIn("playwright.chromium.launch(headless=True", entry)
         self.assertIn("CI preflight: Playwright Chromium headless shell launched", entry)
 
+    def test_offline_audit_covers_installed_environment_and_requirement_identity(self):
+        root = Path(__file__).resolve().parents[1]
+        dockerfile = (root / 'ci/local/Dockerfile').read_text(encoding='utf-8')
+        controller = (root / 'scripts/arvor_local_ci.py').read_text(encoding='utf-8')
+        entry = (root / 'scripts/arvor_ci_entrypoint.sh').read_text(encoding='utf-8')
+        self.assertIn('pip_audit --local --strict', dockerfile)
+        self.assertIn('"pip_audit", "--local", "--strict"', controller)
+        self.assertNotIn('"pip_audit", "-r", "requirements.txt"', controller)
+        self.assertIn("requirements('/workspace/requirements.txt')", entry)
+        self.assertIn("requirements('/tmp/arvor-requirements.txt')", entry)
+        self.assertIn('candidate requirements not covered by audited image', entry)
     def test_refuses_mutable_image_and_invalid_target(self):
         with self.assertRaises(ValueError):
             build_docker_command('arvor/ci:latest', self.checkout, self.trusted, self.evidence, SHA, BASE, 215)
