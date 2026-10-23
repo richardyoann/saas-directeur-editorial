@@ -28,6 +28,7 @@ class SandboxTests(unittest.TestCase):
         cmd = build_docker_command(IMAGE, self.checkout, self.trusted, self.evidence, SHA, BASE, 215)
         self.assertIn('--network=none', cmd)
         self.assertIn('--read-only', cmd)
+        self.assertIn('--tmpfs=/tmp:rw,exec,nosuid,nodev,size=1073741824,uid=999,gid=999', cmd)
         self.assertIn('--cap-drop=ALL', cmd)
         self.assertIn('--security-opt=no-new-privileges', cmd)
         self.assertIn('--pull=never', cmd)
