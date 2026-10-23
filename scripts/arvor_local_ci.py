@@ -106,7 +106,7 @@ def execute(root, sha, base_sha, pr, repo, python312, python314, output, *, env=
     receipt = {"schema": "arvor-local-ci-v1", "run_id": run_id, "repo": repo, "pr": pr,
                "sha": sha, "base_sha": base_sha, "started_at": utcnow(), "finished_at": None,
                "source": "isolated-local-tests", "gates": [], "status": "failure"}
-    clean_env = {k: env[k] for k in ("PATH", "HOME", "LANG", "LC_ALL", "PO_TEST_DATABASE_URL", "TRACE_TEST_DATABASE_URL", "PO_ALLOW_TEST_MIGRATION") if k in env}
+    clean_env = {k: env[k] for k in ("PATH", "HOME", "LANG", "LC_ALL", "PLAYWRIGHT_BROWSERS_PATH", "PO_TEST_DATABASE_URL", "TRACE_TEST_DATABASE_URL", "PO_ALLOW_TEST_MIGRATION") if k in env}
     clean_env["STUDIO_BROWSER_TESTS"] = "yes"
     for name, argv in commands(python312, python314, base_sha).items():
         result = {"name": name, "passed": False, "returncode": None, "tests": None, "log_sha256": None}
