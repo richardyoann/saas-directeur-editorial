@@ -75,9 +75,17 @@ class SandboxTests(unittest.TestCase):
         self.assertIn('pip_audit --local --strict', dockerfile)
         self.assertIn('"pip_audit", "--local", "--strict"', controller)
         self.assertNotIn('"pip_audit", "-r", "requirements.txt"', controller)
-        self.assertIn("requirements('/workspace/requirements.txt')", entry)
-        self.assertIn("requirements('/tmp/arvor-requirements.txt')", entry)
-        self.assertIn('candidate requirements not covered by audited image', entry)
+        self.assertIn('Path("/workspace/requirements.txt")', entry)
+        self.assertIn('metadata.version(name)', entry)
+        self.assertIn("metadata.requires(name)", entry)
+        self.assertIn("exact direct pins and extras match audited image", entry)
+        self.assertIn('for python_bin in /opt/arvor/py312/bin/python /opt/arvor/py314/bin/python', entry)
+        self.assertNotIn('/tmp/arvor-requirements.txt', entry)
+        # Preflight Python is embedded in the trusted shell entrypoint.
+        source = entry.split('for python_bin in /opt/arvor/py312/bin/python /opt/arvor/py314/bin/python', 1)[1]
+        source = source.split("<<'PY'\\n", 1)[1].split('\\nPY\\ndone', 1)[0]
+        compile(source, "arvor-ci-requirements-preflight", "exec")
+
     def test_refuses_mutable_image_and_invalid_target(self):
         with self.assertRaises(ValueError):
             build_docker_command('arvor/ci:latest', self.checkout, self.trusted, self.evidence, SHA, BASE, 215)
