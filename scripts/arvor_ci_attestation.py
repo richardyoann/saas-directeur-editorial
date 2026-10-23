@@ -89,10 +89,22 @@ def main():
     p.add_argument("--key", type=Path, required=True)
     p.add_argument("--key-id", required=True)
     p.add_argument("--output", type=Path)
+    p.add_argument("--evidence-dir", type=Path)
+    p.add_argument("--checkout", type=Path)
+    p.add_argument("--sha")
+    p.add_argument("--base-sha")
+    p.add_argument("--pr", type=int)
     a = p.parse_args()
     if a.action == "sign":
         if not a.output or a.output.exists():
             p.error("Fresh --output required")
+        if (not a.evidence_dir or not a.checkout or not a.sha
+                or not a.base_sha or a.pr is None):
+            p.error("Signing requires independent receipt/log and Git checkout checks")
+        # Import at call time so validate() remains usable in offline unit tests.
+        from scripts.arvor_ci_evidence_verify import verify_receipt
+        verify_receipt(a.input, a.evidence_dir, a.checkout,
+                       a.sha, a.base_sha, a.pr)
         signed = sign(json.loads(a.input.read_text(encoding="utf-8")), a.key.read_bytes(), a.key_id)
         a.output.write_bytes(canonical(signed) + b"\n")
         a.output.chmod(0o600)
