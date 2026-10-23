@@ -10,6 +10,23 @@ umask 077
 [ -x /opt/arvor/py312/bin/python ] && [ -x /opt/arvor/py314/bin/python ] || { echo 'Python matrix missing'; exit 2; }
 command -v initdb >/dev/null 2>&1 || { echo 'Postgres 16 initdb missing'; exit 2; }
 command -v pg_ctl >/dev/null 2>&1 || { echo 'Postgres 16 pg_ctl missing'; exit 2; }
+# Voice timeline tests execute a deterministic local Piper stub in /tmp.
+# Check executable tmpfs explicitly; refuse silent skips or modified PR tests.
+/opt/arvor/py312/bin/python - <<'PY'
+import pathlib
+import shutil
+import subprocess
+import tempfile
+
+with tempfile.TemporaryDirectory(prefix="arvor-tts-probe-") as temp:
+    candidate = pathlib.Path(temp) / "piper-stub"
+    candidate.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    candidate.chmod(0o700)
+    if shutil.which(str(candidate)) != str(candidate):
+        raise SystemExit("CI preflight: executable Piper stub unavailable in /tmp")
+    subprocess.run([str(candidate)], check=True, timeout=3)
+print("CI preflight: Piper stub executable and ffmpeg path checked")
+PY
 cd /workspace
 # Docker source checkout belongs to the host, not to uid 999.
 git config --global --add safe.directory /workspace
