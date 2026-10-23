@@ -131,7 +131,7 @@ def execute(root, sha, base_sha, pr, repo, python312, python314, output, *, env=
                                     and video.get("video_duration_seconds") == 75
                                     and video.get("resolution") == "720x1280"
                                     and video.get("ffprobe") == "passed")
-            if name.startswith("regression_") or name == "browser":
+            elif name.startswith("regression_") or name == "browser":
                 result["tests"] = counts
                 result["passed"] = proc.returncode == 0 and counts is not None and counts["tests"] > 0 and all(counts[k] == 0 for k in ("failures", "errors", "skipped"))
             else:
