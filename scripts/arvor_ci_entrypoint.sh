@@ -40,6 +40,26 @@ with tempfile.TemporaryDirectory(prefix="arvor-tts-probe-") as temp:
 print("CI preflight: Piper stub executable and ffmpeg path checked")
 PY
 cd /workspace
+# The built image is the audited environment. Candidate pinned packages must
+# match packages included during the trusted image build.
+/opt/arvor/py312/bin/python - <<'PY'
+from pathlib import Path
+def requirements(path):
+    values = set()
+    for raw in Path(path).read_text(encoding='utf-8').splitlines():
+        value = raw.split('#', 1)[0].strip().lower()
+        if not value:
+            continue
+        if '==' not in value or any(c in value for c in (';', ' ', '\\', '/')):
+            raise SystemExit('CI: unsupported or unpinned requirement')
+        values.add(value)
+    if not values:
+        raise SystemExit('CI: empty requirements')
+    return values
+if not requirements('/workspace/requirements.txt') <= requirements('/tmp/arvor-requirements.txt'):
+    raise SystemExit('CI: candidate requirements not covered by audited image')
+print('CI preflight: candidate requirements are covered')
+PY
 # Docker source checkout belongs to the host, not to uid 999.
 git config --global --add safe.directory /workspace
 mkdir -p /tmp/audit-cache
