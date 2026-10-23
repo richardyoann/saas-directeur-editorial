@@ -39,7 +39,7 @@ def build_docker_command(image_id, checkout, trusted, evidence, sha, base_sha, p
     return [
         "docker", "run", "--rm", "--pull=never",
         "--network=none", "--read-only", "--cap-drop=ALL",
-        "--security-opt=no-new-privileges", "--pids-limit=512", "--memory=6g", "--cpus=4",
+        "--security-opt=no-new-privileges", "--pids-limit=512", "--memory=6g", "--cpus=4", "--shm-size=512m",
         "--user=999:999", "--workdir=/workspace",
         "--tmpfs=/tmp:rw,exec,nosuid,nodev,size=1073741824,uid=999,gid=999",
         "--tmpfs=/var/lib/postgresql/data:rw,nosuid,nodev,size=1073741824,uid=999,gid=999,mode=0700",
