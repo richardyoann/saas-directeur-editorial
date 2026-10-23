@@ -78,7 +78,7 @@ def commands(p312, p314, base):
         "syntax_js_next": ["node", "--check", "apps/web/arvor_next.js"],
         "syntax_py": py(314, "-c", "from pathlib import Path; compile(Path('apps/api/studio.py').read_text(encoding='utf-8'), 'apps/api/studio.py', 'exec')"),
         "browser": py(312, "-m", "unittest", "discover", "-s", "browser_checks", "-p", "test_studio_browser.py", "-v"),
-        "dependencies": py(312, "-m", "pip_audit", "-r", "requirements.txt", "--progress-spinner", "off", "--cache-dir", "/tmp/audit-cache"),
+        "dependencies": py(312, "-m", "pip_audit", "--local", "--strict", "--progress-spinner", "off", "--cache-dir", "/tmp/audit-cache"),
         "secrets": ["gitleaks", "git", "--no-banner", "--redact", "--exit-code", "1", "--log-opts=" + base + "..HEAD", "."],
         "supply_chain": py(314, "scripts/ci_policy.py"),
         "risk_review": py(314, "scripts/ci_autonomy.py", "--base", base, "--head", "HEAD"),
