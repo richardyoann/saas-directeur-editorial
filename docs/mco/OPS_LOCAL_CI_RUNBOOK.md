@@ -142,3 +142,18 @@ Depuis le clone `ci-source` non modifié localement :
     docker image inspect --format '{{.Id}}' arvor-ci:review
 
 Récupérer le **nouvel** ID d'image complet `sha256:...` et refaire le diagnostic de lecture/copie du cache dans un conteneur jetable UID 999. Les anciens IDs sont immuables et **ne sont pas corrigés** par le rebuild. N'effectuer ni fusion GitHub ni livraison PC pour ce diagnostic.
+
+
+## Incident de recette PR #214 : simulateur vocal Piper (23 octobre 2026)
+
+Preuves WSL : 390 tests Python 3.12 executes en 18 s; 3 failures et 1 error dans tests/test_voice_timeline.py. FFmpeg est disponible, mais la detection du simulateur Piper cree dans tempfile.TemporaryDirectory echoue : piper_or_ffmpeg_unavailable.
+
+Modifications CI sur #215 :
+- scripts/arvor_ci_sandbox.py : montage /tmp du seul conteneur en rw,exec,nosuid,nodev ; volumes metier et hote non modifies.
+- scripts/arvor_ci_entrypoint.sh : prevalidation cree un petit executable temporaire puis le lance, pour echouer avec un diagnostic specifique si /tmp interdit les executions.
+- scripts/arvor_local_ci.py : correction du verdict video_75, auparavant susceptible d'etre ecrase par un simple code de sortie 0; test negatif ajoute.
+- Tests metier #214 inchanges, aucun skip accepte.
+
+Pour retester : recuperer le nouveau SHA de #215, mettre a jour les deux fichiers externes arvor_ci_entrypoint.sh et arvor_local_ci.py dans trusted, executer les tests unitaires puis le sandbox --execute. L'image Docker SHA256 existante peut etre reutilisee, car aucun changement de Dockerfile dans cet incident. Cette correction doit etre confirmee par la recette reelle WSL.
+
+Aucun merge #214, statut GitHub vert, publication Slack automatisee ni deploiement PC autorise par ce diagnostic.
