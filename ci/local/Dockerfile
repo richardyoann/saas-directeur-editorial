@@ -40,9 +40,11 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/arvor/playwright-browsers
 RUN /opt/arvor/py312/bin/python -m playwright install --with-deps --only-shell chromium \
  && chmod -R a+rX /opt/arvor/playwright-browsers
 
-# Prewarm the vulnerability cache during this trusted networked build.
-# The candidate runtime has --network=none: cache misses then fail closed.
-RUN /opt/arvor/py312/bin/python -m pip_audit -r /tmp/arvor-requirements.txt \
+# Audit the FULL installed Python 3.12 environment (including transitives)
+# during this trusted networked build, then prewarm its vulnerability cache.
+# The network-isolated runtime audits the same immutable installed environment;
+# a missing/expired advisory cache must fail closed, never silently skip.
+RUN /opt/arvor/py312/bin/python -m pip_audit --local --strict \
       --progress-spinner off --cache-dir /opt/arvor/audit-cache \
  && chown -R 999:999 /opt/arvor/audit-cache
 
