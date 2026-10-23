@@ -137,6 +137,32 @@ class LocalCITests(unittest.TestCase):
         self.assertEqual(calls, ["GET", "POST", "POST"])
 
 
+    def test_video_75_refuses_zero_exit_without_valid_receipt(self):
+        """No video success without the exact 75s ffprobe JSON evidence."""
+        from types import SimpleNamespace
+        def fake_command(argv, **kwargs):
+            command = " ".join(map(str, argv))
+            if "run_regression.py" in command:
+                output = '{"tests":390,"failures":0,"errors":0,"skipped":0}\n'
+            elif "test_studio_browser.py" in command:
+                output = "Ran 18 tests in 0.01s\n\nOK\n"
+            elif "smoke_video_75" in command:
+                output = '{"verified":false,"synthetic":true,"video_duration_seconds":75,"resolution":"720x1280","ffprobe":"passed"}\n'
+            else:
+                output = "OK\n"
+            return SimpleNamespace(stdout=output, stderr="", returncode=0)
+        test_url = "postgresql://po_test:ephemeral_ci_only@127.0.0.1:5432/po_test"
+        env = {"ARVOR_CI_ISOLATED": "1", "PO_TEST_DATABASE_URL": test_url,
+               "TRACE_TEST_DATABASE_URL": test_url, "PO_ALLOW_TEST_MIGRATION": "yes"}
+        with TemporaryDirectory() as folder, patch.object(ci, "git", side_effect=[SHA, "", BASE, SHA, ""]), \
+                patch.object(ci.subprocess, "run", return_value=SimpleNamespace(returncode=0)):
+            output, report = ci.execute(Path(folder), SHA, BASE, 215, pub.REPO,
+                                        Path("/fake/python312"), Path("/fake/python314"),
+                                        Path(folder) / "evidence", env=env, run_command=fake_command)
+            self.assertEqual(report["status"], "failure")
+            self.assertEqual(report["gates"][-1]["name"], "video_75")
+            self.assertFalse(report["gates"][-1]["passed"])
+
     def test_slack_retry_does_not_repost_github_status(self):
         calls = {"github": 0, "slack": 0}
         def fake(method, url, token=None, payload=None):
