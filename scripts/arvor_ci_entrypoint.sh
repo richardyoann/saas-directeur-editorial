@@ -72,9 +72,9 @@ for raw in Path("/workspace/requirements.txt").read_text(encoding="utf-8").split
     try:
         actual = metadata.version(name)
     except metadata.PackageNotFoundError:
-        raise SystemExit("CI: candidate requirement missing in audited image: " + name) from None
+        raise SystemExit("RECONSTRUCTION_IMAGE_REQUISE: candidate package absent: " + name) from None
     if actual != expected:
-        raise SystemExit("CI: candidate pin differs from audited image: " + name)
+        raise SystemExit("RECONSTRUCTION_IMAGE_REQUISE: candidate version differs: " + name)
 
     # Verify that requested optional extras are also present and compatible.
     for extra in requirement.extras:
@@ -84,9 +84,9 @@ for raw in Path("/workspace/requirements.txt").read_text(encoding="utf-8").split
                 try:
                     installed = metadata.version(dependency.name)
                 except metadata.PackageNotFoundError:
-                    raise SystemExit("CI: missing dependency for requested extra: " + extra) from None
+                    raise SystemExit("RECONSTRUCTION_IMAGE_REQUISE: dependency absent for extra: " + extra) from None
                 if dependency.specifier and installed not in dependency.specifier:
-                    raise SystemExit("CI: incompatible dependency for requested extra: " + extra)
+                    raise SystemExit("RECONSTRUCTION_IMAGE_REQUISE: incompatible dependency for extra: " + extra)
 if not pins:
     raise SystemExit("CI: empty requirements")
 print("CI preflight: exact direct pins and extras match audited image")
