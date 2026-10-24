@@ -1,5 +1,38 @@
 # Arvor — CI locale OpenCode : runbook
 
+## 24 octobre 2026 — Qualification WSL reproductible, sans fusion ni livraison
+
+Le script `scripts/qualify_arvor_ci_wsl.sh` regroupe la recette du contrôleur
+actuellement relu. Il ne modifie aucun checkout et refuse un SHA incomplet,
+une branche sale, une base non ancêtre, un moteur Docker indisponible, un audit
+périmé ou un contrôle KO. Il crée deux répertoires neufs sous
+`$HOME/arvor-ci-lab` pour la politique en lecture seule et les preuves hôte ;
+il ne réutilise pas les précédentes preuves.
+
+Après revue indépendante et positionnement du checkout `ci-source` sur le
+**SHA complet approuvé** de la PR #215, et du checkout `pr214` sur
+`a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9` :
+
+```bash
+cd "${HOME}/arvor-ci-lab/ci-source"
+bash scripts/qualify_arvor_ci_wsl.sh \
+  CONTROLLER_SHA_COMPLET_APPRouve \
+  a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9 \
+  d08fe0afe62f0ea209da239aeade0bd5f042d30d
+```
+
+La commande exécute les tests du contrôleur, reconstruit une image Docker
+avec `SECURITY_AUDIT_REFRESH` neuf, épingle son ID SHA256, lance les 16
+gates individuellement et vérifie les 16 empreintes de logs. Elle conserve
+les preuves en cas d'échec et ne produit aucune signature ni statut GitHub.
+La provenance indépendante reste non certifiée tant qu'une revue/recette
+de confiance séparée n'a pas eu lieu.
+
+**Validation disponible avant WSL :** quatre tests de garde-fous du script
+(syntaxe, mauvais SHA, laboratoire absent, absence de commande de livraison)
+réussissent dans un environnement de développement. Aucune exécution
+Docker/WSL réelle de ce nouveau script n'a encore été observée.
+
 ## 24 octobre 2026 — Collecte unittest depuis le contrôleur (recette WSL requise)
 
 - Le mode hôte utilise `arvor_ci_trusted_unittest.py` copié depuis le checkout
