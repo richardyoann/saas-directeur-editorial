@@ -260,11 +260,12 @@ def run_gate_bounded(argv, *, timeout=1200, max_output_bytes=MAX_GATE_OUTPUT_BYT
             stdout=collected.decode("utf-8"), stderr="",
         )
     except BaseException:
-        if proc.poll() is None:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+        # A child may exit while descendants still hold its output pipe open.
+        # Kill the entire session before reaping the direct child.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         proc.wait(timeout=5)
         raise
     finally:
