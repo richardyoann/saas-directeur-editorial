@@ -29,6 +29,18 @@ def inspect_payload(*, mount_rw=False, network="none", image=IMAGE,
     }, "Config": {"User": "999:999"}, "Mounts": mounts}]
 
 
+def fake_docker_inspect(payload):
+    """Explicit injection: inspect_isolation(run=call) binds call at definition time.
+
+    Patching s.call does NOT affect the already-bound default argument.
+    """
+    def run(argv):
+        if argv != ["docker", "inspect", CID]:
+            raise AssertionError("Unexpected Docker invocation: " + repr(argv))
+        return json.dumps(payload)
+    return run
+
+
 class HostSupervisorTests(unittest.TestCase):
     def test_isolated_docker_command_has_no_writable_evidence(self):
         cmd = s.docker_command(IMAGE, Path("/candidate"), Path("/trusted"),
@@ -45,9 +57,10 @@ class HostSupervisorTests(unittest.TestCase):
         self.assertTrue(any("target=/trusted,readonly" in x for x in cmd))
 
     def test_read_only_inspection_accepts_trusted_setup(self):
-        with patch.object(s, "call", return_value=json.dumps(inspect_payload())):
-            self.assertTrue(s.inspect_isolation(CID, Path("/candidate"),
-                                                 Path("/trusted"), IMAGE))
+        self.assertTrue(s.inspect_isolation(
+            CID, Path("/candidate"), Path("/trusted"), IMAGE,
+            run=fake_docker_inspect(inspect_payload()),
+        ))
 
     def test_docker_inspection_rejects_runtime_security_violations(self):
         cases = (
@@ -58,17 +71,20 @@ class HostSupervisorTests(unittest.TestCase):
         )
         for modification in cases:
             with self.subTest(modification=modification):
-                with patch.object(s, "call", return_value=json.dumps(inspect_payload(**modification))):
-                    with self.assertRaisesRegex(ValueError, "Docker|mount|readonly|Evidence"):
-                        s.inspect_isolation(CID, Path("/candidate"),
-                                            Path("/trusted"), IMAGE)
+                with self.assertRaisesRegex(ValueError, "Docker|mount|readonly|Evidence"):
+                    s.inspect_isolation(
+                        CID, Path("/candidate"), Path("/trusted"), IMAGE,
+                        run=fake_docker_inspect(inspect_payload(**modification)),
+                    )
 
     def test_docker_inspection_rejects_privileged_container(self):
         inspected = inspect_payload()
         inspected[0]["HostConfig"]["Privileged"] = True
-        with patch.object(s, "call", return_value=json.dumps(inspected)):
-            with self.assertRaisesRegex(ValueError, "Docker isolation"):
-                s.inspect_isolation(CID, Path("/candidate"), Path("/trusted"), IMAGE)
+        with self.assertRaisesRegex(ValueError, "Docker isolation"):
+            s.inspect_isolation(
+                CID, Path("/candidate"), Path("/trusted"), IMAGE,
+                run=fake_docker_inspect(inspected),
+            )
 
     def test_gate_returns_fail_closed_even_if_stdout_looks_good(self):
         rc = SimpleNamespace(returncode=1)
