@@ -57,7 +57,7 @@ def video_proof(log):
     return False
 
 
-def verify_receipt(receipt_file, evidence_dir, checkout, expected_sha, base_sha, pr):
+def verify_receipt(receipt_file, evidence_dir, checkout, expected_sha, base_sha, pr, *, include_validated_receipt=False):
     """Check SHA, Git state, log digests, counts, and video data; return summary."""
     evidence_dir = Path(evidence_dir).resolve(strict=True)
     checkout = Path(checkout).resolve(strict=True)
@@ -67,7 +67,8 @@ def verify_receipt(receipt_file, evidence_dir, checkout, expected_sha, base_sha,
     if receipt_file.parent.resolve(strict=True) != evidence_dir:
         raise ValueError("Receipt must be in the private evidence directory")
 
-    receipt = validate(json.loads(read_regular(receipt_file)))
+    receipt_bytes = read_regular(receipt_file)
+    receipt = validate(json.loads(receipt_bytes))
     if (receipt["status"] != "success" or len(receipt["gates"]) != len(GATES)
             or receipt["sha"] != expected_sha or receipt["base_sha"] != base_sha
             or receipt["pr"] != pr):
@@ -107,21 +108,27 @@ def verify_receipt(receipt_file, evidence_dir, checkout, expected_sha, base_sha,
             counts = browser_counts(log)
             if counts != gate.get("tests"):
                 raise ValueError("Browser counters mismatch")
+        elif name == "dependencies":
+            if log.splitlines().count("ARVOR_AUDIT_STATUS=OK") != 1:
+                raise ValueError("Dependency audit OK marker missing or repeated")
         elif name == "video_75" and not video_proof(log):
             raise ValueError("Video proof missing or inconsistent")
         checked.append(name)
-    return {
+    summary = {
         "status": "log-integrity-verified",
         "sha": receipt["sha"],
         "base_sha": receipt["base_sha"],
         "pr": receipt["pr"],
         "run_id": receipt["run_id"],
         "verified_logs": len(checked),
-        "receipt_sha256": hashlib.sha256(read_regular(receipt_file)).hexdigest(),
+        "receipt_sha256": hashlib.sha256(receipt_bytes).hexdigest(),
         "independent_execution_provenance_verified": False,
         "attestation_signed": False,
         "merge_or_deploy_authorized": False,
     }
+    # For signing, return the very same parsed object whose bytes, identity,
+    # hashes and constraints were validated; NEVER re-read the candidate file.
+    return (summary, receipt) if include_validated_receipt else summary
 
 
 def main():
