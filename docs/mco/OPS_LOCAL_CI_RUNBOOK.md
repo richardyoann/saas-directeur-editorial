@@ -2,7 +2,7 @@
 
 ## 24 octobre 2026 — Contrôle Git `-z` réparé, certification toujours bloquée
 
-- PR #215, commits `8b8f0bc260d517cd9450ad6f739da28584bb5253` et `d6211dbecae694ea16f29da55b9c5beafa3bf670` : le superviseur décode désormais l'octet NUL de `git diff --name-only -z` avec `b"\\0"` en source Python (un seul caractère antislash) ; le littéral antérieur avait deux antislashs et rejetait tout diff non vide. Les tests ajoutés couvrent une PR métier multi-fichiers, un diff vide, plusieurs fichiers de contrôle protégés et une sortie tronquée.
+- PR #215, commits `8b8f0bc260d517cd9450ad6f739da28584bb5253` et `d6211dbecae694ea16f29da55b9c5beafa3bf670` : le superviseur décode désormais l'octet NUL de `git diff --name-only -z` avec un échappement NUL correct (un seul antislash dans le littéral Python) ; le littéral antérieur avait deux antislashs et rejetait tout diff non vide. Les tests ajoutés couvrent une PR métier multi-fichiers, un diff vide, plusieurs fichiers de contrôle protégés et une sortie tronquée.
 - Vérification préalable : compilation AST des deux fichiers et quatre scénarios ciblés dans un harnais Python isolé, réussis. **La suite de tests du dépôt et la recette Docker/WSL au nouveau SHA n'ont pas été exécutées ici** ; elles restent obligatoires.
 - Cette PR modifie des scripts de contrôle protégés : elle ne doit pas être acceptée comme son propre candidat CI non fiable. Faire revoir et épingler le contrôleur par une voie de confiance séparée, puis tester une PR métier comme #214.
 - Le superviseur accumule encore des sorties de processus non fiables sans limite d'octets dans la mémoire hôte : traiter cette limite et ajouter des tests de dépassement avant l'utilisation générale.
