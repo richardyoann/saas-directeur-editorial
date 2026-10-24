@@ -155,7 +155,7 @@ def docker_command(image, checkout, trusted, sha, base, pr, name):
             raise ValueError("Unsupported mount path")
         return "--mount=type=bind,source=" + str(path) + ",target=" + target + ",readonly"
     return [
-        "docker", "run", "--detach", "--rm", "--pull=never", "--name=" + name,
+        "docker", "run", "--detach", "--rm", "--pull=never", "--init", "--name=" + name,
         "--network=none", "--read-only", "--cap-drop=ALL",
         "--security-opt=no-new-privileges", "--pids-limit=512",
         "--memory=6g", "--cpus=4", "--shm-size=512m",
