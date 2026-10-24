@@ -19,7 +19,8 @@ import time
 from uuid import uuid4
 
 from scripts.arvor_local_ci import (
-    GATES, audit_diagnostic, browser_counts, regression_counts,
+    GATES, MIN_BROWSER_TESTS, MIN_REGRESSION_TESTS,
+    audit_diagnostic, browser_counts, regression_counts,
 )
 from scripts.arvor_ci_evidence_verify import video_proof
 
@@ -28,7 +29,29 @@ IMAGE = re.compile(r"sha256:[a-f0-9]{64}\Z")
 POLICY_FILES = (
     "arvor_local_ci.py", "arvor_ci_gate.py",
     "arvor_ci_supervised_entrypoint.sh",
+    "arvor_ci_trusted_gitleaks.toml", "arvor_ci_trusted_gitleaksignore",
 )
+# Security policy and test-discovery code must not be replaced by candidate
+# modifications before its own green gates can be trusted. Functional tests,
+# browser journeys and video acceptance fixtures can evolve under review;
+# test-count floors and gate results remain mandatory.
+PROTECTED_EXACT = frozenset((
+    "scripts/run_regression.py",
+    "scripts/prepare_test_database.py",
+    "scripts/benchmark_editorial_sql.py",
+    "scripts/ci_policy.py",
+    "scripts/ci_autonomy.py",
+    "scripts/arvor_ci_sandbox.py",
+    "scripts/arvor_ci_host_supervisor.py",
+    "scripts/arvor_local_ci.py",
+    "scripts/arvor_ci_entrypoint.sh",
+    "scripts/arvor_ci_evidence_verify.py",
+    "scripts/arvor_ci_attestation.py",
+    "scripts/arvor_ci_publish.py",
+))
+PROTECTED_PREFIX = ("ci/local/",)
+PROTECTED_CONFIG = frozenset((".gitleaks.toml", ".gitleaksignore"))
+
 REPO = "richardyoann/saas-directeur-editorial"
 
 
@@ -49,6 +72,38 @@ def git(root, *args):
 
 def _sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def protected_candidate_changes(paths):
+    """Return gate/policy changes requiring a separate reviewed control-plane PR."""
+    changed = []
+    for path in paths:
+        if (path in PROTECTED_EXACT or path.startswith(PROTECTED_PREFIX)
+                or path in PROTECTED_CONFIG
+                or path.startswith("scripts/arvor_ci_")):
+            changed.append(path)
+    return sorted(set(changed))
+
+
+def enforce_policy_not_self_modified(root, base, sha):
+    raw = subprocess.run(
+        ["git", "-C", str(root), "diff", "--name-only", "-z", base, sha],
+        check=True, capture_output=True, timeout=20,
+    ).stdout
+    if not raw or not raw.endswith(b"\\0"):
+        # Empty diff is fine; nonempty malformed diff blocks the CI.
+        if raw:
+            raise ValueError("Malformed git change path report")
+        paths = []
+    else:
+        paths = [part.decode("utf-8") for part in raw[:-1].split(b"\\0")]
+    blocked = protected_candidate_changes(paths)
+    if blocked:
+        raise ValueError(
+            "CONTROL_PLANE_REVIEW_REQUIRED: candidate modified trusted policy: "
+            + ", ".join(blocked[:12])
+        )
+    return True
 
 
 def validate_inputs(image, checkout, trusted, evidence, sha, base, pr, controller_sha):
@@ -77,6 +132,7 @@ def validate_inputs(image, checkout, trusted, evidence, sha, base, pr, controlle
     if subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor",
                        base, sha], capture_output=True, timeout=15).returncode != 0:
         raise ValueError("Base SHA is not an ancestor")
+    enforce_policy_not_self_modified(root, base, sha)
     if git(controller, "rev-parse", "HEAD") != controller_sha:
         raise ValueError("Supervisor checkout differs from explicitly approved controller SHA")
     if git(controller, "status", "--porcelain"):
@@ -151,11 +207,11 @@ def inspect_isolation(container, checkout, trusted, image, *, run=call):
 def _check_gate(name, proc, log):
     if name.startswith("regression_"):
         counts = regression_counts(log)
-        return bool(proc.returncode == 0 and counts and counts["tests"] > 0
+        return bool(proc.returncode == 0 and counts and counts["tests"] >= MIN_REGRESSION_TESTS
                     and all(counts.get(k) == 0 for k in ("failures", "errors", "skipped"))), counts
     if name == "browser":
         counts = browser_counts(log)
-        return bool(proc.returncode == 0 and counts and counts["tests"] > 0), counts
+        return bool(proc.returncode == 0 and counts and counts["tests"] >= MIN_BROWSER_TESTS), counts
     if name == "dependencies":
         status = audit_diagnostic(log, proc.returncode)
         return proc.returncode == 0 and status == "OK", status
