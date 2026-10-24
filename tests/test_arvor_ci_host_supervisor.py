@@ -54,6 +54,7 @@ class HostSupervisorTests(unittest.TestCase):
             {"mount_rw": True}, {"network": "bridge"},
             {"image": "sha256:" + "e" * 64},
             {"evidence_mount": True}, {"security": "label=disabled"},
+            {"security": "no-new-privileges:false"},
         )
         for modification in cases:
             with self.subTest(modification=modification):
@@ -61,6 +62,13 @@ class HostSupervisorTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "Docker|mount|readonly|Evidence"):
                         s.inspect_isolation(CID, Path("/candidate"),
                                             Path("/trusted"), IMAGE)
+
+    def test_docker_inspection_rejects_privileged_container(self):
+        inspected = inspect_payload()
+        inspected[0]["HostConfig"]["Privileged"] = True
+        with patch.object(s, "call", return_value=json.dumps(inspected)):
+            with self.assertRaisesRegex(ValueError, "Docker isolation"):
+                s.inspect_isolation(CID, Path("/candidate"), Path("/trusted"), IMAGE)
 
     def test_gate_returns_fail_closed_even_if_stdout_looks_good(self):
         rc = SimpleNamespace(returncode=1)
