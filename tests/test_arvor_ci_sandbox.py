@@ -48,13 +48,13 @@ class SandboxTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_docker_command(IMAGE, self.checkout, self.trusted, self.evidence, SHA, BASE, 215)
 
-    def test_audit_cache_access_for_non_root_sandbox(self):
+    def test_offline_audit_snapshot_does_not_depend_on_http_cache(self):
         root = Path(__file__).resolve().parents[1]
         dockerfile = (root / "ci/local/Dockerfile").read_text(encoding="utf-8")
         entry = (root / "scripts/arvor_ci_entrypoint.sh").read_text(encoding="utf-8")
-        self.assertIn("chown -R 999:999 /opt/arvor/audit-cache", dockerfile)
-        self.assertIn("cp -R /opt/arvor/audit-cache/. /tmp/audit-cache/", entry)
-        self.assertNotIn("\ncp -a /opt/arvor/audit-cache", entry)
+        self.assertIn("COPY ci/local/audit_snapshot.py /opt/arvor/security/audit_snapshot.py", dockerfile)
+        self.assertIn("audit_snapshot.py --build", dockerfile)
+        self.assertNotIn("cp -R /opt/arvor/audit-cache", entry)
 
     def test_playwright_headless_browser_is_installed_and_pinned(self):
         root = Path(__file__).resolve().parents[1]
@@ -72,8 +72,9 @@ class SandboxTests(unittest.TestCase):
         dockerfile = (root / 'ci/local/Dockerfile').read_text(encoding='utf-8')
         controller = (root / 'scripts/arvor_local_ci.py').read_text(encoding='utf-8')
         entry = (root / 'scripts/arvor_ci_entrypoint.sh').read_text(encoding='utf-8')
-        self.assertIn('pip_audit --local --strict', dockerfile)
-        self.assertIn('"pip_audit", "--local", "--strict"', controller)
+        self.assertIn('audit_snapshot.py --build', dockerfile)
+        self.assertIn('"dependencies": py(312, "/opt/arvor/security/audit_snapshot.py", "--verify")', controller)
+        self.assertNotIn('"pip_audit", "--local"', controller)
         self.assertNotIn('"pip_audit", "-r", "requirements.txt"', controller)
         self.assertIn('Path("/workspace/requirements.txt")', entry)
         self.assertIn('metadata.version(name)', entry)
