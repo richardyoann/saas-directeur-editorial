@@ -103,9 +103,18 @@ def main():
             p.error("Signing requires independent receipt/log and Git checkout checks")
         # Import at call time so validate() remains usable in offline unit tests.
         from scripts.arvor_ci_evidence_verify import verify_receipt
-        verify_receipt(a.input, a.evidence_dir, a.checkout,
-                       a.sha, a.base_sha, a.pr)
-        signed = sign(json.loads(a.input.read_text(encoding="utf-8")), a.key.read_bytes(), a.key_id)
+        verification, checked_receipt = verify_receipt(
+            a.input, a.evidence_dir, a.checkout,
+            a.sha, a.base_sha, a.pr, include_validated_receipt=True,
+        )
+        # The old evidence flow mounted /evidence inside the candidate.
+        # Its integrity is checked, but it MUST NOT acquire a provenance
+        # signature based solely on a re-readable/forgeable JSON receipt.
+        # Do not accept user-set flags as an authorization substitute.
+        if (verification["independent_execution_provenance_verified"] is not True
+                or not checked_receipt.get("host_supervision")):
+            raise ValueError("Trusted host provenance not certified; refuse signature")
+        signed = sign(checked_receipt, a.key.read_bytes(), a.key_id)
         a.output.write_bytes(canonical(signed) + b"\n")
         a.output.chmod(0o600)
         print("Attestation signed. Not a merge/deploy approval.")
