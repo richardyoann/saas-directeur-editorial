@@ -1,5 +1,14 @@
 # Arvor — CI locale OpenCode : runbook
 
+## 24 octobre 2026 — Contrôle Git `-z` réparé, certification toujours bloquée
+
+- PR #215, commits `8b8f0bc260d517cd9450ad6f739da28584bb5253` et `d6211dbecae694ea16f29da55b9c5beafa3bf670` : le superviseur décode désormais l'octet NUL de `git diff --name-only -z` avec `b"\\0"` en source Python (un seul caractère antislash) ; le littéral antérieur avait deux antislashs et rejetait tout diff non vide. Les tests ajoutés couvrent une PR métier multi-fichiers, un diff vide, plusieurs fichiers de contrôle protégés et une sortie tronquée.
+- Vérification préalable : compilation AST des deux fichiers et quatre scénarios ciblés dans un harnais Python isolé, réussis. **La suite de tests du dépôt et la recette Docker/WSL au nouveau SHA n'ont pas été exécutées ici** ; elles restent obligatoires.
+- Cette PR modifie des scripts de contrôle protégés : elle ne doit pas être acceptée comme son propre candidat CI non fiable. Faire revoir et épingler le contrôleur par une voie de confiance séparée, puis tester une PR métier comme #214.
+- Le superviseur accumule encore des sorties de processus non fiables sans limite d'octets dans la mémoire hôte : traiter cette limite et ajouter des tests de dépassement avant l'utilisation générale.
+- `independent_execution_provenance_verified` reste faux ; aucune signature recevable ni publication d'un statut vert n'est actuellement possible. Les échecs Actions avant runner ne prouvent aucun défaut des tests applicatifs. **Aucune fusion, désactivation d'Actions ou livraison PC.**
+
+
 ## 24 octobre 2026 — Nouveau superviseur Docker avec preuves produites par l'hote (NON ACTIVÉ)
 
 **Motif :** la precedente recette #214 (`a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9`) a reussi les 16 portes, et le controle externe a verifie les SHA256 de 16 logs, mais les logs et le recu provenaient du **conteneur** qui avait acces en ecriture au volume `/evidence`. Cela ne suffit pas a certifier une provenance independante.
