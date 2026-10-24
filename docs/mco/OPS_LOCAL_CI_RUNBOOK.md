@@ -228,3 +228,40 @@ Le script sort `log-integrity-verified` uniquement quand ces verifications passe
 Le CLI `arvor_ci_attestation sign` exige maintenant `--evidence-dir`, `--checkout`, `--sha`, `--base-sha`, `--pr` pour rendre cette verification **obligatoire avant signature**. Il ne faut toujours pas signer la preuve de succes a des fins de statut externe avant certification de la provenance independante.
 
 Les anciennes sections de ce runbook restent utiles comme historique des incidents, mais leurs mentions d'anciens nombres de tests ou d'un etat Docker non teste sont **perimees** apres la recette du 23 octobre.
+
+## Incident du 24/10/2026 : expiration du cache de vulnerabilites PyPI
+
+**Observation utilisateur (WSL) :** apres restauration de la politique normative AGENTS.md sur la PR #214, nouveau HEAD `a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9`. Les 11 premieres gates reussissent, dont PostgreSQL, les regressions 390/390 sur Python 3.12 et Python 3.14, la syntaxe JS/Python et Chromium. La gate `dependencies` echoue avec `requests.exceptions.ConnectionError: HTTPSConnectionPool(host='pypi.org', port=443)...` lors de l'audit de `annotated-doc==0.0.5`. Un cache HTTP PyPI precharge n'est **pas** une base d'avis hors ligne durable : une entree expiree provoque une tentative de revalidation HTTP, impossible avec `--network=none`.
+
+### Strategie corrigee dans PR #215
+
+- Au **build Docker autorise a acceder a PyPI**, `ci/local/audit_snapshot.py --build` execute `pip-audit --local --strict --format json` pour les environnements **Python 3.12 et 3.14**. Tout code non nul ou paquet non couvert interrompt le build : **aucune exemption de CVE ni de paquet ignore**.
+- Le script exige que les paquets et versions audites correspondent a l'inventaire reel de chaque environnement, puis enregistre dans `/opt/arvor/security/` les deux JSON, les hash SHA256, les inventaires et un horodatage UTC.
+- Pendant les tests du **candidat sans reseau**, la gate `dependencies` execute `/opt/arvor/py312/bin/python /opt/arvor/security/audit_snapshot.py --verify`. Elle refuse un rapport absent, altere, ne correspondant plus aux paquets installes ou a un environnement Python, presentant une vulnerabilite ou un skip, ainsi qu'un snapshot age de plus de **24 heures**. Elle **ne contacte pas PyPI** et ne depend pas du cache HTTP.
+- Les rapports sont inclus **dans l'image Docker immuable**, qui doit etre identifiee par son SHA256. Le code candidat et ses donnees ne doivent pas y avoir acces en ecriture. Les exigences directes de `requirements.txt` candidat sont toujours revalidees sur les deux interpreteurs par le point d'entree.
+- **Limite importante :** ce mecanisme prouve la conformite a l'etat connu de PyPI **au moment du build**, pas l'absence eternelle de vulnerabilite. Toute image de plus de 24 heures est refusee et doit etre reconstruite avec reseau de confiance. Les vulnerabilites du systeme Debian/Chromium requierent par ailleurs des controles distincts.
+- Tests negatifs ajoutes dans `tests/test_arvor_ci_audit_snapshot.py` : expiration, horloge future, empreinte alteree, CVE introduite, dependance ignoree, inventaire modifie, environnement manquant et echec de l'auditeur pendant le build.
+
+### Revalidation WSL requise apres le correctif
+
+Dans `~/arvor-ci-lab/ci-source` actualise au SHA courant de PR #215, reconstruire l'image **obligatoirement** puis recuperer son nouvel identifiant :
+
+    docker build --progress=plain -f ci/local/Dockerfile -t arvor-ci:review .
+    IMAGE_ID=$(docker image inspect --format '{{.Id}}' arvor-ci:review)
+
+Verifier sans reseau, en lecture seule et UID 999 :
+
+    docker run --rm --network=none --read-only --cap-drop=ALL \
+      --security-opt=no-new-privileges --user=999:999 \
+      "$IMAGE_ID" /opt/arvor/py312/bin/python \
+      /opt/arvor/security/audit_snapshot.py --verify
+
+Executer ensuite les tests unitaires :
+
+    "$HOME/arvor-ci-lab/ci-venv/bin/python" -m unittest \
+      tests.test_arvor_ci_audit_snapshot tests.test_arvor_local_ci \
+      tests.test_arvor_ci_sandbox tests.test_arvor_ci_evidence_verify -v
+
+Recopier `scripts/arvor_local_ci.py` et `scripts/arvor_ci_entrypoint.sh` actualises dans `$LAB/trusted/`, et relancer les 16 portes au SHA de PR #214 `a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9`. **Ne pas annoncer la recette reussie avant le rapport des 16 portes et son controle externe.**
+
+Les GitHub Actions restent bloquées par une restriction de facturation/quota et doivent etre revalidees selon la politique en vigueur. Cette correction n'autorise ni une fusion forcee, ni l'activation de MEP PC, ni un statut GitHub atteste sans superviseur independant.
