@@ -107,6 +107,37 @@ class HostSupervisorTests(unittest.TestCase):
             ]), []
         )
 
+    def test_git_nul_diff_allows_ordinary_multifile_and_empty_changes(self):
+        for output in (b"apps/web/studio.js\0tests/test_studio.py\0", b""):
+            with self.subTest(output=output):
+                with patch.object(s.subprocess, "run",
+                                  return_value=SimpleNamespace(stdout=output)) as mocked:
+                    self.assertTrue(s.enforce_policy_not_self_modified(
+                        Path("/candidate"), BASE, SHA))
+                self.assertEqual(
+                    mocked.call_args.args[0],
+                    ["git", "-C", "/candidate", "diff", "--no-renames",
+                     "--name-only", "-z", BASE, SHA],
+                )
+
+    def test_git_nul_diff_rejects_protected_or_malformed_changes(self):
+        cases = (
+            (b"scripts/arvor_ci_attestation.py\0", "CONTROL_PLANE_REVIEW_REQUIRED"),
+            (b"ci/local/Dockerfile\0", "CONTROL_PLANE_REVIEW_REQUIRED"),
+            (b"apps/web/studio.js\0scripts/arvor_ci_publish.py\0",
+             "CONTROL_PLANE_REVIEW_REQUIRED"),
+            (b"apps/web/studio.js", "Malformed git change path report"),
+            (b"apps/web/studio.js\0tests/test_studio.py",
+             "Malformed git change path report"),
+        )
+        for output, expected_error in cases:
+            with self.subTest(output=output):
+                with patch.object(s.subprocess, "run",
+                                  return_value=SimpleNamespace(stdout=output)):
+                    with self.assertRaisesRegex(ValueError, expected_error):
+                        s.enforce_policy_not_self_modified(
+                            Path("/candidate"), BASE, SHA)
+
     def test_trusted_policy_includes_gitleaks_controls(self):
         self.assertIn("arvor_ci_trusted_gitleaks.toml", s.POLICY_FILES)
         self.assertIn("arvor_ci_trusted_gitleaksignore", s.POLICY_FILES)
