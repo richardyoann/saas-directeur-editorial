@@ -148,6 +148,8 @@ class LocalCITests(unittest.TestCase):
                 output = "Ran 18 tests in 0.01s\n\nOK\n"
             elif "smoke_video_75" in command:
                 output = '{"verified":false,"synthetic":true,"video_duration_seconds":75,"resolution":"720x1280","ffprobe":"passed"}\n'
+            elif "audit_snapshot.py" in command:
+                output = "ARVOR_AUDIT_STATUS=OK\n"
             else:
                 output = "OK\n"
             return SimpleNamespace(stdout=output, stderr="", returncode=0)
@@ -162,6 +164,17 @@ class LocalCITests(unittest.TestCase):
             self.assertEqual(report["status"], "failure")
             self.assertEqual(report["gates"][-1]["name"], "video_75")
             self.assertFalse(report["gates"][-1]["passed"])
+
+    def test_audit_diagnostics_remain_fail_closed(self):
+        self.assertEqual(ci.audit_diagnostic("ARVOR_AUDIT_STATUS=PREUVE_PERIMEE", 1), "PREUVE_PERIMEE")
+        self.assertEqual(ci.audit_diagnostic("ARVOR_AUDIT_STATUS=VULNERABLE", 1), "VULNERABLE")
+        self.assertEqual(ci.audit_diagnostic("ARVOR_AUDIT_STATUS=ERREUR_INFRA", 1), "ERREUR_INFRA")
+        self.assertEqual(ci.audit_diagnostic("ARVOR_AUDIT_STATUS=OK", 0), "OK")
+        self.assertEqual(ci.audit_diagnostic("ARVOR_AUDIT_STATUS=OK", 1), "ERREUR_INFRA")
+        self.assertEqual(ci.audit_diagnostic("No audit proof", 0), "PREUVE_NON_CORRESPONDANTE")
+        self.assertEqual(ci.audit_diagnostic("No audit proof", 1), "ERREUR_INFRA")
+        self.assertEqual(ci.audit_diagnostic("ARVOR_AUDIT_STATUS=VULNERABLE", 0),
+                         "PREUVE_NON_CORRESPONDANTE")
 
     def test_slack_retry_does_not_repost_github_status(self):
         calls = {"github": 0, "slack": 0}
