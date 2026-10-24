@@ -176,7 +176,7 @@ def verify():
             or manifest.get("service") != SERVICE
             or set(manifest.get("versions", {})) != set(VERSIONS)):
         raise AuditError("PREUVE_NON_CORRESPONDANTE",
-                         "Incomplete or unsupported audit manifest")
+                         "incomplete or unsupported audit manifest")
     created = datetime.fromisoformat(manifest["created_at"])
     if created.tzinfo is None:
         raise AuditError("PREUVE_NON_CORRESPONDANTE", "Naive audit timestamp")
