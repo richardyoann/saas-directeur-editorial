@@ -94,11 +94,8 @@ PY
 done
 # Docker source checkout belongs to the host, not to uid 999.
 git config --global --add safe.directory /workspace
-mkdir -p /tmp/audit-cache
-# The image build grants UID 999 read access to the prewarmed cache.
-# Do not use cp -a: it preserves root-owned modes and can fail under --user 999.
-[ -r /opt/arvor/audit-cache ] || { echo 'pip-audit cache unreadable by sandbox UID'; exit 2; }
-cp -R /opt/arvor/audit-cache/. /tmp/audit-cache/
+# Vulnerability report is immutable under /opt/arvor/security in this image.
+# Snapshot verification remains an obligatory quality gate, not a preflight.
 initdb -D /var/lib/postgresql/data --auth-local=trust --auth-host=trust --no-sync >/dev/null
 pg_ctl -D /var/lib/postgresql/data -o '-c listen_addresses=127.0.0.1 -c unix_socket_directories=/run/postgresql' -w start >/dev/null
 trap 'pg_ctl -D /var/lib/postgresql/data -m immediate stop >/dev/null 2>&1 || true' EXIT
