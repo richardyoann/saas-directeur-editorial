@@ -35,6 +35,8 @@ class EvidenceVerificationTests(unittest.TestCase):
             elif name == "browser":
                 counts = {"tests": 18, "failures": 0, "errors": 0, "skipped": 0}
                 contents = "Ran 18 tests in 1s\n\nOK\n"
+            elif name == "dependencies":
+                contents = "ARVOR_AUDIT_STATUS=OK\\n".replace("\\n", "\n")
             elif name == "video_75":
                 contents = json.dumps({"verified": True, "synthetic": True,
                     "video_duration_seconds": 75, "resolution": "720x1280",
@@ -85,6 +87,35 @@ class EvidenceVerificationTests(unittest.TestCase):
         (self.evidence / (self.report["run_id"] + "-browser.log")).write_text("FAIL\n")
         with self.assertRaisesRegex(ValueError, "digest"):
             self.run_verification()
+
+    def test_dependencies_must_contain_single_ok_audit_proof(self):
+        path = self.evidence / (self.report["run_id"] + "-dependencies.log")
+        path.write_text("OK only\n", encoding="utf-8")
+        self.report["gates"][GATES.index("dependencies")]["log_sha256"] = hashlib.sha256(
+            path.read_bytes()).hexdigest()
+        self.save()
+        with self.assertRaisesRegex(ValueError, "Dependency audit OK marker"):
+            self.run_verification()
+
+    def test_validated_object_is_returned_without_second_read(self):
+        import scripts.arvor_ci_evidence_verify as module
+        original_read = module.read_regular
+        calls = {"receipt": 0}
+        def once(path):
+            if Path(path) == self.receipt:
+                calls["receipt"] += 1
+            return original_read(path)
+        with patch.object(module, "read_regular", side_effect=once), \
+             patch.object(module, "git", side_effect=[SHA, "", BASE]), \
+             patch.object(module.subprocess, "run",
+                          return_value=SimpleNamespace(returncode=0)):
+            summary, validated = module.verify_receipt(
+                self.receipt, self.evidence, self.checkout, SHA, BASE, 214,
+                include_validated_receipt=True,
+            )
+        self.assertEqual(calls["receipt"], 1)
+        self.assertEqual(summary["status"], "log-integrity-verified")
+        self.assertEqual(validated, self.report)
 
     def test_absent_log_rejected(self):
         (self.evidence / (self.report["run_id"] + "-dependencies.log")).unlink()
