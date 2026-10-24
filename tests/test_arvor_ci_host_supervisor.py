@@ -86,6 +86,44 @@ class HostSupervisorTests(unittest.TestCase):
                 run=fake_docker_inspect(inspected),
             )
 
+    def test_protected_candidate_ci_scripts_and_configs_are_blocked(self):
+        changed = [
+            "scripts/ci_policy.py",
+            "scripts/run_regression.py",
+            "scripts/arvor_ci_host_supervisor.py",
+            "ci/local/Dockerfile",
+            ".gitleaks.toml",
+            ".gitleaksignore",
+        ]
+        self.assertEqual(s.protected_candidate_changes(changed), sorted(changed))
+        # Arvor #214 legitimately contains new product tests and video renderer;
+        # these still need a human review, and fixed test floors.
+        self.assertEqual(
+            s.protected_candidate_changes([
+                "tests/test_smoke_video_75.py",
+                "scripts/smoke_video_75.py",
+                "browser_checks/test_studio_browser.py",
+                "apps/web/studio.js",
+            ]), []
+        )
+
+    def test_trusted_policy_includes_gitleaks_controls(self):
+        self.assertIn("arvor_ci_trusted_gitleaks.toml", s.POLICY_FILES)
+        self.assertIn("arvor_ci_trusted_gitleaksignore", s.POLICY_FILES)
+        cmd = s.docker_command(IMAGE, Path("/candidate"), Path("/trusted"),
+                               SHA, BASE, 214, "arvor-host-ci-test")
+        self.assertIn("--init", cmd)
+
+    def test_low_test_counts_cannot_succeed(self):
+        self.assertFalse(s._check_gate(
+            "regression_312", SimpleNamespace(returncode=0),
+            '{"tests":1,"failures":0,"errors":0,"skipped":0}',
+        )[0])
+        self.assertFalse(s._check_gate(
+            "browser", SimpleNamespace(returncode=0),
+            "Ran 1 test in 0.01s\\n\\nOK\\n".replace("\\n", "\n"),
+        )[0])
+
     def test_gate_returns_fail_closed_even_if_stdout_looks_good(self):
         rc = SimpleNamespace(returncode=1)
         self.assertFalse(s._check_gate("regression_312", rc,
