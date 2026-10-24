@@ -40,13 +40,13 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/arvor/playwright-browsers
 RUN /opt/arvor/py312/bin/python -m playwright install --with-deps --only-shell chromium \
  && chmod -R a+rX /opt/arvor/playwright-browsers
 
-# Audit the FULL installed Python 3.12 environment (including transitives)
-# during this trusted networked build, then prewarm its vulnerability cache.
-# The network-isolated runtime audits the same immutable installed environment;
-# a missing/expired advisory cache must fail closed, never silently skip.
-RUN /opt/arvor/py312/bin/python -m pip_audit --local --strict \
-      --progress-spinner off --cache-dir /opt/arvor/audit-cache \
- && chown -R 999:999 /opt/arvor/audit-cache
+# Audit both complete installed environments with PyPI during TRUSTED image
+# construction, while network access exists. Immutable snapshots are checked
+# for exact packages/versions and expire after 24 h; no HTTP-cache dependency
+# or external service is required during --network=none candidate execution.
+COPY ci/local/audit_snapshot.py /opt/arvor/security/audit_snapshot.py
+RUN /opt/arvor/py312/bin/python /opt/arvor/security/audit_snapshot.py --build \
+ && chmod -R a+rX /opt/arvor/security
 
 # Browser fixtures currently use Playwright channel="chrome". The symlink
 # must be verified with a real browser run before this image is approved.
