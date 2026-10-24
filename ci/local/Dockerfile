@@ -45,7 +45,12 @@ RUN /opt/arvor/py312/bin/python -m playwright install --with-deps --only-shell c
 # for exact packages/versions and expire after 24 h; no HTTP-cache dependency
 # or external service is required during --network=none candidate execution.
 COPY ci/local/audit_snapshot.py /opt/arvor/security/audit_snapshot.py
-RUN /opt/arvor/py312/bin/python /opt/arvor/security/audit_snapshot.py --build \
+# Mandatory fresh token invalidates ONLY the audit layer, not heavy toolchain
+# or browser installation. Build with --build-arg SECURITY_AUDIT_REFRESH=UTC_NOW.
+# A plain cached docker build without that argument must fail closed.
+ARG SECURITY_AUDIT_REFRESH
+RUN test -n "$SECURITY_AUDIT_REFRESH" \
+ && /opt/arvor/py312/bin/python /opt/arvor/security/audit_snapshot.py --build \
  && chmod -R a+rX /opt/arvor/security
 
 # Chromium headless-shell start is checked by the trusted sandbox preflight.
