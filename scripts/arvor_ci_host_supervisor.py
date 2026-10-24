@@ -63,8 +63,8 @@ def validate_inputs(image, checkout, trusted, evidence, sha, base, pr):
     if any(not x.is_dir() for x in (root, controller, trusted, dest)):
         raise ValueError("All roots must exist")
     if (len({root, controller, trusted, dest}) != 4 or
-            any(a.is_relative_to(b) for a in (root, trusted, dest)
-                for b in (root, trusted, dest) if a != b)):
+            any(a.is_relative_to(b) for a in (root, controller, trusted, dest)
+                for b in (root, controller, trusted, dest) if a != b)):
         raise ValueError("Checkout, policy, trusted and host evidence overlap")
     if (not (root / ".git").is_dir() or (root / ".git").is_symlink()
             or not (controller / ".git").is_dir()):
@@ -126,7 +126,8 @@ def inspect_isolation(container, checkout, trusted, image, *, run=call):
     if (obj["Image"] != image or host["NetworkMode"] != "none"
             or host["ReadonlyRootfs"] is not True
             or "ALL" not in [x.upper() for x in (host.get("CapDrop") or [])]
-            or "no-new-privileges" not in (host.get("SecurityOpt") or [])
+            or not any(str(opt).split(":", 1)[0] == "no-new-privileges"
+                       for opt in (host.get("SecurityOpt") or []))
             or str(config["User"]) != "999:999"):
         raise ValueError("Docker isolation differs from approved policy")
     mounts = obj.get("Mounts", [])
