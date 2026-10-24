@@ -13,6 +13,8 @@ import json
 import os
 from pathlib import Path
 import re
+import selectors
+import signal
 import subprocess
 import sys
 import time
@@ -220,7 +222,58 @@ def _check_gate(name, proc, log):
     return proc.returncode == 0, None
 
 
-def execute(image, checkout, trusted, evidence, sha, base, pr, controller_sha, *, run=subprocess.run):
+MAX_GATE_OUTPUT_BYTES = 8 * 1024 * 1024
+
+
+def run_gate_bounded(argv, *, timeout=1200, max_output_bytes=MAX_GATE_OUTPUT_BYTES):
+    """Capture untrusted docker-exec output without unbounded host RAM usage."""
+    if max_output_bytes < 1 or timeout <= 0:
+        raise ValueError("Positive output/timeout limits required")
+    proc = subprocess.Popen(
+        argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, start_new_session=True,
+    )
+    selector = selectors.DefaultSelector()
+    selector.register(proc.stdout, selectors.EVENT_READ)
+    collected = bytearray()
+    deadline = time.monotonic() + timeout
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(argv, timeout)
+            for key, _ in selector.select(remaining):
+                # Read at most one byte beyond the limit to detect overflow.
+                allowance = min(65536, max_output_bytes - len(collected) + 1)
+                chunk = os.read(key.fd, allowance)
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                elif len(collected) + len(chunk) > max_output_bytes:
+                    raise ValueError("CI gate output exceeds host limit")
+                else:
+                    collected.extend(chunk)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(argv, timeout)
+        return subprocess.CompletedProcess(
+            argv, proc.wait(timeout=remaining),
+            stdout=collected.decode("utf-8"), stderr="",
+        )
+    except BaseException:
+        if proc.poll() is None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        proc.wait(timeout=5)
+        raise
+    finally:
+        selector.close()
+        proc.stdout.close()
+
+
+def execute(image, checkout, trusted, evidence, sha, base, pr, controller_sha, *,
+            run=subprocess.run, gate_run=run_gate_bounded):
     root, controller, code, out = validate_inputs(
         image, checkout, trusted, evidence, sha, base, pr, controller_sha)
     name = "arvor-host-ci-" + uuid4().hex
@@ -272,13 +325,12 @@ def execute(image, checkout, trusted, evidence, sha, base, pr, controller_sha, *
                 "/trusted/arvor_ci_gate.py", "--gate", gate, "--base-sha", base
             ]
             try:
-                proc = run(argv, capture_output=True, text=True,
-                           timeout=1200, check=False)
+                proc = gate_run(argv, timeout=1200)
                 output = (proc.stdout or "") + "\n" + (proc.stderr or "")
                 code_rc = proc.returncode
-            except subprocess.TimeoutExpired:
-                output = "HOST: gate timed out\n"
-                code_rc = 124
+            except (subprocess.TimeoutExpired, ValueError, UnicodeError) as exc:
+                output = "HOST: gate rejected or timed out\n"
+                code_rc = 124 if isinstance(exc, subprocess.TimeoutExpired) else 125
             log_file = out / (run_id + "-" + gate + ".log")
             with log_file.open("x", encoding="utf-8") as stream:
                 stream.write(output)
