@@ -103,6 +103,7 @@ def commands(p312, p314, base):
         "dependencies": py(312, "/opt/arvor/security/audit_snapshot.py", "--verify"),
         "secrets": [
             "gitleaks", "git", "--no-banner", "--redact", "--exit-code", "1",
+            "--ignore-gitleaks-allow",
             "--config", "/trusted/arvor_ci_trusted_gitleaks.toml",
             "--gitleaks-ignore-path", "/trusted/arvor_ci_trusted_gitleaksignore",
             "--log-opts=" + base + "..HEAD", ".",
