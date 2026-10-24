@@ -122,7 +122,7 @@ class HostSupervisorTests(unittest.TestCase):
                                return_value=(root, controller, trusted, evidence)),
                   patch.object(s, "git", side_effect=git),
                   patch.object(s, "inspect_isolation", return_value=True)):
-                report = s.execute(IMAGE, root, trusted, evidence, SHA, BASE, 214,
+                report = s.execute(IMAGE, root, trusted, evidence, SHA, BASE, 214, SHA,
                                    run=self._run_mock(failed_gate=failed_gate))
             receipts = list(evidence.glob("*.json"))
             self.assertEqual(len(receipts), 1)
