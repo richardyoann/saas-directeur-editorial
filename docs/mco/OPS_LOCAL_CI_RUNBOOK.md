@@ -1,5 +1,61 @@
 # Arvor — CI locale OpenCode : runbook
 
+## 24 octobre 2026 — Nouveau superviseur Docker avec preuves produites par l'hote (NON ACTIVÉ)
+
+**Motif :** la precedente recette #214 (`a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9`) a reussi les 16 portes, et le controle externe a verifie les SHA256 de 16 logs, mais les logs et le recu provenaient du **conteneur** qui avait acces en ecriture au volume `/evidence`. Cela ne suffit pas a certifier une provenance independante.
+
+**Implementation en cours (PR #215) :**
+
+- `scripts/arvor_ci_host_supervisor.py` fonctionne sur l'hote WSL, hors du clone PR #214. Il valide SHA Git, clone propre, code du controleur, empreintes des fichiers copiees dans `$LAB/trusted` et identifiant immuable d'image Docker.
+- Demarre un conteneur jetable **sans aucun montage /evidence**, sans reseau externe, sans Docker socket, avec workspace et politiques en lecture seule, utilisateur 999 et absence de privileges Linux. **L'hote** inspecte effectivement ces options via `docker inspect`.
+- `scripts/arvor_ci_supervised_entrypoint.sh` initialise PostgreSQL 16 jetable et valide les pins directs + extras de la PR contre les paquets installes ; `scripts/arvor_ci_gate.py` est le selecteur de commandes approuvees installe hors du candidat.
+- Pour chacune des 16 gates, l'hote effectue son propre `docker exec`, observe le **code de retour du moteur Docker**, capture stdout/stderr, calcule les empreintes SHA256 et sauvegarde les logs/recu uniquement **sur l'hote** en mode 0600.
+- Une gate KO conserve une conclusion globale KO. Les compteurs Python/Chromium, l'audit PyPI complet et le JSON ffprobe 75 s restent obligatoires. Les informations d'identite du superviseur, de l'image et de la politique sont consignees dans le recu.
+- Le format de recu reste compatible avec `scripts.arvor_ci_evidence_verify` ; **cela n'implique pas** la certification cryptographique de provenance (`independent_execution_provenance_verified` reste faux), la signature, publication GitHub/Slack ou droit de fusion.
+
+**Instructions de test sur WSL** — aucune de ces commandes ne deploie le SaaS Arvor :
+
+```bash
+set -e
+export LAB="$HOME/arvor-ci-lab"
+export PR_SHA="a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9"
+export BASE_SHA="d08fe0afe62f0ea209da239aeade0bd5f042d30d"
+
+cd "$LAB/ci-source"
+git status --short
+# Si modifications locales, arreter et les preserver avant git switch.
+git fetch origin feat/OPS-LOCAL-CI-ATTEST-20261022
+git switch --detach SUPERVISOR_SHA_A_EPINGLER
+
+"$LAB/ci-venv/bin/python" -m unittest \
+  tests.test_arvor_ci_host_supervisor tests.test_arvor_ci_audit_snapshot \
+  tests.test_arvor_local_ci tests.test_arvor_ci_sandbox \
+  tests.test_arvor_ci_evidence_verify -v
+
+install -m 755 scripts/arvor_ci_supervised_entrypoint.sh "$LAB/trusted/"
+install -m 644 scripts/arvor_ci_gate.py "$LAB/trusted/"
+install -m 644 scripts/arvor_local_ci.py "$LAB/trusted/"
+mkdir -p "$LAB/host-evidence"
+chmod 700 "$LAB/host-evidence"
+
+IMAGE_ID=$(docker image inspect --format '{{.Id}}' arvor-ci:review)
+"$LAB/ci-venv/bin/python" -m scripts.arvor_ci_host_supervisor \
+  --image-id "$IMAGE_ID" --checkout "$LAB/pr214" \
+  --trusted "$LAB/trusted" --evidence "$LAB/host-evidence" \
+  --sha "$PR_SHA" --base-sha "$BASE_SHA" --pr 214
+# Après validation du dry-run : meme commande avec --execute.
+```
+
+**Exigence avant toute substitution GH :** un run reel de ce mode avec 16/16, verification externe des logs, contre-tests de falsification, signature par une cle hors conteneur avec validation de provenance, identite GH PR SHA/base confirmee, et regle de revue humaine sans contournement. Le statut GitHub "failure" actuel doit rester interprete honnetement. Ne pas activer de publication ni neutraliser les workflows existants tant que ces points ne sont pas effectivement realises.
+
+### Contraintes et risque residuel
+
+Le nouveau mode elimine la capacite directe du conteneur d'editer les preuves **sur l'hote**. Il ne protege pas contre la compromission du demon Docker, de la session utilisateur WSL ou du superviseur lui-meme. Les scripts applicatifs dans la PR peuvent evoluer (les tests doivent toujours etre relus), et le test video 75s reste **synthetique**. La certification independante a distance, les controles GPU/voix/Qwen reels et le deploiement PC restent separes.
+
+
+---
+
+
 **Statut : implémentation en PR #215, non activée.** Aucun lancement sur PC privé, aucun statut GitHub publié par ce travail, aucun webhook Slack configuré, aucun merge ni MEP.
 
 ## Architecture
