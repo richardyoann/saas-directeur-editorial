@@ -28,10 +28,12 @@ les preuves en cas d'échec et ne produit aucune signature ni statut GitHub.
 La provenance indépendante reste non certifiée tant qu'une revue/recette
 de confiance séparée n'a pas eu lieu.
 
-**Validation disponible avant WSL :** quatre tests de garde-fous du script
-(syntaxe, mauvais SHA, laboratoire absent, absence de commande de livraison)
-réussissent dans un environnement de développement. Aucune exécution
-Docker/WSL réelle de ce nouveau script n'a encore été observée.
+**Validation disponible avant WSL :** sept tests passent (syntaxe, mauvais SHA,
+laboratoire absent, checkout sale, échec de build, absence de commande de
+livraison et orchestration sur faux Docker/dépôts Git jetables). Le test
+d'orchestration simule volontairement les appels aux 16 gates et la vérification
+des journaux ; **aucune exécution Docker/WSL réelle** de ce nouveau script
+n'a encore été observée.
 
 ## 24 octobre 2026 — Collecte unittest depuis le contrôleur (recette WSL requise)
 
