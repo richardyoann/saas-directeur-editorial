@@ -1,5 +1,7 @@
 """Safety/negative-path tests for host-supervised Arvor CI (no Docker needed)."""
 import json
+import subprocess
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -164,7 +166,7 @@ class HostSupervisorTests(unittest.TestCase):
                           '{"verified":true,"synthetic":true,"data_mutation":false,'
                           '"video_duration_seconds":75,"resolution":"720x1280","ffprobe":"passed"}')[0])
 
-    def _run_mock(self, *, failed_gate=None):
+    def _run_mock(self, *, failed_gate=None, over_limit_gate=None):
         def run(argv, **kwargs):
             if argv[:2] == ["docker", "run"]:
                 return SimpleNamespace(returncode=0, stdout=CID + "\n", stderr="")
@@ -176,6 +178,8 @@ class HostSupervisorTests(unittest.TestCase):
                 gate = argv[argv.index("--gate") + 1]
                 if gate == failed_gate:
                     return SimpleNamespace(returncode=1, stdout="FAILED\n", stderr="")
+                if gate == over_limit_gate:
+                    raise ValueError("CI gate output exceeds host limit")
                 if gate.startswith("regression_"):
                     message = '{"tests":390,"failures":0,"errors":0,"skipped":0}\n'
                 elif gate == "browser":
@@ -191,7 +195,7 @@ class HostSupervisorTests(unittest.TestCase):
             raise AssertionError("Unexpected host command: " + repr(argv))
         return run
 
-    def _execute(self, failed_gate=None):
+    def _execute(self, failed_gate=None, over_limit_gate=None):
         with TemporaryDirectory() as folder:
             tmp = Path(folder)
             root, controller, trusted, evidence = (
@@ -208,7 +212,8 @@ class HostSupervisorTests(unittest.TestCase):
                   patch.object(s, "git", side_effect=git),
                   patch.object(s, "inspect_isolation", return_value=True)):
                 report = s.execute(IMAGE, root, trusted, evidence, SHA, BASE, 214, SHA,
-                                   run=self._run_mock(failed_gate=failed_gate))
+                                   run=self._run_mock(failed_gate=failed_gate, over_limit_gate=over_limit_gate),
+                                   gate_run=self._run_mock(failed_gate=failed_gate, over_limit_gate=over_limit_gate))
             receipts = list(evidence.glob("*.json"))
             self.assertEqual(len(receipts), 1)
             self.assertEqual(json.loads(receipts[0].read_text()), report)
@@ -230,6 +235,34 @@ class HostSupervisorTests(unittest.TestCase):
         self.assertEqual(report["gates"][-1]["name"], "dependencies")
         self.assertFalse(report["gates"][-1]["passed"])
         self.assertEqual(report["gates"][-1]["returncode"], 1)
+
+    def test_host_gate_output_is_bounded_and_timeout_is_enforced(self):
+        ok = s.run_gate_bounded(
+            [sys.executable, "-c", "print('OK')"],
+            timeout=10, max_output_bytes=4096,
+        )
+        self.assertEqual(ok.returncode, 0)
+        self.assertEqual(ok.stdout.strip(), "OK")
+
+        with self.assertRaisesRegex(ValueError, "exceeds host limit"):
+            s.run_gate_bounded(
+                [sys.executable, "-c",
+                 "import os; os.write(1, b'x' * 100_000)"],
+                timeout=10, max_output_bytes=4096,
+            )
+
+        with self.assertRaises(subprocess.TimeoutExpired):
+            s.run_gate_bounded(
+                [sys.executable, "-c", "import time; time.sleep(5)"],
+                timeout=0.1, max_output_bytes=4096,
+            )
+
+    def test_excessive_gate_output_is_recorded_as_failure(self):
+        report = self._execute(over_limit_gate="browser")
+        self.assertEqual(report["status"], "failure")
+        self.assertEqual(report["gates"][-1]["name"], "browser")
+        self.assertEqual(report["gates"][-1]["returncode"], 125)
+        self.assertFalse(report["gates"][-1]["passed"])
 
     def test_supervised_entrypoint_requires_exact_candidate_pins(self):
         script = (Path(__file__).resolve().parents[1]
