@@ -6,7 +6,7 @@
 
 **Implementation en cours (PR #215) :**
 
-- `scripts/arvor_ci_host_supervisor.py` fonctionne sur l'hote WSL, hors du clone PR #214. Il valide SHA Git, clone propre, code du controleur, empreintes des fichiers copiees dans `$LAB/trusted` et identifiant immuable d'image Docker.
+- `scripts/arvor_ci_host_supervisor.py` fonctionne sur l'hote WSL, hors du clone PR #214. Il exige un `--controller-sha` complet explicite, valide le checkout propre du superviseur et les empreintes des fichiers copies dans `$LAB/trusted`, ainsi que le SHA Git du candidat et l'identifiant immuable de l'image Docker.
 - Demarre un conteneur jetable **sans aucun montage /evidence**, sans reseau externe, sans Docker socket, avec workspace et politiques en lecture seule, utilisateur 999 et absence de privileges Linux. **L'hote** inspecte effectivement ces options via `docker inspect`.
 - `scripts/arvor_ci_supervised_entrypoint.sh` initialise PostgreSQL 16 jetable et valide les pins directs + extras de la PR contre les paquets installes ; `scripts/arvor_ci_gate.py` est le selecteur de commandes approuvees installe hors du candidat.
 - Pour chacune des 16 gates, l'hote effectue son propre `docker exec`, observe le **code de retour du moteur Docker**, capture stdout/stderr, calcule les empreintes SHA256 et sauvegarde les logs/recu uniquement **sur l'hote** en mode 0600.
@@ -42,7 +42,8 @@ IMAGE_ID=$(docker image inspect --format '{{.Id}}' arvor-ci:review)
 "$LAB/ci-venv/bin/python" -m scripts.arvor_ci_host_supervisor \
   --image-id "$IMAGE_ID" --checkout "$LAB/pr214" \
   --trusted "$LAB/trusted" --evidence "$LAB/host-evidence" \
-  --sha "$PR_SHA" --base-sha "$BASE_SHA" --pr 214
+  --sha "$PR_SHA" --base-sha "$BASE_SHA" --pr 214 \
+  --controller-sha "$(git rev-parse HEAD)"
 # Après validation du dry-run : meme commande avec --execute.
 ```
 
