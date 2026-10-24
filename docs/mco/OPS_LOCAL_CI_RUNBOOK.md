@@ -265,3 +265,49 @@ Executer ensuite les tests unitaires :
 Recopier `scripts/arvor_local_ci.py` et `scripts/arvor_ci_entrypoint.sh` actualises dans `$LAB/trusted/`, et relancer les 16 portes au SHA de PR #214 `a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9`. **Ne pas annoncer la recette reussie avant le rapport des 16 portes et son controle externe.**
 
 Les GitHub Actions restent bloquées par une restriction de facturation/quota et doivent etre revalidees selon la politique en vigueur. Cette correction n'autorise ni une fusion forcee, ni l'activation de MEP PC, ni un statut GitHub atteste sans superviseur independant.
+
+## Durcissement securite du snapshot PyPI — revue du 24 octobre 2026
+
+Une revue externe a identifie trois risques supplementaires de l'ancienne proposition :
+
+1. `docker build` peut reprendre une couche en cache sans interroger PyPI. Le Dockerfile exige maintenant `SECURITY_AUDIT_REFRESH` : cette valeur unique invalide uniquement l'etape finale d'audit.
+2. Le rapport doit porter sur **l'ensemble des distributions effectivement installees** dans les deux environnements Python, pas uniquement sur `requirements.txt`. Le manifeste embarque contient le nom/version de chaque distribution, l'empreinte SHA256 canonique de son inventaire, la version exacte `pip-audit==2.10.1`, le service `pypi`, l'horodatage et les empreintes des deux rapports JSON. Le controle hors reseau relit chaque distribution installee.
+3. La date du build ne doit pas travestir la fraicheur du cache HTTP. Le build emploie un **cache PyPI temporaire neuf** pour chaque nouvelle analyse, puis detruit le cache : les 24 h commencent seulement apres deux audits reussis. Aucun `--ignore-vuln`, `--skip-editable` ni exemption implicite n'est autorise.
+
+### Etats de diagnostic
+
+Le code principal du controle reste 0 uniquement si toutes les preuves sont `OK`. Toute autre classification bloque la recette : `VULNERABLE` (vulnerabilite declaree), `PREUVE_PERIMEE` (>24 h ou horloge incoherente), `PREUVE_NON_CORRESPONDANTE` (inventaire/empreinte/version d'auditeur/information incomplete), `ERREUR_INFRA` (PyPI, entree-sortie ou outil indisponible). Avant les portes de la CI, la verification des dependances directes du candidat signale `RECONSTRUCTION_IMAGE_REQUISE` pour une version ou une dependance extra absente : ce n'est **pas** une CVE. Les categories ne transforment jamais un echec de commande en succes.
+
+### Commande du prochain build WSL
+
+Depuis le checkout d'une revision revue et epinglee de PR #215 :
+
+    docker build --progress=plain \
+      --build-arg SECURITY_AUDIT_REFRESH="$(date -u +%Y%m%dT%H%M%SZ)" \
+      -f ci/local/Dockerfile -t arvor-ci:review .
+
+    IMAGE_ID=$(docker image inspect --format '{{.Id}}' arvor-ci:review)
+    docker run --rm --network=none --read-only --cap-drop=ALL \
+      --security-opt=no-new-privileges --user 999:999 \
+      "$IMAGE_ID" /opt/arvor/py312/bin/python \
+      /opt/arvor/security/audit_snapshot.py --verify
+
+    "$HOME/arvor-ci-lab/ci-venv/bin/python" -m unittest \
+      tests.test_arvor_ci_audit_snapshot tests.test_arvor_local_ci \
+      tests.test_arvor_ci_sandbox tests.test_arvor_ci_evidence_verify -v
+
+Actualiser les deux fichiers de `$LAB/trusted` avant relance de la PR #214. Toujours donner **l'ID immuable** de l'image, pas son tag, au lanceur. Aucune validation de code ou image n'est revendiquee avant execution sur le PC WSL.
+
+### Gestion de la duree de validite
+
+**Duree maximale : 24 h.** Pour eviter qu'une recette soit interrompue par une image expiree, prevoir une reconstruction quotidienne **hors du conteneur de code candidat**, sur un hote de confiance avec acces reseau sortant a PyPI. La reconstruction doit executer le build ci-dessus avec nouveau jeton `SECURITY_AUDIT_REFRESH`, puis le test `--verify` hors reseau. Stocker/consigner l'ID d'image et le moment de construction. Un echec de mise a jour laisse la derniere image en place mais **n'autorise pas** la recette si elle est expiree. Aucune tache planifiee PC n'est activee depuis cette PR ; elle sera a mettre en place explicitement dans l'exploitation WSL selon sa disponibilite.
+
+Le fichier GitHub `.github/workflows/security-deps.yml` est conserve et reste un controle en ligne **complementaire**, avec son calendrier hebdomadaire, quand la facturation GitHub permettra de lancer les runners ; son statut KO n'est ni masque ni remplace par un faux PASS local. Aucune fusion forcee n'est autorisee.
+
+### Evolutions de dependances / exceptions
+
+Pour une PR qui modifie `requirements.txt`, reconstruire une image **candidate jetable avant merge** a partir de cette PR revue, verifier la liste installee et son audit en ligne au build, puis relancer l'execution isolee. Ne pas valider une dependance uniquement parce qu'une image courante existe. Ce flux evite le cercle vicieux « il faut merger pour reconstruire l'image ».
+
+Les exceptions `--ignore-vuln` ne sont **pas disponibles** dans l'implementation courante : toute vulnerabilite identifiee bloque le build. Si un jour des exemptions sont autorisees, elles devront etre approuvees separément, liees a une justification, une echeance, un paquet+version+identifiant CVE et bloquees automatiquement apres la date d'expiration.
+
+Risques residuels : une CVE publiee **apres** le dernier build peut rester invisible jusqu'a la prochaine reconstruction ; l'audit PyPI des dependances Python n'equivaut pas a un scan de l'OS, des conteneurs ou du navigateur. Le service de supervision/attestation independant n'est toujours pas livre. Aucune action ne modifie la configuration du PC de production ni les donnees metier.
