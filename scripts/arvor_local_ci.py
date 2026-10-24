@@ -16,6 +16,10 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 SHA = re.compile(r"[0-9a-f]{40}\Z")
+AUDIT_DIAGNOSTICS = frozenset((
+    "OK", "VULNERABLE", "PREUVE_PERIMEE", "PREUVE_NON_CORRESPONDANTE",
+    "RECONSTRUCTION_IMAGE_REQUISE", "ERREUR_INFRA",
+))
 GATES = ("db_prepare_312", "regression_312", "sql_benchmark_312",
          "db_prepare_314", "regression_314", "sql_benchmark_314",
          "syntax_js", "syntax_js_reference", "syntax_js_next", "syntax_py", "browser", "dependencies", "secrets",
@@ -61,6 +65,20 @@ def browser_counts(log):
     if not matches or re.search(r"\bskipped=\d+", log) or not re.search(r"(?m)^OK\s*$", log):
         return None
     return {"tests": int(matches[-1]), "failures": 0, "errors": 0, "skipped": 0}
+
+
+def audit_diagnostic(output, exit_code):
+    """Informational only: classification never overrides a failing exit code."""
+    statuses = [
+        line.split("=", 1)[1].strip() for line in output.splitlines()
+        if line.startswith("ARVOR_AUDIT_STATUS=")
+    ]
+    if len(statuses) != 1 or statuses[0] not in AUDIT_DIAGNOSTICS:
+        return "ERREUR_INFRA" if exit_code else "PREUVE_NON_CORRESPONDANTE"
+    candidate = statuses[0]
+    if exit_code == 0:
+        return candidate if candidate == "OK" else "PREUVE_NON_CORRESPONDANTE"
+    return candidate if candidate != "OK" else "ERREUR_INFRA"
 
 
 def commands(p312, p314, base):
@@ -118,6 +136,8 @@ def execute(root, sha, base_sha, pr, repo, python312, python314, output, *, env=
             log.chmod(0o600)
             result["log_sha256"] = hashlib.sha256(output_text.encode()).hexdigest()
             result["returncode"] = proc.returncode
+            if name == "dependencies":
+                result["diagnostic_status"] = audit_diagnostic(output_text, proc.returncode)
             counts = regression_counts(output_text) if name.startswith("regression_") else browser_counts(output_text) if name == "browser" else None
             if name == "video_75":
                 try:
@@ -131,6 +151,8 @@ def execute(root, sha, base_sha, pr, repo, python312, python314, output, *, env=
                                     and video.get("video_duration_seconds") == 75
                                     and video.get("resolution") == "720x1280"
                                     and video.get("ffprobe") == "passed")
+            elif name == "dependencies":
+                result["passed"] = proc.returncode == 0 and result["diagnostic_status"] == "OK"
             elif name.startswith("regression_") or name == "browser":
                 result["tests"] = counts
                 result["passed"] = proc.returncode == 0 and counts is not None and counts["tests"] > 0 and all(counts[k] == 0 for k in ("failures", "errors", "skipped"))
@@ -138,6 +160,8 @@ def execute(root, sha, base_sha, pr, repo, python312, python314, output, *, env=
                 result["passed"] = proc.returncode == 0
         except (OSError, subprocess.TimeoutExpired, UnicodeError):
             result["error"] = "process_unavailable_or_timeout"
+            if name == "dependencies":
+                result["diagnostic_status"] = "ERREUR_INFRA"
         receipt["gates"].append(result)
         if not result["passed"]:
             break
