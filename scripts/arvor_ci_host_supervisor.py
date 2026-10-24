@@ -197,9 +197,13 @@ def execute(image, checkout, trusted, evidence, sha, base, pr, controller_sha, *
         receipt["host_supervision"]["docker_isolation_inspected"] = True
         # Observe PG readiness from the HOST, not from a PR-supplied receipt.
         for _ in range(30):
-            ready = run(["docker", "exec", container, "pg_isready",
-                         "-h", "127.0.0.1", "-U", "po_test", "-d", "po_test"],
-                        capture_output=True, text=True, timeout=8, check=False)
+            ready = run([
+                "docker", "exec", container,
+                "/opt/arvor/py312/bin/python", "-c",
+                "import psycopg; c = psycopg.connect('postgresql://po_test:"
+                "ephemeral_ci_only@127.0.0.1:5432/po_test',"
+                " connect_timeout=3); c.close()",
+            ], capture_output=True, text=True, timeout=8, check=False)
             if ready.returncode == 0:
                 break
             time.sleep(1)
