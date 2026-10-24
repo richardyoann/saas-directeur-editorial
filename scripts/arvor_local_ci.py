@@ -20,6 +20,10 @@ AUDIT_DIAGNOSTICS = frozenset((
     "OK", "VULNERABLE", "PREUVE_PERIMEE", "PREUVE_NON_CORRESPONDANTE",
     "RECONSTRUCTION_IMAGE_REQUISE", "ERREUR_INFRA",
 ))
+# Deliberate conservative regression floor for the current Arvor integration.
+# A reviewed change in the test catalogue must update trusted policy explicitly.
+MIN_REGRESSION_TESTS = 390
+MIN_BROWSER_TESTS = 18
 GATES = ("db_prepare_312", "regression_312", "sql_benchmark_312",
          "db_prepare_314", "regression_314", "sql_benchmark_314",
          "syntax_js", "syntax_js_reference", "syntax_js_next", "syntax_py", "browser", "dependencies", "secrets",
@@ -84,7 +88,7 @@ def audit_diagnostic(output, exit_code):
 def commands(p312, p314, base):
     def py(version, *argv):
         return [str(p312 if version == 312 else p314), *argv]
-    return {
+    gate_commands = {
         "db_prepare_312": py(312, "scripts/prepare_test_database.py"),
         "regression_312": py(312, "scripts/run_regression.py"),
         "sql_benchmark_312": py(312, "scripts/benchmark_editorial_sql.py", "--rows", "1200", "--disposable"),
@@ -97,11 +101,19 @@ def commands(p312, p314, base):
         "syntax_py": py(314, "-c", "from pathlib import Path; compile(Path('apps/api/studio.py').read_text(encoding='utf-8'), 'apps/api/studio.py', 'exec')"),
         "browser": py(312, "-m", "unittest", "discover", "-s", "browser_checks", "-p", "test_studio_browser.py", "-v"),
         "dependencies": py(312, "/opt/arvor/security/audit_snapshot.py", "--verify"),
-        "secrets": ["gitleaks", "git", "--no-banner", "--redact", "--exit-code", "1", "--log-opts=" + base + "..HEAD", "."],
+        "secrets": [
+            "gitleaks", "git", "--no-banner", "--redact", "--exit-code", "1",
+            "--config", "/trusted/arvor_ci_trusted_gitleaks.toml",
+            "--gitleaks-ignore-path", "/trusted/arvor_ci_trusted_gitleaksignore",
+            "--log-opts=" + base + "..HEAD", ".",
+        ],
         "supply_chain": py(314, "scripts/ci_policy.py"),
         "risk_review": py(314, "scripts/ci_autonomy.py", "--base", base, "--head", "HEAD"),
         "video_75": py(314, "-m", "scripts.smoke_video_75"),
     }
+    if tuple(gate_commands) != GATES:
+        raise ValueError("Trusted gate ordering disagrees with required gates")
+    return gate_commands
 
 
 def execute(root, sha, base_sha, pr, repo, python312, python314, output, *, env=None, run_command=subprocess.run):
@@ -150,12 +162,13 @@ def execute(root, sha, base_sha, pr, repo, python312, python314, output, *, env=
                                     and video.get("synthetic") is True
                                     and video.get("video_duration_seconds") == 75
                                     and video.get("resolution") == "720x1280"
-                                    and video.get("ffprobe") == "passed")
+                                    and video.get("ffprobe") == "passed"
+                                    and video.get("data_mutation") is False)
             elif name == "dependencies":
                 result["passed"] = proc.returncode == 0 and result["diagnostic_status"] == "OK"
             elif name.startswith("regression_") or name == "browser":
                 result["tests"] = counts
-                result["passed"] = proc.returncode == 0 and counts is not None and counts["tests"] > 0 and all(counts[k] == 0 for k in ("failures", "errors", "skipped"))
+                result["passed"] = proc.returncode == 0 and counts is not None and counts["tests"] >= (MIN_REGRESSION_TESTS if name.startswith("regression_") else MIN_BROWSER_TESTS) and all(counts[k] == 0 for k in ("failures", "errors", "skipped"))
             else:
                 result["passed"] = proc.returncode == 0
         except (OSError, subprocess.TimeoutExpired, UnicodeError):
