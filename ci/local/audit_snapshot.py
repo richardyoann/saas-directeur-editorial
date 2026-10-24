@@ -84,15 +84,15 @@ def installed_packages(python):
 def audited_packages(report):
     deps = report.get("dependencies") if isinstance(report, dict) else report
     if not isinstance(deps, list) or not deps:
-        raise ValueError("Missing pip-audit dependency results")
+        raise AuditError("PREUVE_NON_CORRESPONDANTE", "Missing pip-audit dependency results")
     packages = {}
     for dep in deps:
         if not isinstance(dep, dict):
-            raise ValueError("Invalid audit entry")
+            raise AuditError("PREUVE_NON_CORRESPONDANTE", "Invalid audit entry")
         name = normalize(dep.get("name"))
         version = dep.get("version")
         if not isinstance(version, str) or not version or name in packages:
-            raise ValueError("Duplicate or unversioned audited package")
+            raise AuditError("PREUVE_NON_CORRESPONDANTE", "Duplicate or unversioned audited package")
         if "skip_reason" in dep and dep["skip_reason"] is not None:
             raise AuditError("PREUVE_NON_CORRESPONDANTE", "Auditor skipped dependency: " + name)
         if dep.get("vulns") != []:
@@ -108,7 +108,7 @@ def snapshot_file(version):
 def read_snapshot(version, expected_hash):
     data = snapshot_file(version).read_bytes()
     if hashlib.sha256(data).hexdigest() != expected_hash:
-        raise ValueError("Audit snapshot integrity mismatch: " + version)
+        raise AuditError("PREUVE_NON_CORRESPONDANTE", "Audit snapshot integrity mismatch: " + version)
     return audited_packages(json.loads(data))
 
 
