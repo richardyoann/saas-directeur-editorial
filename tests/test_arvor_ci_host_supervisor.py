@@ -257,6 +257,19 @@ class HostSupervisorTests(unittest.TestCase):
                 timeout=0.1, max_output_bytes=4096,
             )
 
+        # A direct child can exit while a descendant inherits the pipe.
+        with patch.object(s.os, "killpg", wraps=s.os.killpg) as killer:
+            with self.assertRaises(subprocess.TimeoutExpired):
+                s.run_gate_bounded(
+                    [sys.executable, "-c",
+                     "import subprocess,sys; "
+                     "subprocess.Popen([sys.executable,'-c',"
+                     "'import time; time.sleep(5)'],"
+                     "stdout=sys.stdout,stderr=sys.stderr)"],
+                    timeout=0.2, max_output_bytes=4096,
+                )
+            killer.assert_called_once()
+
     def test_excessive_gate_output_is_recorded_as_failure(self):
         report = self._execute(over_limit_gate="browser")
         self.assertEqual(report["status"], "failure")
