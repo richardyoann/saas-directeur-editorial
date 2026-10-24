@@ -125,8 +125,9 @@ def inspect_isolation(container, checkout, trusted, image, *, run=call):
     config = obj["Config"]
     if (obj["Image"] != image or host["NetworkMode"] != "none"
             or host["ReadonlyRootfs"] is not True
+            or host.get("Privileged") is True
             or "ALL" not in [x.upper() for x in (host.get("CapDrop") or [])]
-            or not any(str(opt).split(":", 1)[0] == "no-new-privileges"
+            or not any(str(opt) in ("no-new-privileges", "no-new-privileges:true")
                        for opt in (host.get("SecurityOpt") or []))
             or str(config["User"]) != "999:999"):
         raise ValueError("Docker isolation differs from approved policy")
