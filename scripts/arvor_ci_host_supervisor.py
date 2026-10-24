@@ -90,13 +90,13 @@ def enforce_policy_not_self_modified(root, base, sha):
         ["git", "-C", str(root), "diff", "--no-renames", "--name-only", "-z", base, sha],
         check=True, capture_output=True, timeout=20,
     ).stdout
-    if not raw or not raw.endswith(b"\\0"):
+    if not raw or not raw.endswith(b"\0"):
         # Empty diff is fine; nonempty malformed diff blocks the CI.
         if raw:
             raise ValueError("Malformed git change path report")
         paths = []
     else:
-        paths = [part.decode("utf-8") for part in raw[:-1].split(b"\\0")]
+        paths = [part.decode("utf-8") for part in raw[:-1].split(b"\0")]
     blocked = protected_candidate_changes(paths)
     if blocked:
         raise ValueError(
