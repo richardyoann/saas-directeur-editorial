@@ -83,7 +83,7 @@ class HostSupervisorTests(unittest.TestCase):
         def run(argv, **kwargs):
             if argv[:2] == ["docker", "run"]:
                 return SimpleNamespace(returncode=0, stdout=CID + "\n", stderr="")
-            if argv[:3] == ["docker", "exec", CID] and "pg_isready" in argv:
+            if argv[:3] == ["docker", "exec", CID] and any("psycopg.connect" in x for x in argv):
                 return SimpleNamespace(returncode=0, stdout="ready", stderr="")
             if argv[:2] == ["docker", "stop"]:
                 return SimpleNamespace(returncode=0, stdout="stopped", stderr="")
