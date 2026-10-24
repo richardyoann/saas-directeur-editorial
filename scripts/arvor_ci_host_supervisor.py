@@ -51,8 +51,9 @@ def _sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def validate_inputs(image, checkout, trusted, evidence, sha, base, pr):
-    if not IMAGE.fullmatch(image) or not SHA.fullmatch(sha) or not SHA.fullmatch(base):
+def validate_inputs(image, checkout, trusted, evidence, sha, base, pr, controller_sha):
+    if (not IMAGE.fullmatch(image) or not SHA.fullmatch(sha)
+            or not SHA.fullmatch(base) or not SHA.fullmatch(controller_sha)):
         raise ValueError("Immutable image ID and exact Git SHAs required")
     if type(pr) is not int or pr < 1:
         raise ValueError("Positive PR ID required")
@@ -76,6 +77,8 @@ def validate_inputs(image, checkout, trusted, evidence, sha, base, pr):
     if subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor",
                        base, sha], capture_output=True, timeout=15).returncode != 0:
         raise ValueError("Base SHA is not an ancestor")
+    if git(controller, "rev-parse", "HEAD") != controller_sha:
+        raise ValueError("Supervisor checkout differs from explicitly approved controller SHA")
     if git(controller, "status", "--porcelain"):
         raise ValueError("Supervisor checkout must be clean and pinned")
     for file in POLICY_FILES:
@@ -161,10 +164,9 @@ def _check_gate(name, proc, log):
     return proc.returncode == 0, None
 
 
-def execute(image, checkout, trusted, evidence, sha, base, pr, *, run=subprocess.run):
+def execute(image, checkout, trusted, evidence, sha, base, pr, controller_sha, *, run=subprocess.run):
     root, controller, code, out = validate_inputs(
-        image, checkout, trusted, evidence, sha, base, pr)
-    controller_sha = git(controller, "rev-parse", "HEAD")
+        image, checkout, trusted, evidence, sha, base, pr, controller_sha)
     name = "arvor-host-ci-" + uuid4().hex
     command = docker_command(image, root, code, sha, base, pr, name)
     run_id = str(uuid4())
@@ -271,12 +273,13 @@ def main():
     p.add_argument("--sha", required=True)
     p.add_argument("--base-sha", required=True)
     p.add_argument("--pr", required=True, type=int)
+    p.add_argument("--controller-sha", required=True)
     p.add_argument("--execute", action="store_true")
     a = p.parse_args()
     try:
         roots = validate_inputs(
             a.image_id, a.checkout, a.trusted, a.evidence,
-            a.sha, a.base_sha, a.pr)
+            a.sha, a.base_sha, a.pr, a.controller_sha)
         if not a.execute:
             print(json.dumps({
                 "mode": "dry-run", "host_provenance_design": "docker-exec",
@@ -287,7 +290,7 @@ def main():
             return 0
         receipt = execute(
             a.image_id, a.checkout, a.trusted,
-            a.evidence, a.sha, a.base_sha, a.pr)
+            a.evidence, a.sha, a.base_sha, a.pr, a.controller_sha)
         return 0 if receipt["status"] == "success" else 1
     except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError,
             subprocess.SubprocessError) as exc:
