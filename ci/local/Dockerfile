@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Build once from reviewed source, then run ONLY by immutable image ID.
-# This Dockerfile is a preparation artefact; it has not been built on Arvor PC.
+# Each immutable Docker build needs a fresh security audit and WSL acceptance.
 FROM ghcr.io/astral-sh/uv:0.12.21 AS uv
 FROM postgres:16-bookworm
 
@@ -48,7 +48,6 @@ COPY ci/local/audit_snapshot.py /opt/arvor/security/audit_snapshot.py
 RUN /opt/arvor/py312/bin/python /opt/arvor/security/audit_snapshot.py --build \
  && chmod -R a+rX /opt/arvor/security
 
-# Browser fixtures currently use Playwright channel="chrome". The symlink
-# must be verified with a real browser run before this image is approved.
+# Chromium headless-shell start is checked by the trusted sandbox preflight.
 ENV PATH="/usr/lib/postgresql/16/bin:/opt/arvor/py314/bin:/usr/local/bin:/usr/bin:/bin"
 ENTRYPOINT []
