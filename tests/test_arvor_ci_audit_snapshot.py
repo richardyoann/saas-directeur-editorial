@@ -30,13 +30,16 @@ class AuditSnapshotTests(unittest.TestCase):
             (self.root / ("pip-audit-py" + version + ".json")).write_bytes(raw)
             self.manifest["versions"][version] = {
                 "packages": dict(self.pkg),
+                "inventory_sha256": audit.digest_packages(self.pkg),
+                "pip_audit_version": audit.EXPECTED_AUDITOR,
                 "snapshot_sha256": hashlib.sha256(raw).hexdigest(),
             }
         self.save()
         p = patch.object(audit, "ROOT", self.root)
         q = patch.object(audit, "MANIFEST", self.root / "manifest.json")
         r = patch.object(audit, "installed_packages", return_value=self.pkg)
-        for each in (p, q, r):
+        t = patch.object(audit, "installed_auditor_version", return_value=audit.EXPECTED_AUDITOR)
+        for each in (p, q, r, t):
             each.start()
             self.addCleanup(each.stop)
 
@@ -83,7 +86,7 @@ class AuditSnapshotTests(unittest.TestCase):
     def test_installed_packages_change_is_rejected(self):
         self.manifest["versions"]["312"]["packages"]["example"] = "1.2.4"
         self.save()
-        with self.assertRaisesRegex(ValueError, "inventory changed"):
+        with self.assertRaisesRegex(ValueError, "inventory changed|inventory changed|Installed inventory changed"):
             audit.verify()
 
     def test_snapshot_missing_package_is_rejected(self):
@@ -94,6 +97,29 @@ class AuditSnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "does not cover"):
             audit.verify()
 
+    def test_manifest_tracks_exact_auditor_version(self):
+        self.manifest["versions"]["312"]["pip_audit_version"] = "0.0.0"
+        self.save()
+        with self.assertRaisesRegex(audit.AuditError, "Auditor version"):
+            audit.verify()
+
+    def test_tampered_inventory_digest_fails(self):
+        self.manifest["versions"]["314"]["inventory_sha256"] = "0" * 64
+        self.save()
+        with self.assertRaisesRegex(audit.AuditError, "inventory changed"):
+            audit.verify()
+
+    def test_build_does_not_trust_old_http_cache(self):
+        # Security code uses a temporary cache and does not point back to a
+        # persistent path from an older image build.
+        src = (Path(__file__).resolve().parents[1] / "ci/local/audit_snapshot.py").read_text()
+        self.assertIn("TemporaryDirectory(prefix=\"arvor-pypi-fresh-\")", src)
+        self.assertNotIn('"--cache-dir", "/opt/arvor/audit-cache"', src)
+
+    def test_no_vulnerability_ignore_arguments_allowed(self):
+        src = (Path(__file__).resolve().parents[1] / "ci/local/audit_snapshot.py").read_text()
+        self.assertNotIn('"--ignore-vuln"', src)
+
     def test_missing_one_python_audit_fails(self):
         self.manifest["versions"].pop("314")
         self.save()
@@ -101,9 +127,10 @@ class AuditSnapshotTests(unittest.TestCase):
             audit.verify()
 
     def test_build_fails_if_pip_audit_reports_failure(self):
+        from types import SimpleNamespace
         with patch.object(audit.subprocess, "run",
-                          side_effect=subprocess.CalledProcessError(1, "pip-audit")):
-            with self.assertRaises(subprocess.CalledProcessError):
+                          return_value=SimpleNamespace(returncode=1)):
+            with self.assertRaisesRegex(audit.AuditError, "could not complete"):
                 audit.build()
 
     def replace_snapshot(self, version):
