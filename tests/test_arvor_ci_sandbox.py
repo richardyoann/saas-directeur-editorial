@@ -82,6 +82,10 @@ class SandboxTests(unittest.TestCase):
         self.assertIn("exact direct pins and extras match audited image", entry)
         self.assertIn('for python_bin in /opt/arvor/py312/bin/python /opt/arvor/py314/bin/python', entry)
         self.assertNotIn('/tmp/arvor-requirements.txt', entry)
+        self.assertIn("RECONSTRUCTION_IMAGE_REQUISE", entry)
+        self.assertIn("ARG SECURITY_AUDIT_REFRESH", dockerfile)
+        self.assertIn('test -n "$SECURITY_AUDIT_REFRESH"', dockerfile)
+
         # Preflight Python is embedded in the trusted shell entrypoint.
         source = entry.split('for python_bin in /opt/arvor/py312/bin/python /opt/arvor/py314/bin/python', 1)[1]
         source = source.split("<<'PY'\n", 1)[1].split('\nPY\ndone', 1)[0]
