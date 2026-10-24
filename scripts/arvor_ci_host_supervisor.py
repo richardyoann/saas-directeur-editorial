@@ -30,6 +30,7 @@ SHA = re.compile(r"[a-f0-9]{40}\Z")
 IMAGE = re.compile(r"sha256:[a-f0-9]{64}\Z")
 POLICY_FILES = (
     "arvor_local_ci.py", "arvor_ci_gate.py",
+    "arvor_ci_trusted_unittest.py",
     "arvor_ci_supervised_entrypoint.sh",
     "arvor_ci_trusted_gitleaks.toml", "arvor_ci_trusted_gitleaksignore",
 )
@@ -207,13 +208,11 @@ def inspect_isolation(container, checkout, trusted, image, *, run=call):
 
 
 def _check_gate(name, proc, log):
-    if name.startswith("regression_"):
+    if name.startswith("regression_") or name == "browser":
         counts = regression_counts(log)
-        return bool(proc.returncode == 0 and counts and counts["tests"] >= MIN_REGRESSION_TESTS
+        floor = MIN_BROWSER_TESTS if name == "browser" else MIN_REGRESSION_TESTS
+        return bool(proc.returncode == 0 and counts and counts["tests"] >= floor
                     and all(counts.get(k) == 0 for k in ("failures", "errors", "skipped"))), counts
-    if name == "browser":
-        counts = browser_counts(log)
-        return bool(proc.returncode == 0 and counts and counts["tests"] >= MIN_BROWSER_TESTS), counts
     if name == "dependencies":
         status = audit_diagnostic(log, proc.returncode)
         return proc.returncode == 0 and status == "OK", status

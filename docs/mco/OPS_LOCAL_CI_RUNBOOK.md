@@ -1,5 +1,22 @@
 # Arvor — CI locale OpenCode : runbook
 
+## 24 octobre 2026 — Collecte unittest depuis le contrôleur (recette WSL requise)
+
+- Le mode hôte utilise `arvor_ci_trusted_unittest.py` copié depuis le checkout
+  du contrôleur approuvé vers `/trusted` et lancé avec Python `-I`.
+  Il découvre les mêmes suites que les anciens lanceurs (Python 3.12/3.14,
+  navigateur), redirige les impressions des tests et émet une synthèse JSON
+  issue du `unittest.TestResult`. Les tests ignorés restent bloquants.
+- Le mode historique garde ses commandes inchangées, mais **ne constitue pas**
+  une preuve indépendante puisqu'il donne au candidat accès à `/evidence`.
+- La sortie hôte reste bornée par le contrôleur (8 Mio) et l'échec doit bloquer.
+  20 tests ciblés de développement (superviseur + collecteur) passent sur
+  cette copie rebasée ; cela ne vaut pas la suite Docker/WSL réelle.
+- La falsification par un candidat volontairement malveillant dans le même
+  interpréteur n'est pas entièrement écartée : revue humaine des tests et
+  politique de confiance externe restent nécessaires. Aucune certification de
+  provenance, signature, fusion ni livraison PC avant la recette complète.
+
 ## 24 octobre 2026 — Contrôle Git `-z` réparé, certification toujours bloquée
 
 - PR #215, commits `8b8f0bc260d517cd9450ad6f739da28584bb5253` et `d6211dbecae694ea16f29da55b9c5beafa3bf670` : le superviseur décode désormais l'octet NUL de `git diff --name-only -z` avec un échappement NUL correct (un seul antislash dans le littéral Python) ; le littéral antérieur avait deux antislashs et rejetait tout diff non vide. Les tests ajoutés couvrent une PR métier multi-fichiers, un diff vide, plusieurs fichiers de contrôle protégés et une sortie tronquée.
@@ -25,12 +42,12 @@
 **Instructions de test sur WSL** — aucune de ces commandes ne deploie le SaaS Arvor :
 
 ```bash
-set -e
+set -eu
 export LAB="$HOME/arvor-ci-lab"
 export PR_SHA="a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9"
 export BASE_SHA="d08fe0afe62f0ea209da239aeade0bd5f042d30d"
 
-cd "$LAB/ci-source"
+cd "${LAB:?LAB non défini}/ci-source"
 git status --short
 # Si modifications locales, arreter et les preserver avant git switch.
 git fetch origin feat/OPS-LOCAL-CI-ATTEST-20261022
@@ -38,12 +55,16 @@ git switch --detach SUPERVISOR_SHA_A_EPINGLER
 
 "$LAB/ci-venv/bin/python" -m unittest \
   tests.test_arvor_ci_host_supervisor tests.test_arvor_ci_audit_snapshot \
+  tests.test_arvor_ci_trusted_unittest \
   tests.test_arvor_local_ci tests.test_arvor_ci_sandbox \
   tests.test_arvor_ci_evidence_verify -v
 
 install -m 755 scripts/arvor_ci_supervised_entrypoint.sh "$LAB/trusted/"
 install -m 644 scripts/arvor_ci_gate.py "$LAB/trusted/"
 install -m 644 scripts/arvor_local_ci.py "$LAB/trusted/"
+install -m 644 scripts/arvor_ci_trusted_unittest.py "$LAB/trusted/"
+install -m 644 scripts/arvor_ci_trusted_gitleaks.toml "$LAB/trusted/"
+install -m 644 scripts/arvor_ci_trusted_gitleaksignore "$LAB/trusted/"
 mkdir -p "$LAB/host-evidence"
 chmod 700 "$LAB/host-evidence"
 

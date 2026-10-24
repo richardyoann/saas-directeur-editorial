@@ -143,6 +143,7 @@ class HostSupervisorTests(unittest.TestCase):
     def test_trusted_policy_includes_gitleaks_controls(self):
         self.assertIn("arvor_ci_trusted_gitleaks.toml", s.POLICY_FILES)
         self.assertIn("arvor_ci_trusted_gitleaksignore", s.POLICY_FILES)
+        self.assertIn("arvor_ci_trusted_unittest.py", s.POLICY_FILES)
         cmd = s.docker_command(IMAGE, Path("/candidate"), Path("/trusted"),
                                SHA, BASE, 214, "arvor-host-ci-test")
         self.assertIn("--init", cmd)
@@ -154,7 +155,13 @@ class HostSupervisorTests(unittest.TestCase):
         )[0])
         self.assertFalse(s._check_gate(
             "browser", SimpleNamespace(returncode=0),
-            "Ran 1 test in 0.01s\\n\\nOK\\n".replace("\\n", "\n"),
+            '{"tests":1,"failures":0,"errors":0,"skipped":0}',
+        )[0])
+
+    def test_browser_skipped_tests_cannot_succeed(self):
+        self.assertFalse(s._check_gate(
+            "browser", SimpleNamespace(returncode=0),
+            '{"tests":18,"failures":0,"errors":0,"skipped":1}',
         )[0])
 
     def test_gate_returns_fail_closed_even_if_stdout_looks_good(self):
@@ -183,7 +190,7 @@ class HostSupervisorTests(unittest.TestCase):
                 if gate.startswith("regression_"):
                     message = '{"tests":390,"failures":0,"errors":0,"skipped":0}\n'
                 elif gate == "browser":
-                    message = "Ran 18 tests in 0.4s\n\nOK\n"
+                    message = '{"tests":18,"failures":0,"errors":0,"skipped":0}\n'
                 elif gate == "dependencies":
                     message = "ARVOR_AUDIT_STATUS=OK\n"
                 elif gate == "video_75":
