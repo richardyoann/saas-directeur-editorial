@@ -87,7 +87,7 @@ def protected_candidate_changes(paths):
 
 def enforce_policy_not_self_modified(root, base, sha):
     raw = subprocess.run(
-        ["git", "-C", str(root), "diff", "--name-only", "-z", base, sha],
+        ["git", "-C", str(root), "diff", "--no-renames", "--name-only", "-z", base, sha],
         check=True, capture_output=True, timeout=20,
     ).stdout
     if not raw or not raw.endswith(b"\\0"):
