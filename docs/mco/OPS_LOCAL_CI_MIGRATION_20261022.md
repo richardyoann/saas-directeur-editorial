@@ -1,6 +1,61 @@
 # OPS-LOCAL-CI — Préparation de migration OpenCode (22/10/2026)
 
-Statut : **proposition non activée**. Aucune modification de main, aucun déploiement.
+Statut : **migration non activée**. Vérification le 25/10/2026 sur main
+`d08fe0afe62f0ea209da239aeade0bd5f042d30d`, PR #214 `a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9`,
+PR #215 `4751917560605009a20b673595448d200dc899be`. Aucun workflow n'a été
+désactivé, aucun statut local n'a été publié, aucun merge ni déploiement.
+
+## Inventaire de consommation et correspondance
+
+L'arbre `main` contient 10 workflows YAML; l'API GitHub annonce 13 workflows
+actifs, dont `pilotage.yml` et `video-75-acceptance.yml` qui ne sont pas présents
+dans l'arbre `main` consulté, plus l'entrée dynamique Dependabot. Les 100 runs
+les plus récents visibles (24–25/10) sont tous `failure` ou `skipped` : les
+jobs de contrôle sont refusés avant exécution pour le problème de facturation/
+limite de dépense. Le relevé de minutes n'est pas accessible : l'API de
+facturation retourne 404 et réclame le scope GitHub `user`; aucun scope n'a été
+ajouté et aucune dépense/plafond n'a été engagé.
+
+| Workflow GitHub | Déclencheurs / runner | Remplacement local envisagé | Preuve et état |
+| --- | --- | --- | --- |
+| `regression.yml` — Full regression | PR, push `main`, manuel; `ubuntu-24.04`, matrice Python 3.12/3.14 + PostgreSQL 16 | `regression_312/314`, `db_prepare`, `sql_benchmark`, syntaxes dans les 16 gates supervisées | Reçu #214 historique 16/16 sans provenance; recette actuelle bloquée avant gates. Pas de parité acceptée. |
+| `studio-browser.yml` — navigateur | PR filtrées sur Studio/tests, manuel; `ubuntu-24.04` | gate `browser` Playwright/Chromium | Historique seulement; pas de preuve indépendante récente. |
+| `ci-risk-review.yml` — analyse déterministe des risques | PR vers `main`, manuel; `ubuntu-24.04` | gate `risk_review` et tests de l'inventaire | Pas de run local qualifiant le SHA courant. |
+| `ci-policy.yml` — règles supply-chain | PR, push `main`, quotidien 05:43 UTC, manuel; `ubuntu-24.04` | gate `supply_chain` / politique épinglée | Run planifié et PR visibles en échec pré-exécution; remplacement non actif. |
+| `secret-scan.yml` — Gitleaks | PR, push `main`, quotidien 04:19 UTC, manuel; `ubuntu-24.04` | gate `secrets` | Run planifié et PR visibles en échec pré-exécution; remplacement non actif. |
+| `security-deps.yml` — dépendances | PR vers `main`, push `main`, lundi 06:17 UTC, manuel; `ubuntu-24.04` | gate `dependencies`, audit frais de l'image locale | Audit de build local récent `OK`; la gate candidate n'a pas tourné. |
+| `ci-annotations.yml` — watcher incidents | `workflow_run` de workflows CI/livraison, quotidien 07:07 UTC, manuel; `ubuntu-24.04` | Aucun remplacement d'annotations/issues prouvé | 51 runs `workflow_run` parmi les 100 derniers; échec pré-exécution. Cascade redondante à supprimer après bascule. |
+| `ci-status-report.yml` — triage et preuve release | `workflow_run` regression/dépendances/navigateur; `ubuntu-24.04` | Publisher local GitHub/Slack prévu | 12 runs `workflow_run` parmi les 100 derniers; pas de publication réelle. Le publisher ne remplace pas encore le triage d'issues. |
+| `local-delivery.yml` — livraison PC | `workflow_run` succès de regression sur push `main`, manuel; runner auto-hébergé `editorial-pc` | Orchestration OpenCode locale à concevoir | 6 runs observés `skipped`; garder actif jusqu'au remplacement testé. Vérification `LOCAL_PC_ENABLED` et SHA exact conservée. |
+| `chat-approved-delivery.yml` — livraison approuvée | création de branche `delivery-approved/*`; Ubuntu de validation puis `editorial-pc` | Orchestration locale à concevoir | Un run observé `skipped`; voie distincte de livraison. Garder active et fail-closed. |
+
+L'API d'exécutions expose aussi deux définitions historiques actives absentes de
+`main` (`pilotage.yml`, `video-75-acceptance.yml`). Leur présence d'API ne prouve
+pas qu'elles consomment actuellement des minutes; vérifier l'historique et leur
+usage avant de les désactiver. Les quatre tâches planifiées exactes ci-dessus
+sont toujours configurées. Les deux workflows de livraison ne sont pas des
+doublons de tests et restent protégés.
+
+## Blocages de bascule constatés
+
+- `opencode` est absent (`command not found`) dans l'environnement de cette
+  session;
+  aucune commande `/arvor-ci` n'est installée ni testable ici. Le script existant
+  `scripts/qualify_arvor_ci_wsl.sh` ne cible que la recette #214 et refuse
+  correctement son changement de workflow protégé.
+- Le contrôleur #215 et son publisher ne sont pas fusionnés ni validés par une
+  revue indépendante. Il n'y a aucun statut local réel publié.
+- `GET /branches/main/protection` répond HTTP 403 : GitHub indique qu'un plan
+  Pro ou un dépôt public est nécessaire. Le dépôt doit rester privé. Il est donc
+  impossible de confirmer/configurer ici les statuts requis; ne pas retirer les
+  contrôles hébergés.
+- Aucun fichier de clé Ed25519 n'est configuré dans le lab consulté. Ne pas
+  créer ni utiliser une clé tant qu'une preuve de recette valide et un chemin
+  sécurisé hors dépôt/conteneur ne sont pas disponibles.
+- Aucun déclencheur hébergé n'a été arrêté. Les runs visibles échouent avant
+  démarrage; le montant réellement facturé demeure inconnu. Le propriétaire
+  doit consulter l'onglet GitHub Actions de la facturation avec son accès UI,
+  sans augmenter le plafond ni changer le caractère privé du dépôt.
 
 ## Objectif
 Exécuter les contrôles coûteux localement, en isolation, sans confondre exécution OpenCode et preuve indépendante. GitHub conserve PR, commits et statuts externes; Slack reçoit un CR métadonnées seulement.
@@ -21,7 +76,7 @@ Exécuter les contrôles coûteux localement, en isolation, sans confondre exéc
 - Phase D : seulement après validation explicite, réduire les déclenchements automatiques GitHub Actions; conserver le workflow de livraison PC verrouillé et un diagnostic manuel.
 
 ## État connu
-- PR #214 en brouillon : ne pas fusionner.
+- PR #214 ouverte, non brouillon : ne pas fusionner sans gates et revue valides.
 - Les runners GitHub hébergés refusent le démarrage pour paiement ou plafond de dépenses; ce problème n'est pas résolu par la migration.
 - LOCAL_PC_ENABLED et LOCAL_PC_APPROVED_SHA : ne pas modifier.
 - Aucun statut vert ne peut être émis à partir d'un simple texte OpenCode.
@@ -75,8 +130,12 @@ Aucune auto-approbation ni assouplissement du garde n'est accepté.
 contrôleur ciblés passent et l'image auditée fraîche est construite. La recette
 exacte-SHA s'arrête avant les gates avec `CONTROL_PLANE_REVIEW_REQUIRED`, car
 #214 modifie le workflow vidéo protégé. Aucun contournement, signature,
-publication ou notification n'a été effectué. Le reçu historique des 16 gates
+publication de statut ou notification d'attestation n'a été effectué; un message
+Slack de clôture purement informatif a été publié. Le reçu historique des 16 gates
 (`7c73cd…` contrôlant `a4f885…`) ne prouve pas la provenance indépendante. Voir
 le résultat et les identifiants complets dans `OPS_LOCAL_CI_RUNBOOK.md`.
 Revue finale, qualification distincte, checks GitHub démarrés et vérification
 des règles de fusion restent bloquants.
+
+La mise à jour d'inventaire du 25/10 est ci-dessus. Elle sert également de
+critères d'acceptation/passation en l'absence d'un PRD CI distinct versionné.
