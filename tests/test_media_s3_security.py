@@ -5,6 +5,7 @@ import ssl
 import tempfile
 import unittest
 from unittest.mock import patch
+from botocore.httpsession import get_cert_path
 
 from editorial.media_storage import client, MediaStorageError
 
@@ -22,7 +23,7 @@ class S3SecurityTests(unittest.TestCase):
             'MEDIA_S3_ENDPOINT': 'https://127.0.0.1:9000',
             'MEDIA_S3_ACCESS_KEY_FILE': str(self.root / 'access'),
             'MEDIA_S3_SECRET_KEY_FILE': str(self.root / 'secret'),
-            'AWS_CA_BUNDLE': ssl.get_default_verify_paths().cafile,
+            'AWS_CA_BUNDLE': get_cert_path(True),
         }
 
     def test_verified_ca_and_explicit_app_credentials(self):
