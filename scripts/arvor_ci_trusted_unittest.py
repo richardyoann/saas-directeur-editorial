@@ -20,6 +20,15 @@ import unittest
 _TRUSTED_TEST_SUITE = unittest.TestSuite
 _TRUSTED_TEST_LOADER = unittest.TestLoader
 _TRUSTED_TEXT_TEST_RUNNER = unittest.TextTestRunner
+_TRUSTED_TEXT_TEST_RUNNER_METHODS = {
+    name: value for name, value in unittest.TextTestRunner.__dict__.items()
+    if callable(value)
+}
+_TRUSTED_TEXT_TEST_RESULT = unittest.TextTestResult
+_TRUSTED_TEXT_TEST_RESULT_METHODS = {
+    name: value for name, value in unittest.TextTestResult.__dict__.items()
+    if callable(value)
+}
 _TRUSTED_SUITE_RUN = unittest.TestSuite.run
 _TRUSTED_SUITE_COUNT = unittest.TestSuite.countTestCases
 _TRUSTED_SUITE_ITER = unittest.TestSuite.__iter__
@@ -69,6 +78,8 @@ def run_suite(root: Path, suite_name: str):
             # candidate-overridden TestCase.__call__ or TestCase.run.
             for name, method in _TRUSTED_TEST_CASE_METHODS.items():
                 setattr(_TRUSTED_TEST_CASE, name, method)
+            for name, method in _TRUSTED_TEXT_TEST_RESULT_METHODS.items():
+                setattr(_TRUSTED_TEXT_TEST_RESULT, name, method)
             return _TRUSTED_TEST_CASE_RUN(self._case, result)
 
     def flatten_tests(node):
@@ -107,6 +118,10 @@ def run_suite(root: Path, suite_name: str):
                 return _TRUSTED_SUITE_ITER(self._wrapped)
 
         flat_suite = _TRUSTED_TEST_SUITE(flatten_tests(suite))
+        for name, method in _TRUSTED_TEXT_TEST_RUNNER_METHODS.items():
+            setattr(_TRUSTED_TEXT_TEST_RUNNER, name, method)
+        for name, method in _TRUSTED_TEXT_TEST_RESULT_METHODS.items():
+            setattr(_TRUSTED_TEXT_TEST_RESULT, name, method)
         result = execute_suite(TrustedSuiteProxy(flat_suite))
     summary = {
         "tests": result.testsRun,
