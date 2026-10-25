@@ -193,7 +193,23 @@ def inspect_isolation(container, checkout, trusted, image, *, run=call):
                        for opt in (host.get("SecurityOpt") or []))
             or str(config["User"]) != "999:999"):
         raise ValueError("Docker isolation differs from approved policy")
+    # A successful inspection must not hide a host namespace, extra device,
+    # added capability or an unapproved volume behind the expected two binds.
+    # Docker may expose the three approved --tmpfs paths in Mounts.
+    security_options = [str(x).lower() for x in (host.get("SecurityOpt") or [])]
+    if (host.get("CapAdd") or host.get("Devices") or host.get("PortBindings")
+            or host.get("PidMode") == "host" or host.get("IpcMode") == "host"
+            or any(opt in ("seccomp=unconfined", "apparmor=unconfined")
+                   for opt in security_options)):
+        raise ValueError("Docker host isolation differs from approved policy")
     mounts = obj.get("Mounts", [])
+    allowed_tmpfs = {"/tmp", "/var/lib/postgresql/data", "/run/postgresql"}
+    for mount in mounts:
+        destination = mount.get("Destination")
+        if mount.get("Type") == "tmpfs" and destination in allowed_tmpfs:
+            continue
+        if mount.get("Type") != "bind" or destination not in ("/workspace", "/trusted"):
+            raise ValueError("Unapproved Docker mount or volume")
     binds = {m["Destination"]: m for m in mounts if m["Type"] == "bind"}
     if set(binds) != {"/workspace", "/trusted"}:
         raise ValueError("Unapproved Docker bind mount")
