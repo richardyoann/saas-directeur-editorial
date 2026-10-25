@@ -1,12 +1,5 @@
 name: Synthetic 75s video acceptance
 on:
-  pull_request:
-    paths:
-      - 'scripts/render_episode.py'
-      - 'scripts/smoke_video_75.py'
-      - 'tests/test_render_episode.py'
-      - 'tests/test_smoke_video_75.py'
-      - '.github/workflows/video-75-acceptance.yml'
   workflow_dispatch:
 permissions:
   contents: read
