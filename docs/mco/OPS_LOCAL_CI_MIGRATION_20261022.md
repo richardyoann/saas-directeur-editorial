@@ -139,3 +139,20 @@ des règles de fusion restent bloquants.
 
 La mise à jour d'inventaire du 25/10 est ci-dessus. Elle sert également de
 critères d'acceptation/passation en l'absence d'un PRD CI distinct versionné.
+
+## Nouvelle recette exacte-SHA — 25 octobre 2026
+
+Sur le commit contrôleur `abd30afd8961d239f2f882d163bb236d40a220c3`, les tests
+du contrôleur passent; la reconstruction produit l'image auditée fraîche
+`sha256:bbe5ad5ecaac200cbccda413aa8419a75003e23b379c4f336d546436f957486e` avec
+`ARVOR_AUDIT_STATUS=OK`. La recette s'arrête ensuite avant les gates avec
+`CONTROL_PLANE_REVIEW_REQUIRED`, car le candidat #214
+`a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9` modifie le workflow vidéo protégé.
+Les 16 gates de ce candidat n'ont pas été exécutées dans cette tentative et
+aucun reçu réussi n'a été produit. Il n'y a pas de contournement autorisé.
+
+La PR #215 est au SHA `abd30afd…` après ajout de cet inventaire; elle reste
+brouillon. Les six checks GitHub constatés sont refusés avant démarrage pour la
+facturation. Le seul collaborateur visible est l'auteur; aucune revue
+indépendante n'est enregistrée. Aucun workflow n'a été désactivé et aucun statut
+local publié. Cette note ne valide donc pas la bascule.

@@ -1,5 +1,21 @@
 # Arvor — CI locale OpenCode : runbook
 
+## État migration contrôleur local — 25 octobre 2026
+
+Voir l'inventaire complet des workflows et leur état de remplacement dans
+`OPS_LOCAL_CI_MIGRATION_20261022.md`. À ce jour, aucun workflow Actions n'a été
+désactivé et aucun statut local n'est exigé par une règle de `main` vérifiable.
+L'API GitHub de protection refuse la lecture avec HTTP 403 sur ce dépôt privé;
+les minutes réelles sont également inaccessibles au jeton actuel. Les runs
+observés échouent avant les étapes pour le blocage de facturation, pas sur les
+assertions de tests. Aucun statut vert local n'a été publié.
+
+`opencode` n'est pas disponible dans l'environnement courant. Le script
+`qualify_arvor_ci_wsl.sh` reste un contrôleur de recette #214, pas une commande
+OpenCode générique. Les mécanismes de livraison PC restent actifs, verrouillés
+par `LOCAL_PC_ENABLED` et le SHA complet approuvé; aucune livraison n'a été
+déclenchée.
+
 ## 25 octobre 2026 — Refus de privilèges et volumes Docker inattendus
 
 Le superviseur de la PR #215 contrôle maintenant en plus des restrictions existantes :
