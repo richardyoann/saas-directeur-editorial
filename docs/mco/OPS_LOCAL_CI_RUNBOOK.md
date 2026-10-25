@@ -449,3 +449,100 @@ Pour une PR qui modifie `requirements.txt`, reconstruire une image **candidate j
 Les exceptions `--ignore-vuln` ne sont **pas disponibles** dans l'implementation courante : toute vulnerabilite identifiee bloque le build. Si un jour des exemptions sont autorisees, elles devront etre approuvees separément, liees a une justification, une echeance, un paquet+version+identifiant CVE et bloquees automatiquement apres la date d'expiration.
 
 Risques residuels : une CVE publiee **apres** le dernier build peut rester invisible jusqu'a la prochaine reconstruction ; l'audit PyPI des dependances Python n'equivaut pas a un scan de l'OS, des conteneurs ou du navigateur. Le service de supervision/attestation independant n'est toujours pas livre. Aucune action ne modifie la configuration du PC de production ni les donnees metier.
+
+## 25 octobre 2026 — Provenance hôte vérifiée, en attente de recette finale #215
+
+Le vérificateur n'accorde plus la provenance à partir des champs booléens du
+reçu. `arvor_ci_host_supervisor.py` écrit un journal hôte séparé `RUN_ID.host.json`
+(mode 0600, dossier 0700) qui n'est pas monté dans le conteneur. Il contient
+l'inspection Docker capturée par l'hôte, l'ID du conteneur, les codes retour des
+commandes `docker exec`, l'empreinte de sortie de chaque gate, ainsi que les
+empreintes des fichiers de politique. Le reçu pointe vers le hash du journal.
+
+`arvor_ci_trust.py` calcule l'identité de politique depuis la liste versionnée
+de fichiers actifs, `AGENTS.md`, le runbook, le manifeste de tests et tous les
+workflows GitHub. La vérification exige les arguments de confiance explicites
+(controller clean/pinné hors checkout candidat, bundle de politique, ID image
+sha256 attendu, SHA de politique). Elle vérifie aussi que le journal, le reçu
+et les logs sont des fichiers privés détenus par l'hôte; le Docker inspect
+réel satisfait l'isolation; chaque gate correspond à la commande approuvée et
+à son code de retour observé; tous les hashes, compteurs et timestamps passent.
+La valeur de provenance de sortie est calculée après ces contrôles. Une valeur
+booléenne présente dans un reçu est ignorée.
+
+Le signataire reprend exactement l'objet et les octets vérifiés, signe le reçu
+et le résumé de provenance ensemble par Ed25519, puis le publisher exige ces
+champs dans une enveloppe vérifiable. La clé privée doit être un fichier 0600,
+propriétaire courant, hors dépôt, checkout candidat, bundle et preuves. Aucun
+secret n'est transmis au conteneur. La revue d'une modification des contrôles
+reste obligatoire : le superviseur échoue avec
+`CONTROL_PLANE_REVIEW_REQUIRED` dès qu'un candidat touche `scripts/arvor_ci_*`,
+`ci/local/`, `.github/workflows/`, `AGENTS.md` ou le runbook de migration.
+Ne pas désactiver ni contourner ce refus.
+
+### Refaire la recette WSL après le SHA final du contrôleur
+
+Utiliser un clone autonome et propre pour le contrôleur final ainsi qu'un clone
+propre de la tête actuelle de #214. Le SHA du contrôleur doit avoir reçu une
+revue séparée. Vérifier d'abord que le poste WSL dispose de Docker ; ne jamais
+lancer ces commandes contre les volumes Arvor de production. La qualification
+crée ses propres bases PostgreSQL dans le conteneur et deux dossiers uniques.
+
+```bash
+export LAB="$HOME/arvor-ci-lab"
+export CONTROLLER_SHA="SHA_COMPLET_REVU_DE_215"
+export PR214_SHA="SHA_COMPLET_ACTUEL_DE_214"
+export BASE_SHA="SHA_COMPLET_MAIN"
+cd "$LAB/ci-source"
+test "$(git rev-parse HEAD)" = "$CONTROLLER_SHA"
+test -z "$(git status --porcelain)"
+bash scripts/qualify_arvor_ci_wsl.sh "$CONTROLLER_SHA" "$PR214_SHA" "$BASE_SHA"
+```
+
+La sortie imprime les chemins neufs `Politique de confiance` et `Preuves
+privées`, l'ID image et le `run_id`. Le script ne signe et ne publie rien.
+Après avoir contrôlé que le reçu correspond à cet unique `run_id`, réutiliser
+l'ID image imprimé et calculer le pin depuis le même checkout :
+
+```bash
+export RECEIPT="CHEMIN_PRIVE/RUN_ID.json"
+export HOST_OBSERVATION="CHEMIN_PRIVE/RUN_ID.host.json"
+export EVIDENCE_DIR="CHEMIN_PRIVE"
+export TRUSTED_POLICY="CHEMIN_IMPRIME_DE_LA_POLITIQUE"
+export IMAGE_ID="sha256:ID_IMAGE_IMPRIME"
+export POLICY_SHA256=$("$LAB/ci-venv/bin/python" -c 'from scripts.arvor_ci_trust import policy_digest; import sys; print(policy_digest(sys.argv[1]))' "$LAB/ci-source")
+"$LAB/ci-venv/bin/python" -m scripts.arvor_ci_evidence_verify \
+  --receipt "$RECEIPT" --host-observation "$HOST_OBSERVATION" \
+  --evidence-dir "$EVIDENCE_DIR" --checkout "$LAB/pr214" \
+  --trusted-controller "$LAB/ci-source" --trusted-policy "$TRUSTED_POLICY" \
+  --controller-sha "$CONTROLLER_SHA" --image-id "$IMAGE_ID" \
+  --policy-sha256 "$POLICY_SHA256" --sha "$PR214_SHA" \
+  --base-sha "$BASE_SHA" --pr 214
+```
+
+Signer seulement depuis `$LAB/ci-source`, jamais depuis le dépôt candidat. Le
+fichier clé reste dans un emplacement distinct, extérieur au dépôt et au
+conteneur. L'output signé et les logs sont privés. Le signer exige tous les
+pins ci-dessus et l'objet exact retourné par le vérificateur; il ne relit pas
+le reçu après validation.
+
+La publication est une étape distincte et elle exige une signature vérifiable,
+une preuve récente, la tête distante exacte et une identité de contrôleur,
+politique et image conforme. Pour éviter une seconde commit-status après une
+réponse GitHub perdue, le publisher réconcilie l'URL unique de run dans
+l'historique avant tout POST, puis relit la PR immédiatement avant écriture.
+Pour Slack, un échec laisse un marqueur `pending`; aucune relance automatique
+n'a lieu. N'utiliser `--confirm-slack-not-delivered` qu'après vérification
+indépendante de l'absence du message. L'environnement
+`ARVOR_LOCAL_CI_FULL_PARITY_APPROVED` reste une barrière opérationnelle
+supplémentaire et ne vaut jamais preuve de provenance.
+
+**État à la date de cette note : code et tests unitaires en cours de revue dans
+#215 ; aucune nouvelle recette Docker/WSL, aucune signature, aucun statut
+GitHub et aucune notification Slack n'ont encore validé son SHA final.** La
+recette WSL précédente liée à #214 avec contrôleur `7c73cd…` et reçu
+`41048767-…` est historique : elle ne prouve pas ce code modifié ni une nouvelle
+exécution exacte-SHA. Le contrôle `CONTROL_PLANE_REVIEW_REQUIRED`, une revue
+séparée, les checks requis et le statut GitHub effectif restent des conditions
+avant toute fusion. L'absence d'accès aux règles de protection du dépôt privé
+ne prouve pas qu'aucun contrôle n'est requis.

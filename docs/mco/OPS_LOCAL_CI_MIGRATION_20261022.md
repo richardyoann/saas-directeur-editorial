@@ -49,3 +49,30 @@ Exécuter les contrôles coûteux localement, en isolation, sans confondre exéc
 - Publication impossible ou HEAD distant modifié entre la recette et l'envoi du statut.
 - Absence de protection de branche : aucune automatisation ne doit alors interpréter le statut local comme autorisation de fusion.
 
+
+## Mise à jour du modèle de provenance — 25 octobre 2026
+
+Le format opérationnel est désormais le reçu hôte `arvor-local-ci-v1` plus un
+journal hôte distinct `arvor-host-observation-v1`. Le vérificateur recalcule la
+politique depuis le checkout contrôleur propre et épinglé, valide l'inspection
+Docker structurée, l'image immutable, le code de sortie host-observed et le
+hash de chaque gate/log. Il ne déduit aucune provenance d'un booléen du reçu ni
+d'une variable d'environnement. Le signer utilise l'objet déjà validé et signe
+le reçu avec la provenance vérifiée. Le publisher exige l'enveloppe signée,
+compare les pins, vérifie l'état distant deux fois autour du status POST et
+réconcilie un status ambigu avec l'URL unique du run. Les notifications Slack
+ambiguës sont suspendues en `pending` et demandent une vérification manuelle
+avant une nouvelle tentative.
+
+Le superviseur bloque toujours par `CONTROL_PLANE_REVIEW_REQUIRED` toute PR
+qui modifie le contrôleur, l'image, les workflows GitHub, `AGENTS.md` ou la
+politique/runbook local CI. Cette PR #215 est une PR de contrôle : elle doit
+être revue et qualifiée depuis un checkout approuvé séparé, sur un candidat
+métier distinct (notamment #214), avec une nouvelle recette WSL au SHA final.
+Aucune auto-approbation ni assouplissement du garde n'est accepté.
+
+État exact : tests unitaires de développement présents dans le diff; recette
+WSL/Docker exacte-SHA, signature Ed25519, publication GitHub/Slack et revue
+finale restent à faire. Les 74 tests et 16 gates de la recette du 25/10 se
+rapportent au contrôleur `7c73cd…` et au candidat #214 `a4f885…`; ils ne
+qualifient pas cette mise à jour du contrôleur.

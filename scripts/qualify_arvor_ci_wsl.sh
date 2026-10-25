@@ -85,7 +85,7 @@ image_id=$(docker image inspect --format '{{.Id}}' "$tag") \
   || fail "identite image indisponible"
 [[ $image_id =~ ^sha256:[0-9a-f]{64}$ ]] || fail "ID image non immuable"
 
-printf 'Image: %s\nPreuves privees: %s\n' "$image_id" "$evidence"
+printf 'Image: %s\nPolitique de confiance: %s\nPreuves privees: %s\n' "$image_id" "$trusted" "$evidence"
 "$python" -m scripts.arvor_ci_host_supervisor \
   --image-id "$image_id" --checkout "$candidate" \
   --trusted "$trusted" --evidence "$evidence" \
@@ -94,14 +94,23 @@ printf 'Image: %s\nPreuves privees: %s\n' "$image_id" "$evidence"
   || fail "16 gates hote KO (preuves conservees dans $evidence)"
 
 shopt -s nullglob
-receipts=("$evidence"/*.json)
+receipts=()
+for receipt_path in "$evidence"/*.json; do
+  [[ $receipt_path == *.host.json ]] && continue
+  receipts+=("$receipt_path")
+done
 [[ ${#receipts[@]} -eq 1 ]] || fail "attendu un seul recu hote"
+host_observation="$evidence/$(basename "${receipts[0]}" .json).host.json"
+policy_sha256=$("$python" -c 'from scripts.arvor_ci_trust import policy_digest; import sys; print(policy_digest(sys.argv[1]))' "$controller")
 "$python" -m scripts.arvor_ci_evidence_verify \
-  --receipt "${receipts[0]}" --evidence-dir "$evidence" \
-  --checkout "$candidate" --sha "$candidate_sha" \
-  --base-sha "$base_sha" --pr 214 \
+  --receipt "${receipts[0]}" --host-observation "$host_observation" \
+  --evidence-dir "$evidence" --checkout "$candidate" \
+  --trusted-controller "$controller" --trusted-policy "$trusted" \
+  --controller-sha "$controller_sha" \
+  --image-id "$image_id" --policy-sha256 "$policy_sha256" \
+  --sha "$candidate_sha" --base-sha "$base_sha" --pr 214 \
   || fail "integrite des preuves KO"
 
 printf 'ARVOR_CI_LOCAL_GATES_AND_LOG_INTEGRITY_PASS\n'
 printf 'Receipt: %s\n' "${receipts[0]}"
-printf 'Provenance independante certifiee: NON. Merge/deploiement: NON.\n'
+printf 'Provenance host independante verifiee; signature et publication distinctes. Merge/deploiement: NON.\n'

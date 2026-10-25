@@ -25,15 +25,13 @@ from scripts.arvor_local_ci import (
     audit_diagnostic, browser_counts, regression_counts,
 )
 from scripts.arvor_ci_evidence_verify import video_proof
+from scripts.arvor_ci_trust import (
+    POLICY_FILES, POLICY_VERSION, SANDBOX_POLICY_FILES, canonical_json, policy_digest, policy_snapshot,
+    validate_docker_inspection,
+)
 
 SHA = re.compile(r"[a-f0-9]{40}\Z")
 IMAGE = re.compile(r"sha256:[a-f0-9]{64}\Z")
-POLICY_FILES = (
-    "arvor_local_ci.py", "arvor_ci_gate.py",
-    "arvor_ci_trusted_unittest.py",
-    "arvor_ci_supervised_entrypoint.sh",
-    "arvor_ci_trusted_gitleaks.toml", "arvor_ci_trusted_gitleaksignore",
-)
 # Security policy and test-discovery code must not be replaced by candidate
 # modifications before its own green gates can be trusted. Functional tests,
 # browser journeys and video acceptance fixtures can evolve under review;
@@ -45,14 +43,16 @@ PROTECTED_EXACT = frozenset((
     "scripts/ci_policy.py",
     "scripts/ci_autonomy.py",
     "scripts/arvor_ci_sandbox.py",
+    "scripts/arvor_ci_trust.py",
     "scripts/arvor_ci_host_supervisor.py",
     "scripts/arvor_local_ci.py",
     "scripts/arvor_ci_entrypoint.sh",
     "scripts/arvor_ci_evidence_verify.py",
     "scripts/arvor_ci_attestation.py",
     "scripts/arvor_ci_publish.py",
+    "AGENTS.md",
 ))
-PROTECTED_PREFIX = ("ci/local/",)
+PROTECTED_PREFIX = ("ci/local/", ".github/workflows/", "docs/mco/OPS_LOCAL_CI")
 PROTECTED_CONFIG = frozenset((".gitleaks.toml", ".gitleaksignore"))
 
 REPO = "richardyoann/saas-directeur-editorial"
@@ -140,13 +140,13 @@ def validate_inputs(image, checkout, trusted, evidence, sha, base, pr, controlle
         raise ValueError("Supervisor checkout differs from explicitly approved controller SHA")
     if git(controller, "status", "--porcelain"):
         raise ValueError("Supervisor checkout must be clean and pinned")
-    for file in POLICY_FILES:
-        source = controller / "scripts" / file
-        target = trusted / file
+    for filename in SANDBOX_POLICY_FILES:
+        source = controller / "scripts" / filename
+        target = trusted / filename
         if target.is_symlink() or not source.is_file() or not target.is_file():
             raise ValueError("Missing or linked trusted policy")
         if _sha256(source) != _sha256(target):
-            raise ValueError("Trusted policy differs from reviewed checkout: " + file)
+            raise ValueError("Trusted policy differs from reviewed checkout: " + filename)
     if dest.is_symlink() or dest.stat().st_mode & 0o077:
         raise ValueError("Host evidence directory must be private (0700)")
     return root, controller, trusted, dest
@@ -179,48 +179,22 @@ def docker_command(image, checkout, trusted, sha, base, pr, name):
 
 
 def inspect_isolation(container, checkout, trusted, image, *, run=call):
-    data = json.loads(run(["docker", "inspect", container]))
-    if not isinstance(data, list) or len(data) != 1:
+    payload = json.loads(run(["docker", "inspect", container]))
+    if not isinstance(payload, list) or len(payload) != 1:
         raise ValueError("Unexpected docker inspect result")
-    obj = data[0]
-    host = obj["HostConfig"]
-    config = obj["Config"]
-    if (obj["Image"] != image or host["NetworkMode"] != "none"
-            or host["ReadonlyRootfs"] is not True
-            or host.get("Privileged") is True
-            or "ALL" not in [x.upper() for x in (host.get("CapDrop") or [])]
-            or not any(str(opt) in ("no-new-privileges", "no-new-privileges:true")
-                       for opt in (host.get("SecurityOpt") or []))
-            or str(config["User"]) != "999:999"):
-        raise ValueError("Docker isolation differs from approved policy")
-    # A successful inspection must not hide a host namespace, extra device,
-    # added capability or an unapproved volume behind the expected two binds.
-    # Docker may expose the three approved --tmpfs paths in Mounts.
-    security_options = [str(x).lower() for x in (host.get("SecurityOpt") or [])]
-    if (host.get("CapAdd") or host.get("Devices") or host.get("PortBindings")
-            or host.get("PidMode") == "host" or host.get("IpcMode") == "host"
-            or any(opt in ("seccomp=unconfined", "apparmor=unconfined")
-                   for opt in security_options)):
-        raise ValueError("Docker host isolation differs from approved policy")
-    mounts = obj.get("Mounts", [])
-    allowed_tmpfs = {"/tmp", "/var/lib/postgresql/data", "/run/postgresql"}
-    for mount in mounts:
-        destination = mount.get("Destination")
-        if mount.get("Type") == "tmpfs" and destination in allowed_tmpfs:
-            continue
-        if mount.get("Type") != "bind" or destination not in ("/workspace", "/trusted"):
-            raise ValueError("Unapproved Docker mount or volume")
-    binds = {m["Destination"]: m for m in mounts if m["Type"] == "bind"}
-    if set(binds) != {"/workspace", "/trusted"}:
-        raise ValueError("Unapproved Docker bind mount")
-    for dst, expected in (("/workspace", checkout), ("/trusted", trusted)):
-        mount = binds[dst]
-        if (Path(mount["Source"]).resolve() != expected
-                or mount.get("RW") is not False):
-            raise ValueError("Candidate/trusted bind must be readonly")
-    if any(m.get("Destination") == "/evidence" for m in mounts):
-        raise ValueError("Evidence must not be visible inside sandbox")
-    return True
+    obj = payload[0]
+    validate_docker_inspection(obj, checkout, trusted, image)
+    if obj.get("Id") and obj["Id"] != container:
+        raise ValueError("Docker inspected a different container")
+    # Keep only host-observed isolation fields. Config.Env is deliberately
+    # omitted so ephemeral PostgreSQL credentials never enter the receipt.
+    return {
+        "Id": obj.get("Id", container),
+        "Image": obj["Image"],
+        "HostConfig": obj["HostConfig"],
+        "Config": {"User": obj["Config"]["User"]},
+        "Mounts": obj["Mounts"],
+    }
 
 
 def _check_gate(name, proc, log):
@@ -300,26 +274,26 @@ def execute(image, checkout, trusted, evidence, sha, base, pr, controller_sha, *
         "repo": REPO, "pr": pr, "sha": sha, "base_sha": base,
         "started_at": now(), "finished_at": None,
         "source": "isolated-local-tests", "status": "failure", "gates": [],
-        "host_supervision": {
-            "version": 1, "controller_sha": controller_sha,
-            "image_id": image,
-            "controller_files_sha256": {
-                fn: _sha256(code / fn) for fn in POLICY_FILES
-            },
-            "host_observed_docker_exit_codes": True,
-            "evidence_not_mounted": True,
-            "docker_isolation_inspected": False,
-            "independent_execution_provenance_certified": False,
-        },
+        "host_supervision": {},
     }
     container = None
+    observation = {
+        "schema": "arvor-host-observation-v1", "run_id": run_id,
+        "repo": REPO, "pr": pr, "sha": sha, "base_sha": base,
+        "controller_sha": controller_sha, "policy_version": POLICY_VERSION,
+        "policy_files_sha256": policy_snapshot(controller),
+        "policy_sha256": policy_digest(controller), "image_id": image,
+        "container_id": None, "docker_inspect": None,
+        "gate_exec_observations": [], "started_at": receipt["started_at"],
+        "finished_at": None, "docker_stop_returncode": None,
+    }
     try:
         result = run(command, capture_output=True, text=True, timeout=45, check=False)
         if result.returncode or not re.fullmatch(r"[a-f0-9]{64}", result.stdout.strip()):
             raise ValueError("Docker sandbox failed to start")
         container = result.stdout.strip()
-        inspect_isolation(container, root, code, image)
-        receipt["host_supervision"]["docker_isolation_inspected"] = True
+        observation["container_id"] = container
+        observation["docker_inspect"] = inspect_isolation(container, root, code, image)
         # Observe PG readiness from the HOST, not from a PR-supplied receipt.
         for _ in range(30):
             ready = run([
@@ -361,6 +335,11 @@ def execute(image, checkout, trusted, evidence, sha, base, pr, controller_sha, *
             if gate == "dependencies":
                 item["diagnostic_status"] = details
             receipt["gates"].append(item)
+            observation["gate_exec_observations"].append({
+                "name": gate, "docker_exec_returncode": code_rc,
+                "log_sha256": item["log_sha256"],
+                "gate_command_sha256": hashlib.sha256(canonical_json(argv)).hexdigest(),
+            })
             print(gate + ": " + ("OK" if passed else "KO"), flush=True)
             if not passed:
                 break
@@ -369,9 +348,11 @@ def execute(image, checkout, trusted, evidence, sha, base, pr, controller_sha, *
             stopped = run(["docker", "stop", "--time=5", container],
                           capture_output=True, text=True, timeout=20,
                           check=False)
+            observation["docker_stop_returncode"] = stopped.returncode
             if stopped.returncode != 0:
                 receipt["host_supervision"]["docker_cleanup_failed"] = True
         receipt["finished_at"] = now()
+        observation["finished_at"] = receipt["finished_at"]
         receipt["status"] = (
             "success" if (len(receipt["gates"]) == len(GATES)
                           and all(g["passed"] for g in receipt["gates"])
@@ -381,13 +362,30 @@ def execute(image, checkout, trusted, evidence, sha, base, pr, controller_sha, *
         if git(root, "rev-parse", "HEAD") != sha or git(root, "status", "--porcelain"):
             receipt["status"] = "failure"
             receipt["checkout_changed"] = True
+        # This structured host record is never mounted into the candidate.
+        # It contains actual inspect data and host-observed exec results; no
+        # booleans in the candidate receipt establish provenance.
+        host_bytes = canonical_json(observation) + b"\n"
+        host_path = out / (run_id + ".host.json")
+        with host_path.open("xb") as stream:
+            stream.write(host_bytes)
+        host_path.chmod(0o600)
+        receipt["host_supervision"] = {
+            "version": 2, "controller_sha": controller_sha,
+            "policy_version": POLICY_VERSION,
+            "policy_files_sha256": observation["policy_files_sha256"],
+            "policy_sha256": observation["policy_sha256"],
+            "image_id": image, "container_id": container,
+            "host_observation_sha256": hashlib.sha256(host_bytes).hexdigest(),
+        }
         with (out / (run_id + ".json")).open("x", encoding="utf-8") as stream:
             json.dump(receipt, stream, indent=2, sort_keys=True)
         (out / (run_id + ".json")).chmod(0o600)
         print(json.dumps({
             "receipt": str(out / (run_id + ".json")),
             "status": receipt["status"], "sha": sha, "run_id": run_id,
-            "host_observed": True, "provenance_certified": False,
+            "host_observation": str(host_path),
+            "provenance_certified": "pending independent verification",
         }), flush=True)
     return receipt
 

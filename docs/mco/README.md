@@ -140,3 +140,5 @@ La gravité est à adapter à l'impact réel : un `/ready=503` peut relever de P
 
 **Responsabilités :** l'opérateur MCO valide les actions système, secrets et sauvegardes ; le responsable code revoit les correctifs ; le responsable éditorial valide le contenu produit. Une CI verte ne vaut pas recette utilisateur ni acceptation métier.
 
+
+- 25 octobre 2026 — provenance CI locale : état, procédure WSL exacte-SHA et limites dans [OPS-LOCAL-CI runbook](OPS_LOCAL_CI_RUNBOOK.md#25-octobre-2026--provenance-hôte-vérifiée-en-attente-de-recette-finale-215) et [décision de migration](OPS_LOCAL_CI_MIGRATION_20261022.md#mise-à-jour-du-modèle-de-provenance--25-octobre-2026). La PRD/passation distincte n'a pas été trouvée dans le dépôt ou Drive lors de cette session.

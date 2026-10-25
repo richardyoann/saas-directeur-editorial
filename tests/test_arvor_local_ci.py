@@ -13,6 +13,20 @@ from scripts import arvor_ci_publish as pub
 
 SHA = "a" * 40
 BASE = "b" * 40
+CONTROLLER_SHA = "c" * 40
+POLICY_SHA = "d" * 64
+IMAGE_ID = "sha256:" + "e" * 64
+HOST_SHA = "f" * 64
+
+
+def provenance(r):
+    return {"schema": "arvor-verified-provenance-v1",
+        "controller_sha": CONTROLLER_SHA,
+        "policy_version": "arvor-local-ci-policy-v2",
+        "policy_sha256": POLICY_SHA,
+        "policy_files_sha256": {"scripts/arvor_ci_trust.py": "1" * 64},
+        "image_id": IMAGE_ID, "host_observation_sha256": HOST_SHA,
+        "run_id": r["run_id"], "verified_at": datetime.now(timezone.utc).isoformat()}
 
 
 def receipt(status="success"):
@@ -25,11 +39,16 @@ def receipt(status="success"):
     if status == "failure":
         gates[-1]["passed"] = False
         gates[-1]["returncode"] = 1
-    return {"schema": "arvor-local-ci-v1", "run_id": str(uuid.uuid4()),
+    report = {"schema": "arvor-local-ci-v1", "run_id": str(uuid.uuid4()),
             "repo": pub.REPO, "pr": 215, "sha": SHA, "base_sha": BASE,
             "started_at": (now - timedelta(seconds=7)).isoformat(),
             "finished_at": now.isoformat(), "source": "isolated-local-tests",
             "status": status, "gates": gates}
+    report["host_supervision"] = {"controller_sha": CONTROLLER_SHA,
+        "policy_version": "arvor-local-ci-policy-v2", "policy_sha256": POLICY_SHA,
+        "policy_files_sha256": provenance(report)["policy_files_sha256"],
+        "image_id": IMAGE_ID, "host_observation_sha256": HOST_SHA}
+    return report
 
 
 class LocalCITests(unittest.TestCase):
@@ -39,19 +58,27 @@ class LocalCITests(unittest.TestCase):
         self.public = key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
 
     def signed(self, report=None):
-        return attest.sign(report or receipt(), self.private, "k1")
+        report = report or receipt()
+        return attest.sign(report, self.private, "k1", provenance(report))
 
     def test_valid_signed_success(self):
         r = receipt()
         e = self.signed(r)
         self.assertEqual(attest.verify(e, self.public, "k1"), r)
-        self.assertEqual(pub.prepare(e, self.public, "k1")[1], "success")
+        self.assertEqual(pub.prepare(e, self.public, "k1", controller_sha=CONTROLLER_SHA,
+            expected_policy_sha256=POLICY_SHA, expected_image_id=IMAGE_ID)[1], "success")
 
     def test_payload_tampering(self):
         e = self.signed()
         e["evidence"]["sha"] = "d" * 40
         with self.assertRaises(ValueError):
             attest.verify(e, self.public, "k1")
+
+    def test_altered_signature_is_rejected(self):
+        envelope = self.signed()
+        envelope["signature"] = envelope["signature"][:-4] + "AAAA"
+        with self.assertRaises(ValueError):
+            attest.verify(envelope, self.public, "k1")
 
     def test_unknown_signing_key(self):
         e = self.signed()
@@ -79,14 +106,17 @@ class LocalCITests(unittest.TestCase):
 
     def test_signed_failure(self):
         e = self.signed(receipt("failure"))
-        self.assertEqual(pub.prepare(e, self.public, "k1")[1], "failure")
+        self.assertEqual(pub.prepare(e, self.public, "k1", controller_sha=CONTROLLER_SHA,
+            expected_policy_sha256=POLICY_SHA, expected_image_id=IMAGE_ID)[1], "failure")
 
     def test_expired_receipt_rejected(self):
         r = receipt()
         r["started_at"] = (datetime.now(timezone.utc) - timedelta(hours=4, seconds=7)).isoformat()
         r["finished_at"] = (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat()
         with self.assertRaises(ValueError):
-            pub.prepare(self.signed(r), self.public, "k1")
+            pub.prepare(self.signed(r), self.public, "k1",
+                controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
+                expected_image_id=IMAGE_ID)
 
     def test_stale_pull_request_head(self):
         def fake(method, url, token):
@@ -122,6 +152,8 @@ class LocalCITests(unittest.TestCase):
         calls = []
         def fake(method, url, token=None, payload=None):
             calls.append(method)
+            if method == "GET" and url.endswith("/statuses/" + SHA):
+                return []
             if method == "GET":
                 return {"state": "open", "merged": False, "head": {"sha": SHA, "repo": {"full_name": pub.REPO}},
                         "base": {"sha": BASE, "ref": "main"}}
@@ -131,11 +163,71 @@ class LocalCITests(unittest.TestCase):
         envelope = self.signed()
         with patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}), TemporaryDirectory() as folder:
             self.assertEqual(pub.publish(envelope, self.public, "k1", "mock", "https://hooks.slack.com/services/mock",
-                                         Path(folder), request=fake), "success")
+                                         Path(folder), controller_sha=CONTROLLER_SHA,
+                                         expected_policy_sha256=POLICY_SHA,
+                                         expected_image_id=IMAGE_ID, request=fake), "success")
             with self.assertRaises(ValueError):
-                pub.publish(envelope, self.public, "k1", "mock", None, Path(folder), request=fake)
-        self.assertEqual(calls, ["GET", "POST", "POST"])
+                pub.publish(envelope, self.public, "k1", "mock", None, Path(folder),
+                    controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
+                    expected_image_id=IMAGE_ID, request=fake)
+        self.assertEqual(calls, ["GET", "GET", "GET", "POST", "GET", "POST"])
 
+
+    def test_remote_head_change_between_preflight_and_status_post_blocks_publish(self):
+        pr_reads = 0
+        writes = []
+        def fake(method, url, token=None, payload=None):
+            nonlocal pr_reads
+            if method == "GET" and url.endswith("/statuses/" + SHA):
+                return []
+            if method == "GET":
+                pr_reads += 1
+                head = SHA if pr_reads == 1 else "9" * 40
+                return {"state": "open", "merged": False,
+                        "head": {"sha": head, "repo": {"full_name": pub.REPO}},
+                        "base": {"sha": BASE, "ref": "main"}}
+            writes.append(url)
+            return {"state": "success"}
+        with patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}), TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "revision"):
+                pub.publish(self.signed(), self.public, "k1", "mock",
+                    "https://hooks.slack.com/services/mock", Path(folder),
+                    controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
+                    expected_image_id=IMAGE_ID, request=fake)
+        self.assertEqual(writes, [])
+
+    def test_ambiguous_github_status_post_is_reconciled_without_duplicate(self):
+        statuses = []
+        writes = {"github": 0, "slack": 0}
+        def fake(method, url, token=None, payload=None):
+            if method == "GET" and url.endswith("/statuses/" + SHA):
+                return list(statuses)
+            if method == "GET":
+                return {"state": "open", "merged": False,
+                        "head": {"sha": SHA, "repo": {"full_name": pub.REPO}},
+                        "base": {"sha": BASE, "ref": "main"}}
+            if "/statuses/" in url:
+                writes["github"] += 1
+                statuses.append({"context": payload["context"],
+                                 "target_url": payload["target_url"],
+                                 "state": payload["state"]})
+                if writes["github"] == 1:
+                    raise ConnectionError("lost response after GitHub stored status")
+                return {"state": payload["state"]}
+            writes["slack"] += 1
+            return {"ok": True}
+        envelope = self.signed()
+        with patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}), TemporaryDirectory() as folder:
+            with self.assertRaises(ConnectionError):
+                pub.publish(envelope, self.public, "k1", "mock",
+                    "https://hooks.slack.com/services/mock", Path(folder),
+                    controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
+                    expected_image_id=IMAGE_ID, request=fake)
+            self.assertEqual(pub.publish(envelope, self.public, "k1", "mock",
+                "https://hooks.slack.com/services/mock", Path(folder),
+                controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
+                expected_image_id=IMAGE_ID, request=fake), "success")
+        self.assertEqual(writes, {"github": 1, "slack": 1})
 
     def test_video_75_refuses_zero_exit_without_valid_receipt(self):
         """No video success without the exact 75s ffprobe JSON evidence."""
@@ -176,9 +268,11 @@ class LocalCITests(unittest.TestCase):
         self.assertEqual(ci.audit_diagnostic("ARVOR_AUDIT_STATUS=VULNERABLE", 0),
                          "PREUVE_NON_CORRESPONDANTE")
 
-    def test_slack_retry_does_not_repost_github_status(self):
+    def test_slack_failure_requires_confirmation_and_retry_does_not_duplicate_github(self):
         calls = {"github": 0, "slack": 0}
         def fake(method, url, token=None, payload=None):
+            if method == "GET" and url.endswith("/statuses/" + SHA):
+                return []
             if method == "GET":
                 return {"state": "open", "merged": False,
                         "head": {"sha": SHA, "repo": {"full_name": pub.REPO}},
@@ -193,9 +287,16 @@ class LocalCITests(unittest.TestCase):
         e = self.signed()
         with patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}), TemporaryDirectory() as folder:
             with self.assertRaises(ConnectionError):
-                pub.publish(e, self.public, "k1", "mock", "https://hooks.slack.com/services/mock", Path(folder), request=fake)
+                pub.publish(e, self.public, "k1", "mock", "https://hooks.slack.com/services/mock", Path(folder),
+                    controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
+                    expected_image_id=IMAGE_ID, request=fake)
+            with self.assertRaisesRegex(ValueError, "ambiguous"):
+                pub.publish(e, self.public, "k1", "mock", "https://hooks.slack.com/services/mock", Path(folder),
+                    controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
+                    expected_image_id=IMAGE_ID, request=fake)
             self.assertEqual(pub.publish(e, self.public, "k1", "mock", "https://hooks.slack.com/services/mock",
-                                         Path(folder), request=fake), "success")
+                Path(folder), controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
+                expected_image_id=IMAGE_ID, confirm_slack_not_delivered=True, request=fake), "success")
         self.assertEqual(calls, {"github": 1, "slack": 2})
 
 

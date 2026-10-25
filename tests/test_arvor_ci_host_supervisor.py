@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from scripts import arvor_ci_host_supervisor as s
+from scripts.arvor_ci_trust import POLICY_FILES, SANDBOX_POLICY_FILES
 
 SHA = "a" * 40
 BASE = "b" * 40
@@ -73,7 +74,7 @@ class HostSupervisorTests(unittest.TestCase):
         )
         for modification in cases:
             with self.subTest(modification=modification):
-                with self.assertRaisesRegex(ValueError, "Docker|mount|readonly|Evidence"):
+                with self.assertRaisesRegex(ValueError, "Docker|mount|read.only|Evidence"):
                     s.inspect_isolation(
                         CID, Path("/candidate"), Path("/trusted"), IMAGE,
                         run=fake_docker_inspect(inspect_payload(**modification)),
@@ -122,7 +123,7 @@ class HostSupervisorTests(unittest.TestCase):
     def test_docker_inspection_rejects_privileged_container(self):
         inspected = inspect_payload()
         inspected[0]["HostConfig"]["Privileged"] = True
-        with self.assertRaisesRegex(ValueError, "Docker isolation"):
+        with self.assertRaisesRegex(ValueError, "Docker observation"):
             s.inspect_isolation(
                 CID, Path("/candidate"), Path("/trusted"), IMAGE,
                 run=fake_docker_inspect(inspected),
@@ -134,6 +135,8 @@ class HostSupervisorTests(unittest.TestCase):
             "scripts/run_regression.py",
             "scripts/arvor_ci_host_supervisor.py",
             "ci/local/Dockerfile",
+            ".github/workflows/regression.yml",
+            "AGENTS.md",
             ".gitleaks.toml",
             ".gitleaksignore",
         ]
@@ -181,9 +184,9 @@ class HostSupervisorTests(unittest.TestCase):
                             Path("/candidate"), BASE, SHA)
 
     def test_trusted_policy_includes_gitleaks_controls(self):
-        self.assertIn("arvor_ci_trusted_gitleaks.toml", s.POLICY_FILES)
-        self.assertIn("arvor_ci_trusted_gitleaksignore", s.POLICY_FILES)
-        self.assertIn("arvor_ci_trusted_unittest.py", s.POLICY_FILES)
+        self.assertIn("scripts/arvor_ci_trusted_gitleaks.toml", POLICY_FILES)
+        self.assertIn("scripts/arvor_ci_trusted_gitleaksignore", POLICY_FILES)
+        self.assertIn("scripts/arvor_ci_trusted_unittest.py", POLICY_FILES)
         cmd = s.docker_command(IMAGE, Path("/candidate"), Path("/trusted"),
                                SHA, BASE, 214, "arvor-host-ci-test")
         self.assertIn("--init", cmd)
@@ -250,22 +253,40 @@ class HostSupervisorTests(unittest.TestCase):
             )
             for path in (root, controller, trusted, evidence):
                 path.mkdir()
-            for file in s.POLICY_FILES:
-                (trusted / file).write_text("trusted-" + file)
+            repo_root = Path(s.__file__).resolve().parents[1]
+            for file in POLICY_FILES:
+                target = controller / file
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((repo_root / file).read_bytes())
+            for file in SANDBOX_POLICY_FILES:
+                (trusted / file).write_bytes((repo_root / "scripts" / file).read_bytes())
             def git(_root, *args):
                 return SHA if args == ("rev-parse", "HEAD") else ""
             with (patch.object(s, "validate_inputs",
                                return_value=(root, controller, trusted, evidence)),
                   patch.object(s, "git", side_effect=git),
-                  patch.object(s, "inspect_isolation", return_value=True)):
+                  patch.object(s, "inspect_isolation", side_effect=lambda cid, candidate, policy, image: {
+                      "Id": cid, "Image": image,
+                      "HostConfig": {"NetworkMode": "none", "ReadonlyRootfs": True,
+                          "Privileged": False, "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges:true"]},
+                      "Config": {"User": "999:999"},
+                      "Mounts": [
+                          {"Type": "bind", "Destination": "/workspace", "Source": str(candidate), "RW": False},
+                          {"Type": "bind", "Destination": "/trusted", "Source": str(policy), "RW": False},
+                          {"Type": "tmpfs", "Destination": "/tmp", "RW": True},
+                          {"Type": "tmpfs", "Destination": "/var/lib/postgresql/data", "RW": True},
+                          {"Type": "tmpfs", "Destination": "/run/postgresql", "RW": True},
+                      ]})):
                 report = s.execute(IMAGE, root, trusted, evidence, SHA, BASE, 214, SHA,
                                    run=self._run_mock(failed_gate=failed_gate, over_limit_gate=over_limit_gate),
                                    gate_run=self._run_mock(failed_gate=failed_gate, over_limit_gate=over_limit_gate))
-            receipts = list(evidence.glob("*.json"))
+            receipts = [x for x in evidence.glob("*.json") if not x.name.endswith(".host.json")]
             self.assertEqual(len(receipts), 1)
             self.assertEqual(json.loads(receipts[0].read_text()), report)
-            self.assertFalse(report["host_supervision"]["independent_execution_provenance_certified"])
-            self.assertTrue(report["host_supervision"]["evidence_not_mounted"])
+            self.assertEqual(report["host_supervision"]["version"], 2)
+            self.assertRegex(report["host_supervision"]["host_observation_sha256"], r"^[0-9a-f]{64}$")
+            host = json.loads((evidence / (report["run_id"] + ".host.json")).read_text())
+            self.assertEqual(len(host["gate_exec_observations"]), len(report["gates"]))
             self.assertEqual(len(list(evidence.glob("*.log"))), len(report["gates"]))
             return report
 

@@ -60,6 +60,7 @@ class WslQualificationScriptTests(unittest.TestCase):
         python.write_text(
             "#!/bin/bash\n"
             "set -eu\n"
+            "if [ \"${1:-}\" = -c ]; then printf '%064d\\n' 0; exit 0; fi\n"
             "[ \"$1\" = -m ] || exit 88\n"
             "case \"$2\" in\n"
             "  unittest) exit 0;;\n"
@@ -124,7 +125,7 @@ class WslQualificationScriptTests(unittest.TestCase):
                 self.assertNotIn(forbidden, source)
         self.assertIn("arvor_ci_evidence_verify", source)
         self.assertIn("SECURITY_AUDIT_REFRESH", source)
-        self.assertIn("independante certifiee: NON", source)
+        self.assertIn("Provenance host independante verifiee; signature et publication distinctes.", source)
 
     def test_orchestration_with_stubbed_services_uses_fresh_private_evidence(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -144,7 +145,7 @@ class WslQualificationScriptTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(evidence[0].stat().st_mode), 0o700)
             self.assertEqual(len(list(trusted[0].iterdir())), 6)
             self.assertEqual(len(list(evidence[0].glob("*.json"))), 1)
-            self.assertIn("certifiee: NON", proc.stdout)
+            self.assertIn("Provenance host independante verifiee", proc.stdout)
 
     def test_dirty_candidate_blocks_before_image_build(self):
         with tempfile.TemporaryDirectory() as temp:

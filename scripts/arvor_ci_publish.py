@@ -10,8 +10,15 @@ from urllib.request import Request, urlopen
 from uuid import UUID
 
 from scripts.arvor_ci_attestation import verify
+from scripts.arvor_ci_trust import POLICY_VERSION, policy_digest
 
 REPO = "richardyoann/saas-directeur-editorial"
+
+
+def git(root, *args):
+    import subprocess
+    return subprocess.check_output(["git", "-C", str(root), *args], text=True,
+                                   timeout=20).strip()
 CONTEXT = "arvor/local-ci-attested"
 
 
@@ -30,11 +37,15 @@ def http_json(method, url, token=None, payload=None):
         return json.loads(data)
 
 
-def fresh_receipt(receipt, now=None):
+def fresh_receipt(receipt, provenance, now=None):
     now = now or datetime.now(timezone.utc)
     started = datetime.fromisoformat(receipt["started_at"])
     finished = datetime.fromisoformat(receipt["finished_at"])
-    if started > now + timedelta(minutes=2) or finished > now + timedelta(minutes=2) or now - finished > timedelta(hours=2):
+    verified = datetime.fromisoformat(provenance["verified_at"])
+    if (started > now + timedelta(minutes=2) or finished > now + timedelta(minutes=2)
+            or verified > now + timedelta(minutes=2)
+            or now - finished > timedelta(hours=2)
+            or now - verified > timedelta(hours=2)):
         raise ValueError("Expired or future attestation")
 
 
@@ -49,15 +60,29 @@ def verify_remote(receipt, token, request=http_json):
     return pr
 
 
-def prepare(envelope, key, key_id, *, now=None):
+def prepare(envelope, key, key_id, *, controller_sha, expected_policy_sha256,
+            expected_image_id, now=None):
     evidence = verify(envelope, key, key_id)
-    fresh_receipt(evidence, now)
+    provenance = envelope["provenance"]
+    if (provenance["controller_sha"] != controller_sha
+            or provenance["policy_version"] != POLICY_VERSION
+            or provenance["policy_sha256"] != expected_policy_sha256
+            or provenance["image_id"] != expected_image_id
+            or provenance["run_id"] != evidence["run_id"]):
+        raise ValueError("Attested execution is outside publisher trust policy")
+    fresh_receipt(evidence, provenance, now)
     state = "success" if evidence["status"] == "success" else "failure"
     return evidence, state
 
 
-def publish(envelope, key, key_id, token, slack_url, sent_dir, *, request=http_json):
-    receipt, state = prepare(envelope, key, key_id)
+def publish(envelope, key, key_id, token, slack_url, sent_dir, *,
+            controller_sha, expected_policy_sha256, expected_image_id,
+            confirm_slack_not_delivered=False, request=http_json):
+    receipt, state = prepare(
+        envelope, key, key_id, controller_sha=controller_sha,
+        expected_policy_sha256=expected_policy_sha256,
+        expected_image_id=expected_image_id,
+    )
     if not token:
         raise ValueError("Missing GitHub publisher token")
     if os.environ.get("ARVOR_LOCAL_CI_FULL_PARITY_APPROVED") != "true":
@@ -71,6 +96,7 @@ def publish(envelope, key, key_id, token, slack_url, sent_dir, *, request=http_j
     UUID(receipt["run_id"])
     github_marker = sent_dir / (receipt["run_id"] + ".github")
     slack_marker = sent_dir / (receipt["run_id"] + ".slack")
+    slack_pending = sent_dir / (receipt["run_id"] + ".slack.pending")
     lockfile = sent_dir / (receipt["run_id"] + ".lock")
     # Keep GitHub and Slack acknowledgments independently to permit a Slack
     # retry without publishing a second GitHub status for the same run.
@@ -81,17 +107,43 @@ def publish(envelope, key, key_id, token, slack_url, sent_dir, *, request=http_j
             raise ValueError("Run has already been published and notified")
         verify_remote(receipt, token, request)
         url = "https://github.com/" + REPO + "/pull/" + str(receipt["pr"])
+        status_url = "https://api.github.com/repos/" + REPO + "/statuses/" + receipt["sha"]
+        target_url = url + "#arvor-local-ci-run-" + receipt["run_id"]
         if not github_marker.exists():
-            response = request("POST", "https://api.github.com/repos/" + REPO + "/statuses/" + receipt["sha"], token,
-                               {"state": state, "context": CONTEXT,
-                                "description": "Local CI " + state + "; human review still required",
-                                "target_url": url})
-            if response.get("state") != state:
-                raise ValueError("GitHub status publication not acknowledged")
-            with github_marker.open("x", encoding="utf-8") as marker:
-                marker.write(state + "\n")
-            github_marker.chmod(0o600)
+            # Commit-status POST has no idempotency key. Reconcile its unique
+            # target URL before retrying an ambiguous response.
+            existing = request("GET", status_url, token)
+            if not isinstance(existing, list):
+                raise ValueError("GitHub status history unavailable for deduplication")
+            matching = [x for x in existing if x.get("context") == CONTEXT
+                        and x.get("target_url") == target_url]
+            if matching:
+                if matching[0].get("state") != state:
+                    raise ValueError("Prior GitHub status conflicts with this attestation")
+                with github_marker.open("x", encoding="utf-8") as marker:
+                    marker.write(state + "\n")
+                github_marker.chmod(0o600)
+            else:
+                verify_remote(receipt, token, request)  # immediately before POST
+                response = request("POST", status_url, token,
+                                   {"state": state, "context": CONTEXT,
+                                    "description": "Local CI " + state + "; human review still required",
+                                    "target_url": target_url})
+                if response.get("state") != state:
+                    raise ValueError("GitHub status publication not acknowledged")
+                with github_marker.open("x", encoding="utf-8") as marker:
+                    marker.write(state + "\n")
+                github_marker.chmod(0o600)
         if not slack_marker.exists():
+            if slack_pending.exists() and not confirm_slack_not_delivered:
+                raise ValueError("Slack delivery outcome is ambiguous; confirm non-delivery before retry")
+            if not slack_pending.exists():
+                with slack_pending.open("x", encoding="utf-8") as marker:
+                    marker.write("delivery attempt started\n")
+                    marker.flush()
+                    os.fsync(marker.fileno())
+                slack_pending.chmod(0o600)
+            verify_remote(receipt, token, request)
             message = ("Arvor CI locale " + ("OK" if state == "success" else "KO") +
                        " | run " + receipt["run_id"] + " | PR #" + str(receipt["pr"]) +
                        " | SHA " + receipt["sha"] +
@@ -102,6 +154,7 @@ def publish(envelope, key, key_id, token, slack_url, sent_dir, *, request=http_j
             with slack_marker.open("x", encoding="utf-8") as marker:
                 marker.write("notified\n")
             slack_marker.chmod(0o600)
+            slack_pending.unlink()
     return state
 
 
@@ -110,18 +163,38 @@ def main():
     p.add_argument("--attestation", required=True, type=Path)
     p.add_argument("--public-key", required=True, type=Path)
     p.add_argument("--key-id", required=True)
+    p.add_argument("--trusted-controller", required=True, type=Path)
+    p.add_argument("--controller-sha", required=True)
+    p.add_argument("--image-id", required=True)
+    p.add_argument("--policy-sha256", required=True)
     p.add_argument("--sent-dir", type=Path, default=Path.home() / ".local/state/arvor-local-ci")
+    p.add_argument("--confirm-slack-not-delivered", action="store_true",
+                   help="Retry an ambiguous webhook only after independently confirming it was not delivered")
     p.add_argument("--publish", action="store_true", help="External network write, explicitly opt-in")
     a = p.parse_args()
     try:
         evidence = json.loads(a.attestation.read_text(encoding="utf-8"))
         public = a.public_key.read_bytes()
-        receipt, state = prepare(evidence, public, a.key_id)
+        trusted = a.trusted_controller.resolve(strict=True)
+        if (not Path(__file__).resolve().is_relative_to(trusted)
+                or git(trusted, "rev-parse", "HEAD") != a.controller_sha
+                or git(trusted, "status", "--porcelain")
+                or policy_digest(trusted) != a.policy_sha256):
+            raise ValueError("Publisher is not running from the pinned clean trust controller")
+        receipt, state = prepare(
+            evidence, public, a.key_id, controller_sha=a.controller_sha,
+            expected_policy_sha256=a.policy_sha256, expected_image_id=a.image_id,
+        )
         if not a.publish:
             print(json.dumps({"mode": "dry-run", "status": state, "sha": receipt["sha"]}))
             return 0 if state == "success" else 1
-        state = publish(evidence, public, a.key_id, os.environ.get("ARVOR_GITHUB_STATUS_TOKEN"),
-                        os.environ.get("ARVOR_SLACK_WEBHOOK_URL"), a.sent_dir)
+        state = publish(
+            evidence, public, a.key_id, os.environ.get("ARVOR_GITHUB_STATUS_TOKEN"),
+            os.environ.get("ARVOR_SLACK_WEBHOOK_URL"), a.sent_dir,
+            controller_sha=a.controller_sha, expected_policy_sha256=a.policy_sha256,
+            expected_image_id=a.image_id,
+            confirm_slack_not_delivered=a.confirm_slack_not_delivered,
+        )
         print(json.dumps({"mode": "published", "status": state, "sha": receipt["sha"]}))
         return 0 if state == "success" else 1
     except (OSError, ValueError, TypeError, KeyError, TimeoutError) as exc:
