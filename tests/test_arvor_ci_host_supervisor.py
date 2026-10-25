@@ -79,6 +79,46 @@ class HostSupervisorTests(unittest.TestCase):
                         run=fake_docker_inspect(inspect_payload(**modification)),
                     )
 
+    def test_docker_inspection_rejects_hidden_escape_paths(self):
+        for modification in ("host_pid", "host_ipc", "added_capability",
+                             "device", "port_binding", "seccomp_unconfined",
+                             "extra_volume", "foreign_tmpfs"):
+            with self.subTest(modification=modification):
+                inspected = inspect_payload()
+                host = inspected[0]["HostConfig"]
+                if modification == "host_pid":
+                    host["PidMode"] = "host"
+                elif modification == "host_ipc":
+                    host["IpcMode"] = "host"
+                elif modification == "added_capability":
+                    host["CapAdd"] = ["SYS_ADMIN"]
+                elif modification == "device":
+                    host["Devices"] = [{"PathOnHost": "/dev/kvm"}]
+                elif modification == "port_binding":
+                    host["PortBindings"] = {"5432/tcp": [{"HostPort": "5432"}]}
+                elif modification == "seccomp_unconfined":
+                    host["SecurityOpt"].append("seccomp=unconfined")
+                else:
+                    inspected[0]["Mounts"].append({
+                        "Type": "volume" if modification == "extra_volume" else "tmpfs",
+                        "Destination": "/hidden", "RW": True,
+                    })
+                with self.assertRaisesRegex(ValueError, "Docker|mount|volume"):
+                    s.inspect_isolation(
+                        CID, Path("/candidate"), Path("/trusted"), IMAGE,
+                        run=fake_docker_inspect(inspected),
+                    )
+
+    def test_inspection_accepts_only_approved_tmpfs_paths(self):
+        inspected = inspect_payload()
+        inspected[0]["Mounts"].append({
+            "Type": "tmpfs", "Destination": "/tmp", "RW": True,
+        })
+        self.assertTrue(s.inspect_isolation(
+            CID, Path("/candidate"), Path("/trusted"), IMAGE,
+            run=fake_docker_inspect(inspected),
+        ))
+
     def test_docker_inspection_rejects_privileged_container(self):
         inspected = inspect_payload()
         inspected[0]["HostConfig"]["Privileged"] = True
