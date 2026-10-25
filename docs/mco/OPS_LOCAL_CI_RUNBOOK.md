@@ -1,5 +1,21 @@
 # Arvor — CI locale OpenCode : runbook
 
+## 25 octobre 2026 — Refus de privilèges et volumes Docker inattendus
+
+Le superviseur de la PR #215 contrôle maintenant en plus des restrictions existantes :
+capabilities ajoutées, périphériques exposés, ports publiés, espaces PID/IPC
+de l'hôte, options `seccomp=unconfined`/`apparmor=unconfined` et tout
+volume ou montage étranger aux deux binds en lecture seule et aux trois
+`tmpfs` prévus. Toute divergence retourne un échec bloquant avant les gates.
+
+Validation de développement hors PC : syntaxe Python et dix cas isolés de
+`inspect_isolation` réussis. Les deux nouveaux tests de régression sont
+committés mais **la suite complète et la vérification de Docker inspect
+sur WSL restent à exécuter au SHA final**. Ce durcissement ne certifie
+ni la provenance indépendante ni la signature, ne publie aucun statut,
+ne fusionne aucune PR et ne livre rien sur le PC.
+
+
 ## 24 octobre 2026 — Qualification WSL reproductible, sans fusion ni livraison
 
 Le script `scripts/qualify_arvor_ci_wsl.sh` regroupe la recette du contrôleur
