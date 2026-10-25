@@ -13,6 +13,14 @@ from pathlib import Path
 import sys
 import unittest
 
+# Freeze the framework entry points before importing candidate test modules.
+# Test modules are executable candidate code and can mutate attributes on the
+# shared ``unittest`` module during discovery. Looking up TextTestRunner after
+# discovery lets such a module replace the runner with a fake green result.
+_TRUSTED_TEST_SUITE = unittest.TestSuite
+_TRUSTED_TEST_LOADER = unittest.TestLoader
+_TRUSTED_TEXT_TEST_RUNNER = unittest.TextTestRunner
+
 
 def run_suite(root: Path, suite_name: str):
     if os.environ.get("ARVOR_CI_ISOLATED") != "1":
@@ -25,7 +33,12 @@ def run_suite(root: Path, suite_name: str):
     # Preserve the standard library runner and reporter, imported before
     # candidate code is made importable, and do not execute a candidate
     # wrapper such as scripts/run_regression.py.
-    suite = unittest.TestSuite()
+    suite = _TRUSTED_TEST_SUITE()
+    # Construct before discovery imports candidate modules. Also keep the
+    # bound method, so replacing unittest.TextTestRunner or its class method
+    # during discovery cannot replace the execution/reporting operation.
+    test_runner = _TRUSTED_TEXT_TEST_RUNNER(verbosity=2, stream=sys.stderr)
+    execute_suite = test_runner.run
     targets = (
         (("tests", "test_*.py"), ("pilotage", "test_*.py"))
         if suite_name == "regression" else
@@ -33,11 +46,11 @@ def run_suite(root: Path, suite_name: str):
     )
     for directory, pattern in targets:
         if (root / directory).is_dir():
-            suite.addTests(unittest.TestLoader().discover(
+            suite.addTests(_TRUSTED_TEST_LOADER().discover(
                 str(root / directory), pattern=pattern))
     # Keep candidate stdout separate from the one authoritative JSON result.
     with redirect_stdout(sys.stderr):
-        result = unittest.TextTestRunner(verbosity=2, stream=sys.stderr).run(suite)
+        result = execute_suite(suite)
     summary = {
         "tests": result.testsRun,
         "failures": len(result.failures),

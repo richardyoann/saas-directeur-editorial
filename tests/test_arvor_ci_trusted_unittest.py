@@ -61,6 +61,29 @@ class TrustedCollectorTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(json.loads(stdout)["skipped"], 1)
 
+    def test_candidate_cannot_replace_text_test_runner_to_forge_green_result(self):
+        source = (
+            "import unittest\n"
+            "class FakeResult:\n"
+            "    testsRun = 400\n"
+            "    failures = []\n"
+            "    errors = []\n"
+            "    skipped = []\n"
+            "    def wasSuccessful(self): return True\n"
+            "class FakeRunner:\n"
+            "    def __init__(self, *a, **kw): pass\n"
+            "    def run(self, suite): return FakeResult()\n"
+            "unittest.TextTestRunner = FakeRunner\n"
+            "class Fails(unittest.TestCase):\n"
+            "    def test_failure_must_execute(self): self.fail('must fail')\n"
+        )
+        code, stdout, stderr = self._run("regression", source)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(stdout), {
+            "tests": 1, "failures": 1, "errors": 0, "skipped": 0,
+        })
+        self.assertIn("must fail", stderr)
+
     def test_missing_isolation_marker_fails_closed(self):
         with patch.dict(os.environ, {"ARVOR_CI_ISOLATED": "0"}):
             with self.assertRaisesRegex(ValueError, "Isolated CI"):
