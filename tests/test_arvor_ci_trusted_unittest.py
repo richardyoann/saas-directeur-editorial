@@ -83,6 +83,17 @@ class TrustedCollectorTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(json.loads(stdout)["skipped"], 1)
 
+    def test_class_level_skip_blocks_without_executing_candidate_method(self):
+        source = (
+            "import unittest\n"
+            "@unittest.skip('class disabled')\n"
+            "class Skipped(unittest.TestCase):\n"
+            "    def test_a(self): pass\n"
+        )
+        code, stdout, _ = self._run("browser", source)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(stdout)["skipped"], 1)
+
     def test_candidate_cannot_replace_text_test_runner_to_forge_green_result(self):
         source = (
             "import unittest\n"
@@ -179,6 +190,24 @@ class TrustedCollectorTests(unittest.TestCase):
             "tests": 1, "failures": 1, "errors": 0, "skipped": 0,
         })
         self.assertIn("runtime result spoof must fail", stderr)
+
+    def test_candidate_cannot_patch_text_result_from_subtest_to_hide_failure(self):
+        source = (
+            "import unittest\n"
+            "class Fails(unittest.TestCase):\n"
+            "    def test_subtest_failure_must_be_reported(self):\n"
+            "        with self.subTest('hostile subtest'):\n"
+            "            result = self._outcome.result\n"
+            "            result.testsRun = 400\n"
+            "            unittest.runner.TextTestResult.addSubTest = lambda *args: None\n"
+            "            self.fail('subtest result spoof must fail')\n"
+        )
+        code, stdout, stderr = self._run("regression", source)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(stdout), {
+            "tests": 1, "failures": 1, "errors": 0, "skipped": 0,
+        })
+        self.assertIn("subtest result spoof must fail", stderr)
 
     def test_missing_isolation_marker_fails_closed(self):
         with patch.dict(os.environ, {"ARVOR_CI_ISOLATED": "0"}):

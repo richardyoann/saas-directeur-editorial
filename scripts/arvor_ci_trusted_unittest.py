@@ -7,6 +7,7 @@ still execute as untrusted code inside the isolated Docker container.
 """
 import argparse
 from contextlib import redirect_stdout
+from contextlib import contextmanager
 import inspect
 import json
 import os
@@ -97,6 +98,17 @@ def run_suite(root: Path, suite_name: str):
 
             case = self._case
             method_name = getattr(case, "_testMethodName", "")
+            expected_failure = (
+                getattr(case.__class__, "__unittest_expecting_failure__", False)
+                or getattr(getattr(case, method_name, None),
+                           "__unittest_expecting_failure__", False)
+            )
+            expected_skip = (
+                getattr(case.__class__, "__unittest_skip__", False)
+                or getattr(getattr(case, method_name, None), "__unittest_skip__", False)
+            )
+            if expected_skip:
+                observed["skipped"] += 1
             callbacks = ["setUp", method_name, "tearDown", "asyncSetUp", "asyncTearDown"]
             originals = {}
 
@@ -123,12 +135,10 @@ def run_suite(root: Path, suite_name: str):
 
             def record(error):
                 if isinstance(error, _TRUSTED_SKIP_TEST):
-                    observed["skipped"] += 1
+                    if not expected_skip:
+                        observed["skipped"] += 1
                 elif isinstance(error, _TRUSTED_ASSERTION_ERROR):
-                    expected = (getattr(case.__class__, "__unittest_expecting_failure__", False)
-                                or getattr(getattr(case, method_name, None),
-                                           "__unittest_expecting_failure__", False))
-                    if not expected:
+                    if not expected_failure:
                         observed["failures"] += 1
                 else:
                     observed["errors"] += 1
@@ -138,6 +148,21 @@ def run_suite(root: Path, suite_name: str):
                 if callable(callback):
                     originals[name] = callback
                     setattr(case, name, wrap_callback(callback))
+            original_subtest = case.subTest
+
+            @contextmanager
+            def trusted_subtest(*args, **kwargs):
+                with original_subtest(*args, **kwargs) as subtest:
+                    try:
+                        yield subtest
+                    except BaseException as error:
+                        record(error)
+                        raise
+                    finally:
+                        restore_result_methods(result)
+
+            originals["subTest"] = original_subtest
+            setattr(case, "subTest", trusted_subtest)
             try:
                 return _TRUSTED_TEST_CASE_RUN(case, result)
             finally:
