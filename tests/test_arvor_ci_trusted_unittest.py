@@ -24,6 +24,12 @@ class TrustedCollectorTests(unittest.TestCase):
             (target / (module + ".py")).write_text(source, encoding="utf-8")
             previous_cwd = Path.cwd()
             previous_sys_path = sys.path[:]
+            original_runner = unittest.TextTestRunner
+            original_suite_call = unittest.TestSuite.__call__
+            original_case_methods = {
+                name: value for name, value in unittest.TestCase.__dict__.items()
+                if callable(value)
+            }
             stdout, stderr = StringIO(), StringIO()
             try:
                 with patch.dict(os.environ, {"ARVOR_CI_ISOLATED": "1"}):
@@ -33,6 +39,10 @@ class TrustedCollectorTests(unittest.TestCase):
                 os.chdir(previous_cwd)
                 sys.path[:] = previous_sys_path
                 sys.modules.pop(module, None)
+                unittest.TextTestRunner = original_runner
+                unittest.TestSuite.__call__ = original_suite_call
+                for name, method in original_case_methods.items():
+                    setattr(unittest.TestCase, name, method)
             return code, stdout.getvalue(), stderr.getvalue()
 
     def test_candidate_forged_stdout_is_not_authoritative(self):
@@ -83,6 +93,44 @@ class TrustedCollectorTests(unittest.TestCase):
             "tests": 1, "failures": 1, "errors": 0, "skipped": 0,
         })
         self.assertIn("must fail", stderr)
+
+    def test_candidate_cannot_replace_test_suite_call_to_forge_green_result(self):
+        source = (
+            "import unittest\n"
+            "class FakeResult:\n"
+            "    testsRun = 400\n"
+            "    failures = []\n"
+            "    errors = []\n"
+            "    skipped = []\n"
+            "    def wasSuccessful(self): return True\n"
+            "def fake_call(self, result): return FakeResult()\n"
+            "unittest.TestSuite.__call__ = fake_call\n"
+            "class Fails(unittest.TestCase):\n"
+            "    def test_failure_must_execute(self): self.fail('suite call must fail')\n"
+        )
+        code, stdout, stderr = self._run("regression", source)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(stdout), {
+            "tests": 1, "failures": 1, "errors": 0, "skipped": 0,
+        })
+        self.assertIn("suite call must fail", stderr)
+
+    def test_candidate_cannot_replace_case_dispatch_or_run_to_skip_test_method(self):
+        source = (
+            "import unittest\n"
+            "def fake_call(self, result): return result\n"
+            "def fake_run(self, result=None): return result\n"
+            "unittest.TestCase.__call__ = fake_call\n"
+            "unittest.TestCase.run = fake_run\n"
+            "class Fails(unittest.TestCase):\n"
+            "    def test_failure_must_execute(self): self.fail('case dispatch must fail')\n"
+        )
+        code, stdout, stderr = self._run("regression", source)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(stdout), {
+            "tests": 1, "failures": 1, "errors": 0, "skipped": 0,
+        })
+        self.assertIn("case dispatch must fail", stderr)
 
     def test_missing_isolation_marker_fails_closed(self):
         with patch.dict(os.environ, {"ARVOR_CI_ISOLATED": "0"}):

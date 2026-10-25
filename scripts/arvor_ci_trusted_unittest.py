@@ -20,6 +20,15 @@ import unittest
 _TRUSTED_TEST_SUITE = unittest.TestSuite
 _TRUSTED_TEST_LOADER = unittest.TestLoader
 _TRUSTED_TEXT_TEST_RUNNER = unittest.TextTestRunner
+_TRUSTED_SUITE_RUN = unittest.TestSuite.run
+_TRUSTED_SUITE_COUNT = unittest.TestSuite.countTestCases
+_TRUSTED_SUITE_ITER = unittest.TestSuite.__iter__
+_TRUSTED_TEST_CASE = unittest.TestCase
+_TRUSTED_TEST_CASE_RUN = unittest.TestCase.run
+_TRUSTED_TEST_CASE_METHODS = {
+    name: value for name, value in unittest.TestCase.__dict__.items()
+    if callable(value)
+}
 
 
 def run_suite(root: Path, suite_name: str):
@@ -39,6 +48,35 @@ def run_suite(root: Path, suite_name: str):
     # during discovery cannot replace the execution/reporting operation.
     test_runner = _TRUSTED_TEXT_TEST_RUNNER(verbosity=2, stream=sys.stderr)
     execute_suite = test_runner.run
+
+    class TrustedCaseProxy:
+        """Keep candidate changes to unittest dispatch from skipping a case."""
+        def __init__(self, case):
+            self._case = case
+
+        @property
+        def __class__(self):
+            # unittest uses this for class/module fixtures and display.
+            return self._case.__class__
+
+        def __getattr__(self, name):
+            return getattr(self._case, name)
+
+        def __call__(self, result):
+            # A test module can patch unittest.TestCase methods during import.
+            # Restore the framework's captured callable methods before each
+            # invocation and call the captured base runner, bypassing a
+            # candidate-overridden TestCase.__call__ or TestCase.run.
+            for name, method in _TRUSTED_TEST_CASE_METHODS.items():
+                setattr(_TRUSTED_TEST_CASE, name, method)
+            return _TRUSTED_TEST_CASE_RUN(self._case, result)
+
+    def flatten_tests(node):
+        if isinstance(node, _TRUSTED_TEST_SUITE):
+            for child in _TRUSTED_SUITE_ITER(node):
+                yield from flatten_tests(child)
+        else:
+            yield TrustedCaseProxy(node)
     targets = (
         (("tests", "test_*.py"), ("pilotage", "test_*.py"))
         if suite_name == "regression" else
@@ -50,7 +88,26 @@ def run_suite(root: Path, suite_name: str):
                 str(root / directory), pattern=pattern))
     # Keep candidate stdout separate from the one authoritative JSON result.
     with redirect_stdout(sys.stderr):
-        result = execute_suite(suite)
+        # unittest.TextTestRunner invokes ``suite(result)``, resolving the
+        # special method on the candidate-mutable TestSuite class. Give it a
+        # local proxy whose call delegates to the saved stdlib suite runner.
+        # This prevents a test module replacing TestSuite.__call__ during
+        # discovery from returning a fabricated successful result.
+        class TrustedSuiteProxy:
+            def __init__(self, wrapped):
+                self._wrapped = wrapped
+
+            def __call__(self, result):
+                return _TRUSTED_SUITE_RUN(self._wrapped, result)
+
+            def countTestCases(self):
+                return _TRUSTED_SUITE_COUNT(self._wrapped)
+
+            def __iter__(self):
+                return _TRUSTED_SUITE_ITER(self._wrapped)
+
+        flat_suite = _TRUSTED_TEST_SUITE(flatten_tests(suite))
+        result = execute_suite(TrustedSuiteProxy(flat_suite))
     summary = {
         "tests": result.testsRun,
         "failures": len(result.failures),
