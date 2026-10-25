@@ -7,6 +7,7 @@ still execute as untrusted code inside the isolated Docker container.
 """
 import argparse
 from contextlib import redirect_stdout
+import inspect
 import json
 import os
 from pathlib import Path
@@ -38,6 +39,8 @@ _TRUSTED_TEST_CASE_METHODS = {
     name: value for name, value in unittest.TestCase.__dict__.items()
     if callable(value)
 }
+_TRUSTED_SKIP_TEST = unittest.SkipTest
+_TRUSTED_ASSERTION_ERROR = unittest.TestCase.failureException
 
 
 def run_suite(root: Path, suite_name: str):
@@ -57,6 +60,15 @@ def run_suite(root: Path, suite_name: str):
     # during discovery cannot replace the execution/reporting operation.
     test_runner = _TRUSTED_TEXT_TEST_RUNNER(verbosity=2, stream=sys.stderr)
     execute_suite = test_runner.run
+    observed = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+
+    def restore_result_methods(result):
+        for name, method in _TRUSTED_TEXT_TEST_RESULT_METHODS.items():
+            setattr(_TRUSTED_TEXT_TEST_RESULT, name, method)
+        # Keep instance dispatch pinned too; the test object can reach the
+        # result through unittest's private _Outcome member.
+        for name, method in _TRUSTED_TEXT_TEST_RESULT_METHODS.items():
+            setattr(result, name, method.__get__(result, _TRUSTED_TEXT_TEST_RESULT))
 
     class TrustedCaseProxy:
         """Keep candidate changes to unittest dispatch from skipping a case."""
@@ -80,7 +92,58 @@ def run_suite(root: Path, suite_name: str):
                 setattr(_TRUSTED_TEST_CASE, name, method)
             for name, method in _TRUSTED_TEXT_TEST_RESULT_METHODS.items():
                 setattr(_TRUSTED_TEXT_TEST_RESULT, name, method)
-            return _TRUSTED_TEST_CASE_RUN(self._case, result)
+            observed["tests"] += 1
+            restore_result_methods(result)
+
+            case = self._case
+            method_name = getattr(case, "_testMethodName", "")
+            callbacks = ["setUp", method_name, "tearDown", "asyncSetUp", "asyncTearDown"]
+            originals = {}
+
+            def wrap_callback(callback):
+                if inspect.iscoroutinefunction(callback):
+                    async def wrapped(*args, **kwargs):
+                        try:
+                            return await callback(*args, **kwargs)
+                        except BaseException as error:
+                            record(error)
+                            raise
+                        finally:
+                            restore_result_methods(result)
+                else:
+                    def wrapped(*args, **kwargs):
+                        try:
+                            return callback(*args, **kwargs)
+                        except BaseException as error:
+                            record(error)
+                            raise
+                        finally:
+                            restore_result_methods(result)
+                return wrapped
+
+            def record(error):
+                if isinstance(error, _TRUSTED_SKIP_TEST):
+                    observed["skipped"] += 1
+                elif isinstance(error, _TRUSTED_ASSERTION_ERROR):
+                    expected = (getattr(case.__class__, "__unittest_expecting_failure__", False)
+                                or getattr(getattr(case, method_name, None),
+                                           "__unittest_expecting_failure__", False))
+                    if not expected:
+                        observed["failures"] += 1
+                else:
+                    observed["errors"] += 1
+
+            for name in callbacks:
+                callback = getattr(case, name, None)
+                if callable(callback):
+                    originals[name] = callback
+                    setattr(case, name, wrap_callback(callback))
+            try:
+                return _TRUSTED_TEST_CASE_RUN(case, result)
+            finally:
+                for name, callback in originals.items():
+                    setattr(case, name, callback)
+                restore_result_methods(result)
 
     def flatten_tests(node):
         if isinstance(node, _TRUSTED_TEST_SUITE):
@@ -123,14 +186,11 @@ def run_suite(root: Path, suite_name: str):
         for name, method in _TRUSTED_TEXT_TEST_RESULT_METHODS.items():
             setattr(_TRUSTED_TEXT_TEST_RESULT, name, method)
         result = execute_suite(TrustedSuiteProxy(flat_suite))
-    summary = {
-        "tests": result.testsRun,
-        "failures": len(result.failures),
-        "errors": len(result.errors),
-        "skipped": len(result.skipped),
-    }
+    summary = observed
     print(json.dumps(summary, sort_keys=True), flush=True)
-    return 0 if result.wasSuccessful() and result.testsRun > 0 and not result.skipped else 1
+    return 0 if summary["tests"] > 0 and not any(
+        summary[k] for k in ("failures", "errors", "skipped")
+    ) else 1
 
 
 def main():

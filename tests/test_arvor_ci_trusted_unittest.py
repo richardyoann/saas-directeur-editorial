@@ -161,6 +161,25 @@ class TrustedCollectorTests(unittest.TestCase):
         })
         self.assertIn("result spoof must fail", stderr)
 
+    def test_candidate_cannot_patch_text_result_during_test_to_hide_failure(self):
+        source = (
+            "import unittest\n"
+            "class Fails(unittest.TestCase):\n"
+            "    def test_failure_must_be_reported(self):\n"
+            "        result = self._outcome.result\n"
+            "        result.testsRun = 400\n"
+            "        result.addFailure = lambda *args: None\n"
+            "        unittest.runner.TextTestResult.addFailure = lambda *args: None\n"
+            "        unittest.runner.TextTestResult.addError = lambda *args: None\n"
+            "        self.fail('runtime result spoof must fail')\n"
+        )
+        code, stdout, stderr = self._run("regression", source)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(stdout), {
+            "tests": 1, "failures": 1, "errors": 0, "skipped": 0,
+        })
+        self.assertIn("runtime result spoof must fail", stderr)
+
     def test_missing_isolation_marker_fails_closed(self):
         with patch.dict(os.environ, {"ARVOR_CI_ISOLATED": "0"}):
             with self.assertRaisesRegex(ValueError, "Isolated CI"):
