@@ -1,0 +1,68 @@
+{
+  "mission": "ARVOR-MEDIA-S3-INTEGRATION",
+  "implementation_sha": "a299050f784c9d418f6e7721ccd9a8d964717520",
+  "portable_test_fix_sha": "28aee7d2aedfcc9045ac284be50066985432a112",
+  "results": {
+    "regression_python_3_14": {
+      "tests": 287,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0
+    },
+    "regression_python_3_12": {
+      "tests": 287,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0
+    },
+    "pip_audit": {
+      "resolved_dependencies": 27,
+      "known_vulnerabilities": 0
+    },
+    "real_adapter": [
+      "https_ca",
+      "put",
+      "get",
+      "sha256",
+      "delete_denied"
+    ],
+    "docker": [
+      "build",
+      "nonroot_readonly_smoke",
+      "real_https_ca_preflight"
+    ],
+    "opencode": "blocked_local_qwen_unreachable",
+    "qualified_pr215_pipeline": "not_run_separate_unmerged_controller"
+  },
+  "artifacts": {
+    "regression314": {
+      "local_artifact": "/tmp/arvor-s3-regression.log",
+      "sha256": "cd30f5fe27865a692f046f2a4bc6d2267eaff4daac31b51ce5be07e9b9fff827"
+    },
+    "regression312": {
+      "local_artifact": "/tmp/arvor-s3-regression312.log",
+      "sha256": "0c6013ef533d7f178e7f6405ebdedbd3771262e27d5079253a69f2177e392a33"
+    },
+    "audit": {
+      "local_artifact": "/tmp/arvor-s3-audit.json",
+      "sha256": "8403b013c244e54ec309f570feda977efaaee0234998d1967af9bcf6a7a55eb7"
+    },
+    "gitleaks": {
+      "local_artifact": "/tmp/arvor-s3-gitleaks.log",
+      "sha256": "30e2c1aacbbaa2ec4d5fee3674aeb967c264d3bce14b478a91d7276fc261515c"
+    },
+    "real_minio": {
+      "local_artifact": "/tmp/arvor-s3-real.json",
+      "sha256": "8ae6476fe204f7b2fec602bc26862a08e3940889d705884c62af30b42df4ac15"
+    },
+    "docker_real": {
+      "local_artifact": "/tmp/arvor-s3-docker-real.log",
+      "sha256": "ac143a0b7048bd5334897d7afc5b32c0abfe62797bf694b9296b694ddd960dff"
+    },
+    "opencode": {
+      "local_artifact": "/tmp/arvor-s3-opencode-content.log",
+      "sha256": "c7c25ef135b606995103505e26da1611585b75d637c984f63fc304ea00211f1e"
+    }
+  },
+  "deployment": "not_authorized_not_performed"
+}
