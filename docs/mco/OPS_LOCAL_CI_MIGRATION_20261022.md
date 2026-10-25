@@ -71,8 +71,12 @@ politique/runbook local CI. Cette PR #215 est une PR de contrôle : elle doit
 métier distinct (notamment #214), avec une nouvelle recette WSL au SHA final.
 Aucune auto-approbation ni assouplissement du garde n'est accepté.
 
-État exact : tests unitaires de développement présents dans le diff; recette
-WSL/Docker exacte-SHA, signature Ed25519, publication GitHub/Slack et revue
-finale restent à faire. Les 74 tests et 16 gates de la recette du 25/10 se
-rapportent au contrôleur `7c73cd…` et au candidat #214 `a4f885…`; ils ne
-qualifient pas cette mise à jour du contrôleur.
+État au commit contrôleur `989a202f30e4525efff737ebcf55c197973c41d8` : 77 tests
+contrôleur ciblés passent et l'image auditée fraîche est construite. La recette
+exacte-SHA s'arrête avant les gates avec `CONTROL_PLANE_REVIEW_REQUIRED`, car
+#214 modifie le workflow vidéo protégé. Aucun contournement, signature,
+publication ou notification n'a été effectué. Le reçu historique des 16 gates
+(`7c73cd…` contrôlant `a4f885…`) ne prouve pas la provenance indépendante. Voir
+le résultat et les identifiants complets dans `OPS_LOCAL_CI_RUNBOOK.md`.
+Revue finale, qualification distincte, checks GitHub démarrés et vérification
+des règles de fusion restent bloquants.

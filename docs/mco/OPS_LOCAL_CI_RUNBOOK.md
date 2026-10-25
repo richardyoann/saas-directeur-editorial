@@ -537,12 +537,28 @@ indépendante de l'absence du message. L'environnement
 `ARVOR_LOCAL_CI_FULL_PARITY_APPROVED` reste une barrière opérationnelle
 supplémentaire et ne vaut jamais preuve de provenance.
 
-**État à la date de cette note : code et tests unitaires en cours de revue dans
-#215 ; aucune nouvelle recette Docker/WSL, aucune signature, aucun statut
-GitHub et aucune notification Slack n'ont encore validé son SHA final.** La
-recette WSL précédente liée à #214 avec contrôleur `7c73cd…` et reçu
-`41048767-…` est historique : elle ne prouve pas ce code modifié ni une nouvelle
-exécution exacte-SHA. Le contrôle `CONTROL_PLANE_REVIEW_REQUIRED`, une revue
-séparée, les checks requis et le statut GitHub effectif restent des conditions
-avant toute fusion. L'absence d'accès aux règles de protection du dépôt privé
-ne prouve pas qu'aucun contrôle n'est requis.
+### Résultat de qualification de la PR #215 — 25 octobre 2026
+
+Contrôleur poussé : `989a202f30e4525efff737ebcf55c197973c41d8`.
+Les 77 tests contrôleur ciblés sont passés. Une nouvelle image a été construite
+avec audit frais `ARVOR_AUDIT_STATUS=OK`, ID
+`sha256:8d5e19c954ed9bc62bee9e513ba848d693731c3196c294afa5b3d4b7b6c297f8`.
+La recette a ensuite bloqué avant les gates parce que le candidat #214
+`a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9` modifie
+`.github/workflows/video-75-acceptance.yml`, protégé par
+`CONTROL_PLANE_REVIEW_REQUIRED`. Aucun gate n'a été exécuté dans cette
+tentative et aucun reçu de succès n'a été produit. Ne pas contourner ce refus.
+
+Le reçu antérieur `41048767-a9a1-4df0-a774-bc9873f93719` a le SHA256 attendu
+`277200b87f939eb222d8f4e93f8a635cac9f6b98774fbf0b460cbeab7723a6c8` et ses
+16 journaux concordent avec leurs empreintes. Il reste historique : il cible
+#214 avec le contrôleur `7c73cdcd6bb6b2ceb748833db3905f984e017e69` et son
+champ de provenance indépendante est `false`.
+
+Les six checks GitHub observés sur `7c73cd…` ont été refusés avant démarrage
+pour incident de facturation/limite de dépense; ils ne constituent pas des
+résultats de tests. L'API de protection/rulesets est inaccessible pour ce dépôt
+privé avec le plan actuel, donc les exigences de fusion n'ont pas pu être
+établies. Pas de signature Ed25519, statut `arvor/local-ci-attested`, message
+Slack, passage en ready ou fusion tant que la recette séparée, la revue finale
+et les contrôles de fusion ne sont pas effectifs.
