@@ -27,7 +27,7 @@ services:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: editorial-minio
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    command: server /data --console-address ":9001" --certs-dir /data/.tls
     environment:
       MINIO_ROOT_USER_FILE: /run/secrets/arvor_minio_root_user
       MINIO_ROOT_PASSWORD_FILE: /run/secrets/arvor_minio_root_password
@@ -37,6 +37,62 @@ services:
       - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
+
+  api:
+    profiles: [api]
+    build: .
+    user: "${ARVOR_API_UID:-1000}:${ARVOR_API_GID:-1000}"
+    # Preserve the certificate's 127.0.0.1 SAN on native Linux/WSL Docker.
+    # Docker Desktop requires host networking explicitly enabled.
+    network_mode: host
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    pids_limit: 128
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    environment:
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://127.0.0.1:8081}
+      EDITORIAL_MEDIA_BACKEND: ${EDITORIAL_MEDIA_BACKEND:-filesystem}
+      EDITORIAL_API_TOKEN_FILE: /run/arvor/editorial_api_token
+      EDITORIAL_WEB_PASSWORD_FILE: /run/arvor/editorial_web_password
+      EDITORIAL_TENANT_ID_FILE: /run/arvor/editorial_tenant_id
+      EDITORIAL_ACTOR_ID_FILE: /run/arvor/editorial_actor_id
+      PO_DATABASE_URL_FILE: /run/arvor/po_database_url
+      MEDIA_S3_ENDPOINT: ${MEDIA_S3_ENDPOINT:-https://127.0.0.1:9000}
+      MEDIA_S3_BUCKET: ${MEDIA_S3_BUCKET:-editorial-artifacts}
+      MEDIA_S3_ACCESS_KEY: ""
+      MEDIA_S3_SECRET_KEY: ""
+      MEDIA_S3_ACCESS_KEY_FILE: /run/secrets/media_s3_access_key
+      MEDIA_S3_SECRET_KEY_FILE: /run/secrets/media_s3_secret_key
+      AWS_CA_BUNDLE: /run/certs/minio-ca.crt
+      EDITORIAL_MEDIA_ROOT: /app/media
+    volumes:
+      - type: bind
+        source: ${ARVOR_API_SECRETS_DIR:-/nonexistent/arvor/api-secrets}
+        target: /run/arvor
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${MEDIA_S3_ACCESS_KEY_FILE:-/nonexistent/arvor/media_s3_access_key}
+        target: /run/secrets/media_s3_access_key
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${MEDIA_S3_SECRET_KEY_FILE:-/nonexistent/arvor/media_s3_secret_key}
+        target: /run/secrets/media_s3_secret_key
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${AWS_CA_BUNDLE:-/nonexistent/arvor/ca.crt}
+        target: /run/certs/minio-ca.crt
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${ARVOR_API_MEDIA_DIR:-/nonexistent/arvor/media}
+        target: /app/media
+        bind: {create_host_path: false}
 
 secrets:
   arvor_postgres_password:

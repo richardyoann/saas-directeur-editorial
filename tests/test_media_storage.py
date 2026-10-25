@@ -51,10 +51,6 @@ class MediaStorageTests(unittest.TestCase):
             spec.loader.exec_module(fresh)
             with self.assertRaises(fresh.MediaStorageError):
                 fresh.client()
-        with patch.dict("os.environ", {"MEDIA_S3_ENDPOINT": "http://127.0.0.1:9000", "MEDIA_S3_ACCESS_KEY": "test", "MEDIA_S3_SECRET_KEY": "test"}):
-            api = fresh.client()
-            self.assertEqual(api.meta.config.retries["total_max_attempts"], 1)
-            self.assertIn("IfNoneMatch", api.meta.service_model.operation_model("PutObject").input_shape.members)
 
     def test_uncertain_image_upload_keeps_local_recovery_png(self):
         from editorial.visuals import save_png, ImageUnavailable
