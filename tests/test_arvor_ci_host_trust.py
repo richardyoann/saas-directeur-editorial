@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -102,8 +103,25 @@ class HostTrustTests(unittest.TestCase):
         candidate_signer = self.root / "candidate" / "scripts" / "arvor_ci_attestation.py"
         candidate_signer.parent.mkdir(parents=True)
         candidate_signer.write_text("# candidate signer", encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, "Signer must execute from pinned host controller"):
+        with self.assertRaisesRegex(ValueError, "pinned controller attestation entrypoint"):
             trustmod.verify_host_signer(actual, candidate_signer)
+
+    def test_signer_must_be_exact_tracked_entrypoint_not_ignored_child(self):
+        actual = trustmod.load_host_trust(self.path)
+        controller = Path(actual["controller_path"])
+        (controller / "scripts").mkdir(parents=True)
+        (controller / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(controller), "init", "-q"], check=True)
+        tracked = controller / "scripts/arvor_ci_attestation.py"
+        tracked.write_text("# tracked signer", encoding="utf-8")
+        subprocess.run(["git", "-C", str(controller), "add", "scripts/arvor_ci_attestation.py"],
+                       check=True)
+        self.assertEqual(trustmod.verify_host_signer(actual, tracked), tracked)
+        ignored = controller / "__pycache__/evil_signer.py"
+        ignored.parent.mkdir()
+        ignored.write_text("# ignored signer", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "pinned controller attestation entrypoint"):
+            trustmod.verify_host_signer(actual, ignored)
 
 
 if __name__ == "__main__":

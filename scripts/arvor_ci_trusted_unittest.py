@@ -119,6 +119,17 @@ def run_suite(root: Path, suite_name: str):
                 print("Rejected TestCase with candidate attribute lookup override",
                       file=sys.stderr)
                 return None
+            dispatch_overrides = {
+                cls: tuple(name for name in _TRUSTED_CASE_DISPATCH
+                           if name in cls.__dict__)
+                for cls in type(case).__mro__
+                if cls is not _TRUSTED_TEST_CASE and cls is not object
+            }
+            if any(dispatch_overrides.values()):
+                observed["errors"] += 1
+                print("Rejected TestCase with candidate dispatch override or descriptor",
+                      file=sys.stderr)
+                return None
             method_name = getattr(case, "_testMethodName", "")
             expected_failure = (
                 getattr(case.__class__, "__unittest_expecting_failure__", False)
@@ -129,6 +140,11 @@ def run_suite(root: Path, suite_name: str):
                 getattr(case.__class__, "__unittest_skip__", False)
                 or getattr(getattr(case, method_name, None), "__unittest_skip__", False)
             )
+            if expected_failure:
+                observed["failures"] += 1
+                print("Rejected expectedFailure test; expected failures cannot pass a gate",
+                      file=sys.stderr)
+                return None
             if expected_skip:
                 observed["skipped"] += 1
             callbacks = ["setUp", method_name, "tearDown", "asyncSetUp", "asyncTearDown"]
@@ -185,8 +201,9 @@ def run_suite(root: Path, suite_name: str):
                     if not expected_skip:
                         observed["skipped"] += 1
                 elif isinstance(error, _TRUSTED_ASSERTION_ERROR):
-                    if not expected_failure:
-                        observed["failures"] += 1
+                    # Expected failures are not successful gates. The local
+                    # policy requires every discovered assertion to pass.
+                    observed["failures"] += 1
                 else:
                     observed["errors"] += 1
 

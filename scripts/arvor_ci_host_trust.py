@@ -118,9 +118,19 @@ def verify_host_controller(trust, controller_path):
 
 
 def verify_host_signer(trust, signer_path):
-    signer = Path(signer_path).resolve(strict=True)
+    supplied = Path(signer_path)
     controller = Path(trust["controller_path"])
-    if not signer.is_relative_to(controller):
-        raise ValueError("Signer must execute from pinned host controller")
+    expected = controller / "scripts/arvor_ci_attestation.py"
+    if supplied.is_symlink() or supplied.resolve(strict=True) != expected:
+        raise ValueError("Signer must be the pinned controller attestation entrypoint")
+    tracked = subprocess.run(
+        ["git", "-C", str(controller), "ls-files", "--error-unmatch",
+         "--", "scripts/arvor_ci_attestation.py"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        timeout=20, check=False,
+    )
+    if tracked.returncode != 0 or not expected.is_file():
+        raise ValueError("Pinned signer must be a tracked regular controller file")
+    signer = supplied.resolve(strict=True)
     return signer
 
