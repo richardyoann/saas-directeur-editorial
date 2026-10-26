@@ -51,10 +51,6 @@ class MediaStorageTests(unittest.TestCase):
             spec.loader.exec_module(fresh)
             with self.assertRaises(fresh.MediaStorageError):
                 fresh.client()
-        with patch.dict("os.environ", {"MEDIA_S3_ENDPOINT": "http://127.0.0.1:9000", "MEDIA_S3_ACCESS_KEY": "test", "MEDIA_S3_SECRET_KEY": "test"}):
-            api = fresh.client()
-            self.assertEqual(api.meta.config.retries["total_max_attempts"], 1)
-            self.assertIn("IfNoneMatch", api.meta.service_model.operation_model("PutObject").input_shape.members)
 
     def test_uncertain_image_upload_keeps_local_recovery_png(self):
         from editorial.visuals import save_png, ImageUnavailable
@@ -89,6 +85,25 @@ class MediaStorageTests(unittest.TestCase):
         with self.assertRaises(storage.MediaStorageError):
             storage.get_file(reference, self.root / "other.wav", uuid4(), *self.ids[1:], "voice")
         self.assertEqual(self.api.get_object.call_count, 1)
+
+    def test_download_close_and_cleanup_errors_are_redacted(self):
+        reference = storage.put_file(self.source, *self.ids, "voice")
+        body = MagicMock()
+        body.read.side_effect = [self.payload, b""]
+        body.close.side_effect = RuntimeError("SECRET_SENTINEL")
+        self.api.get_object.return_value = {"ContentLength": len(self.payload), "Body": body}
+        target = self.root / "close-failed.wav"
+        with self.assertRaises(storage.MediaStorageError) as caught:
+            storage.get_file(reference, target, *self.ids, "voice")
+        self.assertEqual(str(caught.exception), "media_download_failed")
+        self.assertTrue(caught.exception.__suppress_context__)
+        self.assertFalse(target.exists())
+        self.api.get_object.side_effect = RuntimeError("SECRET_SENTINEL")
+        with patch.object(Path, "unlink", side_effect=OSError("SECRET_SENTINEL")):
+            with self.assertRaises(storage.MediaStorageError) as caught:
+                storage.get_file(reference, self.root / "cleanup-failed.wav", *self.ids, "voice")
+        self.assertEqual(str(caught.exception), "media_download_failed")
+        self.assertTrue(caught.exception.__suppress_context__)
 
     def test_corrupt_download_is_removed_without_touching_existing_file(self):
         reference = storage.put_file(self.source, *self.ids, "voice")

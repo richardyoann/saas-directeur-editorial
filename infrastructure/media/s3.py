@@ -4,6 +4,8 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import ssl
+from urllib.parse import urlsplit
 from uuid import UUID
 from editorial.runtime_secrets import secret
 
@@ -29,17 +31,31 @@ def client():
     from botocore.config import Config
     from editorial.media_rules import private_image_url
     endpoint = os.getenv("MEDIA_S3_ENDPOINT", "")
-    access, secret_key = secret("MEDIA_S3_ACCESS_KEY"), secret("MEDIA_S3_SECRET_KEY")
-    if not private_image_url(endpoint) or not access or not secret_key:
-        raise MediaStorageError("media_configuration_invalid")
-    return boto3.client("s3", endpoint_url=endpoint,
-                        aws_access_key_id=access, aws_secret_access_key=secret_key,
-                        region_name="us-east-1",
-                        config=Config(signature_version="s3v4", connect_timeout=5,
-                                      read_timeout=120, retries={"total_max_attempts": 1},
-                                      request_checksum_calculation="when_required",
-                                      response_checksum_validation="when_required",
-                                      proxies={}, s3={"addressing_style": "path"}))
+    # Files only: never fall back to administrator/AWS environment credentials.
+    ca = os.getenv("AWS_CA_BUNDLE", "")
+    try:
+        if (not private_image_url(endpoint) or urlsplit(endpoint).scheme != "https"
+                or not ca or not Path(ca).is_absolute() or not Path(ca).is_file()
+                or not os.getenv("MEDIA_S3_ACCESS_KEY_FILE")
+                or not os.getenv("MEDIA_S3_SECRET_KEY_FILE")
+                or os.getenv("MEDIA_S3_ACCESS_KEY") or os.getenv("MEDIA_S3_SECRET_KEY")):
+            raise ValueError()
+        # Validate the PEM before any network request; never pass verify=False.
+        ssl.create_default_context(cafile=ca)
+        access = secret("MEDIA_S3_ACCESS_KEY")
+        secret_key = secret("MEDIA_S3_SECRET_KEY")
+        if not access or not secret_key:
+            raise ValueError()
+        return boto3.client("s3", endpoint_url=endpoint, verify=ca,
+                            aws_access_key_id=access, aws_secret_access_key=secret_key,
+                            region_name="us-east-1",
+                            config=Config(signature_version="s3v4", connect_timeout=5,
+                                          read_timeout=120, retries={"total_max_attempts": 1},
+                                          request_checksum_calculation="when_required",
+                                          response_checksum_validation="when_required",
+                                          proxies={}, s3={"addressing_style": "path"}))
+    except Exception:
+        raise MediaStorageError("media_configuration_invalid") from None
 
 
 def bucket():
@@ -127,10 +143,21 @@ def get_file(reference, destination, tenant, run_id, asset_id, kind, max_bytes=M
         if size != reference["size"] or sha.hexdigest() != reference["sha256"]:
             raise MediaStorageError("media_integrity_invalid")
     except Exception:
-        stream.close()
-        destination.unlink(missing_ok=True)
+        # Cleanup failures must not expose SDK/OS details or mask our fixed code.
+        for cleanup in (stream.close, lambda: destination.unlink(missing_ok=True)):
+            try:
+                cleanup()
+            except Exception:
+                pass
         raise MediaStorageError("media_download_failed") from None
     finally:
         if body is not None:
-            body.close()
+            try:
+                body.close()
+            except Exception:
+                try:
+                    destination.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                raise MediaStorageError("media_download_failed") from None
     return destination

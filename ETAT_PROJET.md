@@ -1,5 +1,13 @@
 # État du projet
 
+## ARVOR-MEDIA-S3-INTEGRATION — 25 octobre 2026
+
+Adaptateur S3 durci HTTPS/CA/fichiers applicatifs, image API non privilégiée et
+profil Compose préparés. Tests réels MinIO et 287 tests sous Python 3.12/3.14
+réussis. OpenCode local bloqué par Qwen inaccessible ; aucune attestation complète.
+Aucun déploiement, volume modifié ni migration. PR draft indépendante de 214/215.
+Voir [passation](docs/PASSATION_MEDIA_S3.md) et [PRD](docs/PRD_MEDIA_S3.md).
+
 ## MEDIA-004 — stockage MinIO, 16 octobre 2026
 
 Backend optionnel pour nouvelles images, références JSONB avec audit/outbox,
