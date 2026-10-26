@@ -143,10 +143,21 @@ def get_file(reference, destination, tenant, run_id, asset_id, kind, max_bytes=M
         if size != reference["size"] or sha.hexdigest() != reference["sha256"]:
             raise MediaStorageError("media_integrity_invalid")
     except Exception:
-        stream.close()
-        destination.unlink(missing_ok=True)
+        # Cleanup failures must not expose SDK/OS details or mask our fixed code.
+        for cleanup in (stream.close, lambda: destination.unlink(missing_ok=True)):
+            try:
+                cleanup()
+            except Exception:
+                pass
         raise MediaStorageError("media_download_failed") from None
     finally:
         if body is not None:
-            body.close()
+            try:
+                body.close()
+            except Exception:
+                try:
+                    destination.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                raise MediaStorageError("media_download_failed") from None
     return destination
