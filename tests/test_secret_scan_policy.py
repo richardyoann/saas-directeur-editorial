@@ -16,12 +16,15 @@ class SecretScanPolicyTests(unittest.TestCase):
                      "GITLEAKS_ENABLE_SUMMARY"):
             self.assertIn(name + ": 'false'", scan)
 
-    def test_critical_secret_scan_is_monitored(self):
+    def test_critical_secret_scan_has_manual_monitor_without_paid_cascade(self):
         repo = Path(__file__).resolve().parents[1]
         watch = (repo / "scripts" / "ci_annotation_watch.py").read_text()
         triggers = (repo / ".github" / "workflows" / "ci-annotations.yml").read_text()
         self.assertIn('"Secret exposure scan"', watch)
-        self.assertIn("      - Secret exposure scan", triggers)
+        events = triggers.split("permissions:", 1)[0]
+        self.assertIn("workflow_dispatch:", events)
+        for automatic in ("workflow_run:", "schedule:", "pull_request:", "push:"):
+            self.assertNotIn(automatic, events)
 
 
 if __name__ == "__main__":
