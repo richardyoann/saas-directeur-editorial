@@ -133,4 +133,3 @@ def verify_host_signer(trust, signer_path):
         raise ValueError("Pinned signer must be a tracked regular controller file")
     signer = supplied.resolve(strict=True)
     return signer
-
