@@ -161,4 +161,3 @@ avec voix WAV facultative et dossier reproductible :
 [guide MEDIA-003](docs/MEDIA_003_EPISODE_EXPORT.md).
 Prérequis supplémentaire : FFmpeg et ffprobe dans Ubuntu 26.04 ; aucune
 installation automatique sur le PC.
-
