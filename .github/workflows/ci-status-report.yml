@@ -1,11 +1,7 @@
 name: Automated CI triage and release evidence
+# Local attested CI is authoritative; hosted execution is explicit opt-in only.
 on:
-  workflow_run:
-    workflows:
-      - Full regression
-      - Dependency security audit
-      - Studio browser journeys
-    types: [completed]
+  workflow_dispatch:
 permissions:
   contents: read
   actions: read

@@ -156,3 +156,12 @@ brouillon. Les six checks GitHub constatés sont refusés avant démarrage pour 
 facturation. Le seul collaborateur visible est l'auteur; aucune revue
 indépendante n'est enregistrée. Aucun workflow n'a été désactivé et aucun statut
 local publié. Cette note ne valide donc pas la bascule.
+
+## Décision stratégique du 26 octobre 2026 — politique de référence
+
+L'utilisateur autorise la finalisation et fusion autonomes des deux PR après
+contrôles réels et revue indépendante. Voir OPS_LOCAL_CI_FINALIZATION_20261026.md
+pour le PRD qualité, la passation et le registre de décision actuel. Les anciens
+constats de migration non activée restent historiques. La bascule ne sera effective
+qu'après fusion vérifiée de #215. Le plan privé GitHub ne fournit pas de protection
+native : statut informatif, procédure de fusion signée obligatoire, limite déclarée.

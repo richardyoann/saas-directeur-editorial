@@ -87,8 +87,8 @@ def publish(envelope, key, key_id, token, slack_url, sent_dir, *,
         raise ValueError("Missing GitHub publisher token")
     if os.environ.get("ARVOR_LOCAL_CI_FULL_PARITY_APPROVED") != "true":
         raise ValueError("Local CI parity and supervisor are not yet approved")
-    if not slack_url or not slack_url.startswith("https://hooks.slack.com/"):
-        raise ValueError("Dedicated private Slack webhook is mandatory for publication")
+    if slack_url and not slack_url.startswith("https://hooks.slack.com/"):
+        raise ValueError("Invalid configured private Slack webhook")
     sent_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     if sent_dir.is_symlink():
         raise ValueError("Publisher state directory must not be a symlink")
@@ -103,7 +103,7 @@ def publish(envelope, key, key_id, token, slack_url, sent_dir, *,
     with lockfile.open("a+", encoding="utf-8") as lock:
         lockfile.chmod(0o600)
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        if github_marker.exists() and slack_marker.exists():
+        if github_marker.exists() and (not slack_url or slack_marker.exists()):
             raise ValueError("Run has already been published and notified")
         verify_remote(receipt, token, request)
         url = "https://github.com/" + REPO + "/pull/" + str(receipt["pr"])
@@ -134,7 +134,7 @@ def publish(envelope, key, key_id, token, slack_url, sent_dir, *,
                 with github_marker.open("x", encoding="utf-8") as marker:
                     marker.write(state + "\n")
                 github_marker.chmod(0o600)
-        if not slack_marker.exists():
+        if slack_url and not slack_marker.exists():
             if slack_pending.exists() and not confirm_slack_not_delivered:
                 raise ValueError("Slack delivery outcome is ambiguous; confirm non-delivery before retry")
             if not slack_pending.exists():

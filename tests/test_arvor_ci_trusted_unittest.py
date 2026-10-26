@@ -209,6 +209,19 @@ class TrustedCollectorTests(unittest.TestCase):
         })
         self.assertIn("subtest result spoof must fail", stderr)
 
+    def test_cleanup_and_fixture_errors_fail_closed(self):
+        sources = [
+            "import unittest\nclass Case(unittest.TestCase):\n    def test_ok(self):\n        self.addCleanup(lambda: (_ for _ in ()).throw(ValueError('cleanup error')))\n",
+            "import unittest\ndef setUpModule(): raise ValueError('module fixture error')\nclass Case(unittest.TestCase):\n    def test_ok(self): pass\n",
+            "import unittest\nclass Case(unittest.TestCase):\n    @classmethod\n    def tearDownClass(cls): raise ValueError('class fixture error')\n    def test_ok(self): pass\n",
+        ]
+        for source in sources:
+            with self.subTest(source=source):
+                code, stdout, stderr = self._run("regression", source)
+                self.assertEqual(code, 1)
+                self.assertGreater(json.loads(stdout)["errors"], 0)
+                self.assertIn("FAILED", stderr)
+
     def test_missing_isolation_marker_fails_closed(self):
         with patch.dict(os.environ, {"ARVOR_CI_ISOLATED": "0"}):
             with self.assertRaisesRegex(ValueError, "Isolated CI"):

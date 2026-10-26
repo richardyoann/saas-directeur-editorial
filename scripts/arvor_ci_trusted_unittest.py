@@ -211,7 +211,13 @@ def run_suite(root: Path, suite_name: str):
         for name, method in _TRUSTED_TEXT_TEST_RESULT_METHODS.items():
             setattr(_TRUSTED_TEXT_TEST_RESULT, name, method)
         result = execute_suite(TrustedSuiteProxy(flat_suite))
-    summary = observed
+    # The framework also reports module/class fixtures and cleanup callbacks,
+    # which are outside individual test methods. Preserve observed runtime
+    # failures while refusing a framework failure absent from those counters.
+    summary = dict(observed)
+    summary["failures"] = max(summary["failures"], len(result.failures) + len(result.unexpectedSuccesses))
+    summary["errors"] = max(summary["errors"], len(result.errors))
+    summary["skipped"] = max(summary["skipped"], len(result.skipped))
     print(json.dumps(summary, sort_keys=True), flush=True)
     return 0 if summary["tests"] > 0 and not any(
         summary[k] for k in ("failures", "errors", "skipped")

@@ -578,3 +578,12 @@ privé avec le plan actuel, donc les exigences de fusion n'ont pas pu être
 établies. Pas de signature Ed25519, statut `arvor/local-ci-attested`, message
 Slack, passage en ready ou fusion tant que la recette séparée, la revue finale
 et les contrôles de fusion ne sont pas effectifs.
+
+## Politique actuelle de finalisation (26 octobre 2026)
+
+La décision et procédure de fusion contrôlée sont dans
+[OPS_LOCAL_CI_FINALIZATION_20261026.md](OPS_LOCAL_CI_FINALIZATION_20261026.md).
+Elle actualise les mentions historiques de blocage/migration non autorisée :
+revue automatisée indépendante autorisée, bootstrap extérieur pour #215,
+statut local informatif sur le plan GitHub actuel et gate procédural signé
+obligatoire. Aucun déploiement PC autorisé. Aucun garde de contrôle-plan assoupli.

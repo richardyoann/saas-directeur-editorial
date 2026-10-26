@@ -68,6 +68,40 @@ class LocalCITests(unittest.TestCase):
         self.assertEqual(pub.prepare(e, self.public, "k1", controller_sha=CONTROLLER_SHA,
             expected_policy_sha256=POLICY_SHA, expected_image_id=IMAGE_ID)[1], "success")
 
+    def test_signing_cli_writes_private_verifiable_attestation(self):
+        import json
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("candidate", "controller", "policy", "evidence"):
+                (root / name).mkdir()
+            private = root / "signing.pem"
+            private.write_bytes(self.private)
+            private.chmod(0o600)
+            output = root / "signed.json"
+            report = receipt()
+            verified = provenance(report)
+            argv = ["signer", "sign", "--input", str(root / "receipt.json"),
+                    "--key", str(private), "--key-id", "k1", "--output", str(output),
+                    "--evidence-dir", str(root / "evidence"),
+                    "--checkout", str(root / "candidate"),
+                    "--trusted-controller", str(root / "controller"),
+                    "--trusted-policy", str(root / "policy"),
+                    "--host-observation", str(root / "observation.json"),
+                    "--controller-sha", CONTROLLER_SHA, "--image-id", IMAGE_ID,
+                    "--policy-sha256", POLICY_SHA, "--sha", SHA,
+                    "--base-sha", BASE, "--pr", "215"]
+            with patch("sys.argv", argv), patch(
+                    "scripts.arvor_ci_evidence_verify.verify_receipt",
+                    return_value=({"independent_execution_provenance_verified": True}, report, verified)):
+                private.chmod(0o644)
+                with self.assertRaisesRegex(ValueError, "0600"):
+                    attest.main()
+                self.assertFalse(output.exists())
+                private.chmod(0o600)
+                attest.main()
+            self.assertEqual(output.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(attest.verify(json.loads(output.read_text()), self.public, "k1"), report)
+
     def test_payload_tampering(self):
         e = self.signed()
         e["evidence"]["sha"] = "d" * 40
@@ -172,6 +206,21 @@ class LocalCITests(unittest.TestCase):
                     expected_image_id=IMAGE_ID, request=fake)
         self.assertEqual(calls, ["GET", "GET", "GET", "POST", "GET", "POST"])
 
+
+    def test_github_publish_without_unconfigured_slack(self):
+        calls = []
+        def request(method, url, token=None, payload=None):
+            calls.append((method, url))
+            if '/pulls/' in url:
+                return {"state": "open", "head": {"sha": SHA, "repo": {"full_name": pub.REPO}},
+                        "base": {"sha": BASE, "ref": "main"}}
+            return [] if method == "GET" else {"state": "success"}
+        with TemporaryDirectory() as directory, patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}):
+            result = pub.publish(self.signed(), self.public, "k1", "synthetic", None, Path(directory),
+                controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
+                expected_image_id=IMAGE_ID, request=request)
+        self.assertEqual(result, "success")
+        self.assertFalse(any('slack.com' in url for _, url in calls))
 
     def test_remote_head_change_between_preflight_and_status_post_blocks_publish(self):
         pr_reads = 0

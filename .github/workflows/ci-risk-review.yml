@@ -1,7 +1,6 @@
 name: Automated PR risk review
+# Local attested CI is authoritative; hosted execution is explicit opt-in only.
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

@@ -3,6 +3,8 @@ import argparse
 import base64
 from datetime import datetime, timedelta
 import json
+import os
+import stat
 from pathlib import Path
 import re
 from uuid import UUID
