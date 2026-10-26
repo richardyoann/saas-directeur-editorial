@@ -36,6 +36,8 @@ _TRUSTED_SUITE_COUNT = unittest.TestSuite.countTestCases
 _TRUSTED_SUITE_ITER = unittest.TestSuite.__iter__
 _TRUSTED_TEST_CASE = unittest.TestCase
 _TRUSTED_TEST_CASE_RUN = unittest.TestCase.run
+_TRUSTED_ASYNC_TEST_CASE = unittest.IsolatedAsyncioTestCase
+_TRUSTED_ASYNC_TEST_CASE_RUN = unittest.IsolatedAsyncioTestCase.run
 _TRUSTED_TEST_CASE_METHODS = {
     name: value for name, value in unittest.TestCase.__dict__.items()
     if callable(value)
@@ -164,7 +166,8 @@ def run_suite(root: Path, suite_name: str):
             originals["subTest"] = original_subtest
             setattr(case, "subTest", trusted_subtest)
             try:
-                return _TRUSTED_TEST_CASE_RUN(case, result)
+                return (_TRUSTED_ASYNC_TEST_CASE_RUN if isinstance(case, _TRUSTED_ASYNC_TEST_CASE)
+                        else _TRUSTED_TEST_CASE_RUN)(case, result)
             finally:
                 for name, callback in originals.items():
                     setattr(case, name, callback)

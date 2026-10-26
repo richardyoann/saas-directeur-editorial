@@ -222,6 +222,16 @@ class TrustedCollectorTests(unittest.TestCase):
                 self.assertGreater(json.loads(stdout)["errors"], 0)
                 self.assertIn("FAILED", stderr)
 
+    def test_isolated_async_cases_initialize_event_loop(self):
+        source = ("import unittest\nimport asyncio\n"
+                  "class AsyncCase(unittest.IsolatedAsyncioTestCase):\n"
+                  "    async def asyncSetUp(self): await asyncio.sleep(0)\n"
+                  "    async def test_async(self): await asyncio.sleep(0)\n"
+                  "    async def asyncTearDown(self): await asyncio.sleep(0)\n")
+        code, stdout, stderr = self._run("regression", source)
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(json.loads(stdout), {"tests": 1, "errors": 0, "failures": 0, "skipped": 0})
+
     def test_missing_isolation_marker_fails_closed(self):
         with patch.dict(os.environ, {"ARVOR_CI_ISOLATED": "0"}):
             with self.assertRaisesRegex(ValueError, "Isolated CI"):
