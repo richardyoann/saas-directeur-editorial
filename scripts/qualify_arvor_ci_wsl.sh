@@ -112,7 +112,7 @@ policy_sha256=$("$python" -c 'from scripts.arvor_ci_trust import policy_digest; 
   --trusted-controller "$controller" --trusted-policy "$trusted" \
   --controller-sha "$controller_sha" \
   --image-id "$image_id" --policy-sha256 "$policy_sha256" \
-  --sha "$candidate_sha" --base-sha "$base_sha" --pr 214 \
+  --sha "$candidate_sha" --base-sha "$base_sha" --pr "$pr_number" \
   || fail "integrite des preuves KO"
 
 printf 'ARVOR_CI_LOCAL_GATES_AND_LOG_INTEGRITY_PASS\n'

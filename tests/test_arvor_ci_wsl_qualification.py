@@ -74,7 +74,7 @@ class WslQualificationScriptTests(unittest.TestCase):
             "      shift\n"
             "    done\n"
             "    exit 89;;\n"
-            "  scripts.arvor_ci_evidence_verify) exit 0;;\n"
+            "  scripts.arvor_ci_evidence_verify) printf '%s\\n' \"$@\" > \"$ARVOR_CI_LAB_DIR/verifier-args.txt\"; exit 0;;\n"
             "  *) exit 90;;\n"
             "esac\n", encoding="utf-8")
         python.chmod(0o755)
@@ -146,6 +146,8 @@ class WslQualificationScriptTests(unittest.TestCase):
             self.assertEqual(len(list(trusted[0].iterdir())), 6)
             self.assertEqual(len(list(evidence[0].glob("*.json"))), 1)
             self.assertIn("Provenance host independante verifiee", proc.stdout)
+            args = (lab / "verifier-args.txt").read_text().splitlines()
+            self.assertEqual(args[args.index("--pr") + 1], "318")
 
     def test_dirty_candidate_blocks_before_image_build(self):
         with tempfile.TemporaryDirectory() as temp:
