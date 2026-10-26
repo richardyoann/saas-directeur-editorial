@@ -1,0 +1,53 @@
+# ARCH-MEDIA-01 — Découplage des règles média
+
+Date : 18 octobre 2026. Base : `1aeddcb8e496510034a272484f9bde955fd11fb0`.
+Branche : `fix/ARCH-MEDIA-01-decouplage-media`. Candidat de revue ; contrôles locaux complétés, CI GitHub encore bloquée. Aucun déploiement ni acceptation métier.
+
+## Changement
+
+Avant : `visuals → media_storage → visuals` (imports différés).
+Après : `visuals → media_storage → media_rules` et `visuals → media_rules`.
+
+Le module `editorial/media_rules.py` contient uniquement bibliothèque standard, constantes, exceptions et fonctions pures : personnages, prompt, provenance, validation PNG et politique d’URL privée. Les sept définitions déplacées ont une AST identique à la base. Le module `visuals` réexporte les mêmes objets pour préserver les signatures et imports publics historiques. `media_storage.client` utilise la règle neutre au lieu de réimporter visuals. Transport, stockage, routes, transactions et worker restent dans leurs modules actuels.
+
+Un module plat suffit pour cette première PR ; la structure en package du plan cible sera introduite si nécessaire pour les ports/service. Aucun package d’infrastructure ou service applicatif anticipé ici.
+
+## Validation locale initiale
+
+Python système 3.14. Aucun paquet installé.
+
+- RED : le nouveau module absent provoque ImportError avant extraction.
+- Caractérisation avant extraction : 5 tests comportementaux réussis contre les définitions initiales isolées par AST (ce contrôle ne remplace pas une intégration runtime).
+- `python3 -m unittest discover -s tests -p test_media_rules.py -v` : 7 tests réussis, 0 échec, 0 erreur, 0 skip.
+- Test historique ajouté à VisualContractTests : identité des réexports et exceptions ; exécution bloquée localement par httpx absent.
+- `python3 scripts/run_regression.py` : 120 tests découverts, 91 réussis, 1 échec, 28 erreurs, 0 skip ; exit 1. Les imports manquants empêchent la découverte de nombreuses classes : ce nombre n’est pas la taille réelle de la suite complète.
+- Même régression sur une archive isolée de la base : 113 tests, 84 réussis, 1 échec, 28 erreurs, 0 skip ; exit 1. Les 7 réussites supplémentaires correspondent aux nouveaux tests purs. L’échec de CLI préflight vient de httpx absent ; les erreurs sont des dépendances absentes (FastAPI/HTTPX/Pydantic/dotenv/psycopg/boto3).
+- `python3 -m compileall -q editorial` et `git diff --check` : réussis.
+- Comparaison AST des 7 fonctions/classes déplacées : identiques à la base.
+- `graphify update .` : réussi ; graphe et sauvegardes préexistants conservés. Parseur SQL absent ; aucune installation effectuée.
+
+Les tests PostgreSQL, parcours Studio, concurrence/audit/outbox et panne DB ne sont pas validés dans cet environnement. Aucun service dédié de test configuré et aucune base métier utilisée. L’autorisation d’installer requirements.txt dans un venv isolé a été demandée ; une absence de réponse ne vaut pas autorisation. La CI existante de PR utilise PostgreSQL jetable et doit fournir les preuves au SHA candidat.
+
+## Risques, compatibilité et reprise
+
+Les corps des fonctions, valeurs des constantes, paramètres image, exceptions, limites PNG/URL et contenu des reçus sont conservés. Pas de validation CRC supplémentaire introduite dans cette extraction. Les écritures métier/audit/outbox, IDs, verrouillage, récupération et refus des retries ambigus ne sont pas modifiés. Le nom de module Python des objets déplacés change ; les imports historiques restent compatibles, mais aucune compatibilité de pickle interversion n’est revendiquée (aucun usage identifié dans le périmètre).
+
+Aucune dépendance, variable d’environnement, commande d’installation, unité systemd, workflow ou migration ne change. La release PC active n’est pas inspectée ni modifiée ; compatibilité de configuration attendue, recette PC non exécutée. Tout futur déploiement exige validation du SHA exact. Reprise : revenir au code précédent sans toucher médias ou données.
+
+Revue de contenu : aucun secret ajouté ; fixtures PNG et textes de test synthétiques uniquement. AGENTS.md, le plan non suivi et les autres artefacts préexistants restent exclus du commit de PR1. Les sorties graphify locales sont rafraîchies sans suppression des documents existants.
+
+PR2 reste suspendue jusqu’à validation technique de PR1 et remise du rapport de revue. Aucune fusion automatique.
+
+## PR brouillon et contrôle distant
+
+PR [#208](https://github.com/richardyoann/saas-directeur-editorial/pull/208), titre « refactor(ARCH-MEDIA-01): découpler les règles média partagées ». Commit applicatif : d3fb3294352e1ce2ddfb99ce5de147d10c08d5a1. Le run Full regression #39124843757 échoue avant toute étape ; l’annotation GitHub du job 3.14 confirme un blocage de facturation/limite de dépenses. Aucune régression PostgreSQL ou navigateur validée. Voir [la fiche MCO](../mco/INCIDENT_2026-10-18_CI_PR208.md).
+
+Le main distant a avancé jusqu’à d08fe0afe62f0ea209da239aeade0bd5f042d30d. GitHub indique la PR fusionnable ; les modifications distantes de runtime_secrets dans media_storage ne sont pas remplacées par ce diff. Cela ne remplace pas la validation du résultat combiné avec main. Pas de fusion, rebase ou changement des checkouts préexistants.
+
+Les corrections documentaires suivantes ne modifient pas les règles extraites ; les contrôles locaux sont relancés sur l’arbre final avant commit. Leur preuve ne vaut pas CI réussie au nouveau SHA. Nouvelle exécution CI requise après résolution du blocage administratif. Prochaine étape : autoriser l’installation locale isolée et/ou rétablir Actions, puis exécuter tous les tests sur le candidat exact. PR2 non engagée.
+
+## Validation locale complétée — 18 octobre 2026
+
+Le venv QA isolé et les installations de test ont été autorisés. Sur Ubuntu 26.04/Python 3.14, le candidat 39f2444 donne 263 tests historiques réussis sans erreur ni skip, dont les tests PostgreSQL, concurrence, panne après stockage, isolation tenant, audit/outbox et identité des réexports. Les 12 parcours Studio dans Chrome portable réussissent également sur fixture API simulée. La copie temporaire du main d08fe0a avec les changements de code/tests de PR1 donne 292 réussites sans skip. Aucun changement applicatif supplémentaire nécessaire pour obtenir ces résultats.
+
+Les paragraphes précédents décrivent les tentatives historiques avec environnement incomplet. Le blocage de facturation CI reste ouvert : les réussites locales ne donnent pas le droit de fusionner ou déployer. Voir [les commandes, préconditions et limites reproductibles](ARCH_MEDIA_01_LOCAL_QA.md). Le dossier local est complété ; la preuve terminale au SHA documentaire final est consignée dans la PR. PR2 non engagée.

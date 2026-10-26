@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, field_validator
 from apps.api.llama_provider import ProviderError, generate_text, generation_gate
 from editorial.api import create_router, get_identity
 from apps.api.studio import router as studio_router
+from production.api import create_production_router
 from editorial.worker_guard import worker_online
 from editorial.runtime_secrets import secret
 from apps.api.request_limits import RequestLimits
@@ -178,5 +179,6 @@ async def generate(
 
 # Configured private identity; tenant and actor never come from request fields.
 app.include_router(create_router(get_llm_client))
+app.include_router(create_production_router(get_llm_client))
 app.include_router(studio_router)
 

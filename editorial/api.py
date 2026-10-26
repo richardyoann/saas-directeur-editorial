@@ -1,14 +1,11 @@
 import hmac
-import hashlib
 import os
-import time
-from dataclasses import dataclass
 from uuid import UUID
 from typing import Literal
 
 import psycopg
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
@@ -18,15 +15,10 @@ from editorial.service import run_workflow
 from editorial.store import PostgresStore, RunConflict, RunMissing, ReviewInvalid
 from editorial.worker_guard import WorkerOffline
 from editorial.runtime_secrets import secret
-from editorial.visuals import ImageUnavailable, ImagePromptTooLong, image_gate, media_preflight, load_png, render_png, save_png, validate_png, private_image_url
+from editorial.media.contracts import Identity
+from apps.api.media import create_media_router
 
 security = HTTPBearer(auto_error=False)
-
-
-@dataclass(frozen=True)
-class Identity:
-    tenant: UUID
-    actor: UUID
 
 
 def get_identity(credentials: HTTPAuthorizationCredentials | None = Depends(security)):
@@ -169,148 +161,7 @@ def create_router(get_llm_client):
         except psycopg.Error:
             raise HTTPException(503, "Persistance éditoriale indisponible.") from None
 
-    @router.get("/runs/{run_id}/media")
-    async def list_media(run_id: UUID, identity: Identity = Depends(get_identity),
-                         store: PostgresStore = Depends(get_store)):
-        try:
-            return {"run_id": str(run_id),
-                    "media": await run_in_threadpool(store.list_media, identity.tenant, run_id)}
-        except RunMissing:
-            raise HTTPException(404, "Histoire introuvable.") from None
-        except psycopg.Error:
-            raise HTTPException(503, "Catalogue média indisponible.") from None
-
-    @router.get("/runs/{run_id}/visuals")
-    async def get_visuals(run_id: UUID, identity: Identity = Depends(get_identity),
-                          store: PostgresStore = Depends(get_store)):
-        try:
-            return await run_in_threadpool(store.visual_plan, identity.tenant, run_id)
-        except ImagePromptTooLong:
-            raise HTTPException(422, "Descriptions visuelles trop longues : réduisez les portraits ou la scène.") from None
-        except RunMissing:
-            raise HTTPException(404, "Histoire introuvable.") from None
-        except psycopg.Error:
-            raise HTTPException(503, "Persistance éditoriale indisponible.") from None
-
-    @router.post("/runs/{run_id}/scenes/{scene_number}/image")
-    async def generate_image(run_id: UUID, scene_number: int,
-                             identity: Identity = Depends(get_identity),
-                             store: PostgresStore = Depends(get_store),
-                             client=Depends(get_llm_client)):
-        # Images require a separate, explicitly configured provider. Qwen is
-        # text-only here. One scene is initiated by an explicit user action.
-        base = os.getenv("IMAGE_BASE_URL", "")
-        if not private_image_url(base):
-            raise HTTPException(503, "Générateur d'images privé non configuré.")
-        if not image_gate.acquire(blocking=False):
-            raise HTTPException(429, "Génération d'image occupée.",
-                                headers={"Retry-After": "30"})
-        try:
-            try:
-                plan = await run_in_threadpool(store.visual_plan, identity.tenant, run_id)
-                if not plan["approved"]:
-                    raise HTTPException(409, "Le scénario doit être approuvé avant les images.")
-                if scene_number < 1 or scene_number > len(plan["scenes"]):
-                    raise HTTPException(404, "Scène introuvable.")
-                scene = plan["scenes"][scene_number - 1]
-                # Refuse an unconfigured storage location before claiming the job.
-                await run_in_threadpool(media_preflight, identity.tenant, run_id, UUID(scene["scene_id"]))
-                scene_id, _ = await run_in_threadpool(
-                    store.begin_image, identity.tenant, identity.actor,
-                    run_id, scene_number, scene["prompt"], UUID(scene["scene_id"]))
-            except ImagePromptTooLong:
-                raise HTTPException(422, "Descriptions visuelles trop longues : réduisez les portraits ou la scène.") from None
-            except RunMissing:
-                raise HTTPException(404, "Scène introuvable.") from None
-            except RunConflict:
-                raise HTTPException(409, "Image déjà demandée ou scénario modifié.") from None
-            except ImageUnavailable:
-                raise HTTPException(503, "Stockage privé des images indisponible.") from None
-            except psycopg.Error:
-                raise HTTPException(503, "Persistance éditoriale indisponible.") from None
-
-            started = time.monotonic()
-            try:
-                png = await render_png(client, base, scene["prompt"])
-                width, height = validate_png(png)
-                saved = await run_in_threadpool(save_png, identity.tenant, run_id, scene_id, png)
-                storage = saved[0] if isinstance(saved, tuple) else None
-                try:
-                    result = await run_in_threadpool(
-                        store.finish_image, identity.tenant, identity.actor,
-                        run_id, scene_id, width=width, height=height,
-                        duration_seconds=round(time.monotonic() - started, 6),
-                        png_sha256=hashlib.sha256(png).hexdigest(), byte_count=len(png),
-                        storage=storage
-                    )
-                except (RunConflict, RunMissing, psycopg.Error):
-                    # A DB commit can succeed even if its acknowledgement is lost.
-                    # Preserve the private recovery PNG for explicit reconciliation.
-                    raise HTTPException(503, "État de l'image non confirmé : intervention requise.") from None
-                if isinstance(saved, tuple):
-                    try:
-                        await run_in_threadpool(saved[1].unlink)
-                    except OSError:
-                        # A redundant recovery file is safer than turning a
-                        # committed image into an ambiguous API failure.
-                        pass
-                return JSONResponse(result, status_code=201)
-            except ImageUnavailable as exc:
-                try:
-                    await run_in_threadpool(store.finish_image, identity.tenant,
-                                            identity.actor, run_id, scene_id,
-                                            error_code=exc.code,
-                                            duration_seconds=round(time.monotonic() - started, 6))
-                except (RunConflict, RunMissing, psycopg.Error):
-                    raise HTTPException(503, "Résultat d'image incertain : intervention requise.") from None
-                if exc.code in {"image_provider_timeout", "image_provider_response_uncertain", "image_storage_result_uncertain"}:
-                    raise HTTPException(504 if exc.code == "image_provider_timeout" else 502,
-                                        "Résultat d'image incertain : vérifiez le moteur avant toute reprise.") from None
-                raise HTTPException(502, "Génération d'image échouée, sans rejeu automatique.") from None
-        finally:
-            image_gate.release()
-
-    @router.get("/runs/{run_id}/visuals/verification")
-    async def verify_images(run_id: UUID,
-                            expected_scenes: int = Query(default=3, ge=1, le=6),
-                            identity: Identity = Depends(get_identity),
-                            store: PostgresStore = Depends(get_store)):
-        from editorial.image_verification import verify_scene, verification_report
-        try:
-            plan = await run_in_threadpool(store.visual_plan, identity.tenant, run_id)
-            counts = await run_in_threadpool(store.image_audit_counts, identity.tenant, run_id)
-            checks = []
-            for scene in plan["scenes"]:
-                png = None
-                if plan["approved"] and scene["image_status"] == "ready":
-                    try:
-                        scene_id, storage = await run_in_threadpool(store.image_asset, identity.tenant,
-                                                                    run_id, scene["scene_number"], True)
-                        png = await run_in_threadpool(load_png, identity.tenant, run_id, scene_id, storage)
-                    except ImageUnavailable:
-                        pass
-                checks.append(verify_scene(scene, png, counts.get(scene["scene_id"], 0)))
-            return verification_report(plan, checks, expected_scenes)
-        except RunMissing:
-            raise HTTPException(404, "Histoire introuvable.") from None
-        except psycopg.Error:
-            raise HTTPException(503, "Persistance éditoriale indisponible.") from None
-
-    @router.get("/runs/{run_id}/scenes/{scene_number}/image")
-    async def download_image(run_id: UUID, scene_number: int,
-                             identity: Identity = Depends(get_identity),
-                             store: PostgresStore = Depends(get_store)):
-        try:
-            scene_id, storage = await run_in_threadpool(store.image_asset, identity.tenant, run_id, scene_number, True)
-            png = await run_in_threadpool(load_png, identity.tenant, run_id, scene_id, storage)
-            return Response(png, media_type="image/png", headers={
-                "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
-                "Content-Security-Policy": "default-src 'none'"
-            })
-        except (RunMissing, ImageUnavailable):
-            raise HTTPException(404, "Image privée introuvable.") from None
-        except psycopg.Error:
-            raise HTTPException(503, "Persistance éditoriale indisponible.") from None
+    router.include_router(create_media_router(get_identity, get_store, get_llm_client))
 
     return router
 

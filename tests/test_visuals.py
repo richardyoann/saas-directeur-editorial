@@ -32,6 +32,16 @@ PNG = base64.b64decode(
 
 
 class VisualContractTests(unittest.IsolatedAsyncioTestCase):
+    async def test_shared_rules_preserve_historical_exports_and_exception_identity(self):
+        from editorial import media_rules, visuals
+        for name in ("MAX_PNG_BYTES", "PNG_MAGIC", "IMAGE_PARAMETERS", "ImageUnavailable",
+                     "ImagePromptTooLong", "characters", "image_prompt", "image_provenance",
+                     "validate_png", "private_image_url"):
+            with self.subTest(name=name):
+                self.assertIs(getattr(visuals, name), getattr(media_rules, name))
+        with self.assertRaises(visuals.ImageUnavailable):
+            media_rules.validate_png(b"invalid")
+
     async def test_optional_cast_is_schema_valid_and_old_stories_work(self):
         from editorial.models import Storyboard
         old = Storyboard.model_validate(outputs()[1])
@@ -161,7 +171,7 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
         api.put_object.return_value = {"VersionId": "v1"}
         api.head_object.return_value = {"ContentLength": len(PNG), "Metadata": {"sha256": hashlib.sha256(PNG).hexdigest()}}
         api.get_object.return_value = {"ContentLength": len(PNG), "Body": io.BytesIO(PNG)}
-        with patch.dict(os.environ, {"EDITORIAL_MEDIA_BACKEND": "minio"}), patch("editorial.media_storage.client", return_value=api), patch("editorial.media_storage.bucket", return_value="private-media"), patch("editorial.api.render_png", new_callable=AsyncMock, return_value=PNG):
+        with patch.dict(os.environ, {"EDITORIAL_MEDIA_BACKEND": "minio"}), patch("infrastructure.media.s3.client", return_value=api), patch("infrastructure.media.s3.bucket", return_value="private-media"), patch("infrastructure.images.sdcpp.render_png", new_callable=AsyncMock, return_value=PNG):
             response = await self.client.post(url, headers=self.auth)
             self.assertEqual(response.status_code, 201, response.text)
             scene_id, reference = self.store.image_asset(self.tenant, self.run_id, 1, True)
@@ -170,7 +180,7 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await self.client.get(url, headers=self.auth)).content, PNG)
             self.assertNotIn("bucket", response.text)
         # The old local backend remains the default, on another scene.
-        with patch("editorial.api.render_png", new_callable=AsyncMock, return_value=PNG):
+        with patch("infrastructure.images.sdcpp.render_png", new_callable=AsyncMock, return_value=PNG):
             local_url = f"/editorial/runs/{self.run_id}/scenes/2/image"
             self.assertEqual((await self.client.post(local_url, headers=self.auth)).status_code, 201)
             self.assertEqual((await self.client.get(local_url, headers=self.auth)).content, PNG)
@@ -206,12 +216,16 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
         await self.approve()
         base = f"/editorial/runs/{self.run_id}"
         path = base + "/scenes/1/image"
-        with patch("editorial.api.render_png", new_callable=AsyncMock, return_value=PNG) as render:
+        with patch("infrastructure.images.sdcpp.render_png", new_callable=AsyncMock, return_value=PNG) as render:
             response = await self.client.post(path, headers=self.auth)
         self.assertEqual(response.status_code, 201, response.text)
         self.assertEqual(render.await_count, 1)
         self.assertEqual(response.json()["status"], "ready")
-        self.assertEqual((await self.client.get(path, headers=self.auth)).content, PNG)
+        download = await self.client.get(path, headers=self.auth)
+        self.assertEqual(download.content, PNG)
+        self.assertEqual(download.headers['cache-control'], 'private, no-store')
+        self.assertEqual(download.headers['x-content-type-options'], 'nosniff')
+        self.assertEqual(download.headers['content-security-policy'], "default-src 'none'")
         # A browser session (not a bearer token embedded in JS) can preview it.
         self.assertEqual((await self.client.get(
             f"/studio/api/runs/{self.run_id}/scenes/1/image")).status_code, 401)
@@ -249,7 +263,7 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_image_failure_is_audited_without_autoreplay(self):
         await self.approve()
         url = f"/editorial/runs/{self.run_id}/scenes/1/image"
-        with patch("editorial.api.render_png", new_callable=AsyncMock,
+        with patch("infrastructure.images.sdcpp.render_png", new_callable=AsyncMock,
                    side_effect=ImageUnavailable()):
             response = await self.client.post(url, headers=self.auth)
         self.assertEqual(response.status_code, 502)
@@ -263,7 +277,7 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
         png = sample_scene()[1]
         await self.approve()
         base = f"/editorial/runs/{self.run_id}"
-        with patch("editorial.api.render_png", new_callable=AsyncMock, return_value=png) as render:
+        with patch("infrastructure.images.sdcpp.render_png", new_callable=AsyncMock, return_value=png) as render:
             for i in range(1, 4):
                 response = await self.client.post(base + f"/scenes/{i}/image", headers=self.auth)
                 self.assertEqual(response.status_code, 201, response.text)
@@ -294,7 +308,7 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_timeout_is_uncertain_and_does_not_repeat_provider_call(self):
         await self.approve()
         url = f"/editorial/runs/{self.run_id}/scenes/1/image"
-        with patch("editorial.api.render_png", new_callable=AsyncMock,
+        with patch("infrastructure.images.sdcpp.render_png", new_callable=AsyncMock,
                    side_effect=ImageUnavailable("image_provider_timeout")) as render:
             self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 504)
             self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 409)
@@ -308,8 +322,8 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
         import psycopg
         await self.approve()
         url = f"/editorial/runs/{self.run_id}/scenes/1/image"
-        with patch("editorial.api.render_png", new_callable=AsyncMock, return_value=PNG), \
-             patch.object(self.store, "finish_image", side_effect=psycopg.OperationalError()):
+        with patch("infrastructure.images.sdcpp.render_png", new_callable=AsyncMock, return_value=PNG), \
+             patch("infrastructure.persistence.media_repository.PostgresMediaRepository.finish_image", side_effect=psycopg.OperationalError()):
             self.assertEqual((await self.client.post(url, headers=self.auth)).status_code, 503)
         run = self.store.get(self.tenant, self.run_id)
         self.assertEqual(load_png(self.tenant, self.run_id, UUID(run["scene_ids"][0])), PNG)
@@ -324,6 +338,92 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(RunConflict):
                 self.store.begin_image(self.tenant, self.actor, self.run_id, 1, prompt, scene_id)
         self.assertEqual(self.store.visual_plan(self.tenant, self.run_id)["scenes"][0]["image_status"], "not_generated")
+
+    async def test_catalog_keeps_http_envelope_and_authentication(self):
+        base = f'/editorial/runs/{self.run_id}/media'
+        self.assertEqual((await self.client.get(base)).status_code, 401)
+        response = await self.client.get(base, headers=self.auth)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'run_id': str(self.run_id), 'media': []})
+
+    async def test_concurrent_reservations_create_one_audited_asset(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        from editorial.store import RunConflict
+        await self.approve()
+        scene = self.store.visual_plan(self.tenant, self.run_id)['scenes'][0]
+        barrier = Barrier(2)
+        def reserve():
+            barrier.wait(timeout=5)
+            try:
+                return self.store.begin_image(self.tenant, self.actor, self.run_id, 1,
+                                              scene['prompt'], UUID(scene['scene_id']))
+            except RunConflict:
+                return None
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(reserve) for _ in range(2)]
+            results = [future.result(timeout=10) for future in futures]
+        self.assertEqual(sum(result is not None for result in results), 1)
+        self.assertEqual(list(self.store.image_audit_counts(self.tenant, self.run_id).values()), [1, 0, 0])
+
+    async def test_restart_cannot_finalize_an_old_completed_reservation(self):
+        from editorial.store import RunConflict
+        await self.approve()
+        scene = self.store.visual_plan(self.tenant, self.run_id)['scenes'][0]
+        scene_id, _ = self.store.begin_image(self.tenant, self.actor, self.run_id, 1,
+                                            scene['prompt'], UUID(scene['scene_id']))
+        self.store.finish_image(self.tenant, self.actor, self.run_id, scene_id, width=1, height=1)
+        restarted = PostgresStore(self.store.database_url)
+        with self.assertRaises(RunConflict):
+            restarted.finish_image(self.tenant, self.actor, self.run_id, scene_id, width=512, height=512)
+        self.assertEqual(restarted.visual_plan(self.tenant, self.run_id)['scenes'][0]['generation']['width'], 1)
+        self.assertEqual(list(restarted.image_audit_counts(self.tenant, self.run_id).values()), [2, 0, 0])
+
+    async def test_finalization_waits_for_approval_transaction_then_rechecks(self):
+        import time
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Event
+        from psycopg.types.json import Jsonb
+        from editorial.store import RunConflict
+        await self.approve()
+        scene = self.store.visual_plan(self.tenant, self.run_id)['scenes'][0]
+        scene_id, _ = self.store.begin_image(self.tenant, self.actor, self.run_id, 1,
+                                            scene['prompt'], UUID(scene['scene_id']))
+        ready = Event()
+        pid = []
+        backend = self.store.media_repository()
+        original_connect = backend.connect
+        def connect():
+            conn = original_connect()
+            pid.append(conn.info.backend_pid)
+            ready.set()
+            return conn
+        backend.connect = connect
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with self.store.connect() as conn:
+                row = conn.execute("SELECT content FROM po_entity WHERE tenant_id=%s AND entity_id=%s FOR UPDATE",
+                                   (self.tenant, self.run_id)).fetchone()
+                future = pool.submit(backend.finish_image, self.tenant, self.actor, self.run_id,
+                                     scene_id, width=1, height=1)
+                self.assertTrue(ready.wait(timeout=5))
+                waiting = False
+                until = time.monotonic() + 3
+                while time.monotonic() < until:
+                    state = conn.execute("SELECT wait_event_type FROM pg_stat_activity WHERE pid=%s", (pid[0],)).fetchone()
+                    if state and state[0] == 'Lock':
+                        waiting = True
+                        break
+                    if future.done():
+                        break
+                    time.sleep(0.01)
+                # Snapshot content is synthetic test data; invalidate approval while holding its lock.
+                content = row[0]
+                content['status'] = 'rejected'
+                conn.execute("UPDATE po_entity SET content=%s WHERE tenant_id=%s AND entity_id=%s",
+                             (Jsonb(content), self.tenant, self.run_id))
+            self.assertTrue(waiting, 'Finalization must lock the current approval before completing the asset')
+            with self.assertRaises(RunConflict):
+                future.result(timeout=5)
 
 
 if __name__ == "__main__":
