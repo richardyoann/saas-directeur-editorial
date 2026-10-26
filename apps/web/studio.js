@@ -246,6 +246,7 @@ function tab(name){
  if(name==="analysis")analysis();
  if(name==="history")historyView();
  if(name==="reviews")reviews(true);
+ if(name==="crew")crewView();
 }
 
 function renderCover(){
@@ -288,6 +289,10 @@ function renderComposer(){
   if(s.composerCategory===key)b.setAttribute("aria-current","page");
   b.addEventListener("click",()=>showComposer(key));
  }
+ const crewButton=put(root,"button","composer-link"+(s.tab==="crew"?" active":""));
+ crewButton.type="button";crewButton.dataset.composer="crew";
+ put(crewButton,"span","composer-icon","✦");put(crewButton,"span","composer-label","Équipe IA & critique");
+ crewButton.addEventListener("click",()=>{tab("crew");renderComposer();closeNav();});
  put(root,"div","nav-title composer-memory","MÉMOIRE");
  const historyButton=put(root,"button","composer-link"+(s.composerCategory==="history"?" active":""));
  historyButton.type="button";historyButton.dataset.composer="history";
@@ -300,6 +305,7 @@ function showComposer(key){
  if(!s.run)return;
  s.composerCategory=key;
  if(key==="history"){tab("history");renderComposer();return;}
+ if(key==="crew"){tab("crew");renderComposer();return;}
  tab("storyboard");
  if(key==="characters"||["landscapes","colors","shots","emotions","sound"].includes(key))showCollection(key);
  if(key==="scenes")$("#panel").querySelector(".storyboard-section")?.scrollIntoView({block:"start",behavior:"smooth"});
@@ -740,6 +746,181 @@ async function create(ev){
   alertUser(failed?"Cette génération a échoué et reste historisée. Une nouvelle tentative utilisera une nouvelle clé.":message(e)+" La même clé sera conservée tant que l'issue de la requête reste incertaine.",true);
  }finally{b.disabled=false;b.textContent="Générer le storyboard →";}
 }
+// The crew is a preproduction workflow. These screens never claim to have
+// inspected a video, rendered media, or automatically approved an episode.
+const crewNames={
+ screenwriter:"Scénariste",art_director:"Direction artistique",
+ cinematographer:"Cadrage",animator:"Animation",
+ sound_designer:"Son & voix",editor:"Montage",critic:"Critique en chef"
+};
+let crewBusy=false;
+
+function crewBadgeText(phase){
+ return ({ready:"Étape prête",running:"Génération en cours",
+  changes_requested:"Corrections demandées",
+  blocked_failure:"Échec : diagnostic requis",blocked_quality:"Qualité insuffisante",
+  ready_for_human_review:"Préproduction conforme — relecture humaine requise"})[phase]||phase;
+}
+function crewLine(root, title, value){
+ const line=put(root,"div","crew-line");
+ put(line,"span","",title);
+ put(line,"strong","",value);
+ return line;
+}
+function crewText(root, label, text){
+ const box=put(root,"div","crew-text");
+ put(box,"strong","",label);
+ put(box,"p","",text);
+}
+function crewAction(root,label,callback,primary=false){
+ const b=put(root,"button","btn "+(primary?"primary":"secondary")+" small-btn",label);
+ b.type="button";b.disabled=crewBusy;
+ b.addEventListener("click",callback);
+ return b;
+}
+async function crewCommand(path,data){
+ if(crewBusy||!s.run)return;
+ const id=s.run.id;crewBusy=true;
+ try{
+  const newState=await api("/studio/api/runs/"+id+"/production"+path,"POST",data);
+  if(s.run?.id===id&&s.tab==="crew")crewRender(newState);
+  alertUser("Étape enregistrée. Le dossier reste soumis à une validation humaine.");
+ }catch(e){
+  // A timeout or lost acknowledgement can leave a claimed model call running.
+  // Never repeat an advance automatically; read the server state first.
+  alertUser(message(e)+" Vérifiez l'état avant toute nouvelle action.",true);
+ }finally{
+  crewBusy=false;
+  if(s.run?.id===id&&s.tab==="crew")await crewView();
+ }
+}
+async function crewView(){
+ if(!s.run||s.tab!=="crew")return;
+ const id=s.run.id,root=$("panel");root.replaceChildren();
+ const loading=put(root,"div","card");put(loading,"p","","Chargement du dossier de production…");
+ try{
+  let data=null;
+  try{data=await api("/studio/api/runs/"+id+"/production");}
+  catch(e){if(e.status!==404)throw e;}
+  if(s.run?.id===id&&s.tab==="crew")crewRender(data);
+ }catch(e){
+  if(s.run?.id===id&&s.tab==="crew"){
+   root.replaceChildren();put(root,"p","warning",message(e));
+  }
+ }
+}
+function crewRender(state){
+ if(!s.run||s.tab!=="crew")return;
+ const root=$("panel");root.replaceChildren();
+ const intro=put(root,"section","card crew-intro");
+ put(intro,"div","overline","STUDIO DE PRODUCTION · 75 SECONDES");
+ put(intro,"h3","","Une équipe spécialisée. Un contrôle exigeant.");
+ put(intro,"p","","Chaque métier rédige son dossier. Le Critique en chef vérifie uniquement les livrables textuels, sans prétendre voir la vidéo. Le montage, les images et les voix restent des étapes distinctes.");
+ if(!state){
+  const valid=s.run.status==="approved"&&s.run.brief?.duration_seconds===75;
+  put(intro,"p",valid?"tip":"warning",valid?
+   "Storyboard approuvé : vous pouvez démarrer une nouvelle préproduction, sans rendu média.":
+   "Pour démarrer, validez d'abord un storyboard dont la durée exacte est de 75 secondes.");
+  if(valid)crewAction(intro,"Démarrer la préproduction",()=>crewCommand("",undefined),true);
+  return;
+ }
+ const sum=put(root,"section","card");
+ put(sum,"h3","","État du dossier");
+ crewLine(sum,"Statut",crewBadgeText(state.phase));
+ crewLine(sum,"Tour de correction",String(state.cycle)+" / 2");
+ crewLine(sum,"Version du dossier",String(state.revision));
+ if(state.quality){
+  crewLine(sum,"Note critique",String(state.quality.score)+" / 100");
+  crewLine(sum,"Seuil requis","90 / 100 et au moins 80 % par critère");
+  put(sum,"p",state.quality.passed?"tip":"warning",
+   state.quality.passed?"Critique textuelle conforme. Aucune vidéo réelle n'a été examinée ; validation humaine indispensable.":
+   "Qualité insuffisante : les corrections ciblées sont nécessaires avant toute validation.");
+  const reviewCriteria=[
+   ["narrative","Scénario et émotion",20],
+   ["visual_continuity","Continuité visuelle décrite",20],
+   ["camera_motion","Cadrage et mouvement",15],
+   ["sound_plan","Plan sonore",15],
+   ["rhythm","Montage et rythme",15],
+   ["legend_integrity","Cohérence des légendes",10],
+   ["technical_feasibility","Faisabilité",5]
+  ];
+  for(const [key,name,max] of reviewCriteria){
+   const value=state.critique?.[key];
+   if(Number.isInteger(value))crewLine(sum,name,String(value)+" / "+String(max)+(value*5<max*4?" · sous le seuil":""));
+  }
+ }
+ const grid=put(root,"div","crew-grid");
+ const done=state.outputs||{};
+ for(const role of Object.keys(crewNames)){
+  const card=put(grid,"article","crew-role");
+  put(card,"div","overline",role==="critic"?"REVUE INDÉPENDANTE":"MÉTIER DE PRODUCTION");
+  put(card,"h3","",crewNames[role]);
+  const status=state.current_role===role?"En cours":done[role]?"Livrable reçu":
+   state.next_roles?.includes(role)?"À réaliser":"Non démarré";
+  put(card,"p","crew-state",status);
+  if(done[role]){
+   if(role==="critic"){
+    put(card,"p","",done[role].observations?.join(" · ")||"Audit réalisé");
+    if(done[role].blocking_issues?.length)crewText(card,"Bloquants",done[role].blocking_issues.join(" · "));
+   }else{
+    put(card,"p","",done[role].summary||"Livrable disponible");
+    const details=put(card,"details");
+    put(details,"summary","","Consulter les directives");
+    const list=put(details,"ul");
+    for(const directive of done[role].directions||[])put(list,"li","",directive);
+    crewText(details,"Transmission",done[role].handoff||"");
+   }
+  }
+ }
+ const commands=put(root,"section","card crew-actions");
+ if(state.phase==="ready"&&state.next_roles?.length){
+  crewAction(commands,"Lancer : "+(crewNames[state.next_roles[0]]||state.next_roles[0]),
+    ()=>crewCommand("/advance",{expected_revision:state.revision}),true);
+  put(commands,"p","tip","Un seul appel Qwen est lancé. Chaque résultat est enregistré avant de passer au métier suivant.");
+ }
+ if(state.phase==="changes_requested"){
+  put(commands,"h3","","Corrections proposées par la critique");
+  put(commands,"p","",state.critique?.observations?.join(" · ")||"Corrections nécessaires");
+  for(const role of state.critique?.target_roles||[]){
+   crewAction(commands,"Retravailler : "+(crewNames[role]||role),
+    ()=>crewCommand("/revise",{expected_revision:state.revision,target_role:role}));
+  }
+ }
+ if(state.phase==="running"){
+  put(commands,"p","warning","Génération engagée : en cas de coupure, ne relancez pas l'appel. Une réconciliation manuelle n'est possible qu'après dix minutes.");
+  crewAction(commands,"Vérifier l'interruption (après 10 min)",
+   ()=>crewCommand("/reconcile",{expected_revision:state.revision}));
+ }
+ if(["blocked_failure","blocked_quality"].includes(state.phase)){
+  put(commands,"p","warning","Ce dossier est bloqué : aucune nouvelle génération automatique n'est autorisée. Consultez les traces et créez une nouvelle version métier après diagnostic.");
+ }
+ if(state.phase==="ready_for_human_review"){
+  put(commands,"p","tip","Préproduction terminée. Décision humaine obligatoire, puis recette image/audio/MP4 avant publication.");
+ }
+ crewAction(commands,"Consulter l'historique des métiers",async()=>{
+  if(crewBusy)return;
+  try{
+   const x=await api("/studio/api/runs/"+s.run.id+"/production/history");
+   const historyCard=put(root,"section","card");
+   put(historyCard,"h3","","Historique de production");
+   for(const event of x.outputs||[]){
+    const e=put(historyCard,"details");
+    put(e,"summary","","Cycle "+event.cycle+" · "+(crewNames[event.role]||event.role)+" · "+event.status);
+    if(event.output){
+     const pre=put(e,"pre","crew-history");
+     pre.textContent=JSON.stringify(event.output,null,2);
+    }else{put(e,"p","warning","Étape échouée : "+(event.error_code||"erreur"));}
+    if(event.prompt){
+     const prompt=put(e,"details");
+     put(prompt,"summary","","Consulter le prompt historisé (données privées)");
+     const exact=put(prompt,"pre","crew-history");
+     exact.textContent=event.prompt;
+    }
+   }
+  }catch(e){alertUser(message(e),true);}
+ });
+}
+
 function home(push=true){s.coverToken++;s.openRequest++;s.run=null;showWorkspace("library");$("crumb").textContent="Histoires";if(push&&location.hash)history.pushState(null,"",location.pathname+location.search);renderList();closeNav();}
 function bind(){
  $("loginForm").addEventListener("submit",login);$("logout").addEventListener("click",logout);

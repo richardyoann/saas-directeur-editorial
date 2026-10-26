@@ -82,3 +82,21 @@ button,input,textarea,select,a,summary:focus-visible {
 .calendar-event{font-size:.69rem;line-height:1.25;border-left:3px solid #9baaa5;padding:.2rem;margin-top:.25rem;background:#f2f5f3}
 .calendar-event.dev{border-left-color:#6786a7}.calendar-event.validation{border-left-color:#b59153}.calendar-event.prod{border-left-color:#357258}
 @media(max-width:660px){.calendar-cell{min-height:62px;padding:.15rem}.calendar-event{font-size:.58rem}.conception-item{align-items:flex-start}}
+
+/* Studio de production: same visual language as Arvor, compact and responsive. */
+.crew-intro{background:linear-gradient(125deg,#f5f8f3,#fff)}
+.crew-line{display:flex;justify-content:space-between;align-items:baseline;gap:20px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12px}
+.crew-line span{color:#647c75}.crew-line strong{color:#294f43;text-align:right}
+.crew-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:17px}
+.crew-role{background:#fff;border:1px solid var(--line);border-radius:13px;padding:19px;min-width:0}
+.crew-role h3{font-family:Georgia,serif;font-size:19px;margin:0 0 8px}
+.crew-role p{color:#607872;font-size:12px;overflow-wrap:anywhere}
+.crew-role .overline{font-size:9px;margin-bottom:9px}
+.crew-state{font-weight:700;color:#357b69!important}
+.crew-role details{padding:8px 0;font-size:12px}
+.crew-role summary{cursor:pointer;color:#376c62}
+.crew-role li{margin:6px 0;color:#445e55}
+.crew-text{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.crew-text strong{font-size:11px}.crew-history{white-space:pre-wrap;overflow-wrap:anywhere;max-height:280px;overflow:auto;font-size:11px;background:#f3f7f3;padding:13px;border-radius:8px}
+.crew-actions .btn{margin:6px 8px 8px 0}
+@media(max-width:550px){.crew-grid{grid-template-columns:1fr}.crew-line{align-items:flex-start;flex-direction:column;gap:2px}}

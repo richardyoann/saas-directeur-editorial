@@ -12,18 +12,20 @@ import tempfile
 from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from editorial import media_storage as storage
+from infrastructure.media import s3 as storage
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--write-probe', action='store_true', required=True)
-    args = parser.parse_args()
+    parser.parse_args()
     from botocore.exceptions import ClientError
     ids = uuid4(), uuid4(), uuid4()
-    sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-    report = {'sha': sha, 'scope': 'real_application_adapter', 'outcome': 'failed'}
+    report = {'scope': 'real_application_adapter', 'outcome': 'failed'}
     try:
+        report['sha'] = subprocess.check_output(
+            ['git', 'rev-parse', 'HEAD'], cwd=Path(__file__).resolve().parents[1],
+            text=True, stderr=subprocess.DEVNULL).strip()
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / 'probe.wav'
             payload = b'arvor-synthetic-s3-integration-probe\n'

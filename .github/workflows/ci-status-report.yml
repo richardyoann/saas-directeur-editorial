@@ -1,23 +1,22 @@
 name: Automated CI triage and release evidence
+# Local attested CI is authoritative; hosted execution is explicit opt-in only.
 on:
-  workflow_run:
-    workflows:
-      - Full regression
-      - Dependency security audit
-      - Studio browser journeys
-    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Existing completed GitHub run ID to inspect (no rerun)
+        required: true
+        type: string
 permissions:
   contents: read
   actions: read
   pull-requests: read
   issues: write
 concurrency:
-  group: ci-triage-${{ github.event.workflow_run.name }}-${{ github.event.workflow_run.head_sha }}
+  group: ci-triage-manual-${{ inputs.run_id }}
   cancel-in-progress: true
 jobs:
   report:
-    if: >-
-      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

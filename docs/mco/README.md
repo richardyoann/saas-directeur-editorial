@@ -6,6 +6,8 @@
 
 | Besoin | Document |
 | --- | --- |
+| Migration CI locale OpenCode, attestations par SHA et CR Slack | [OPS-LOCAL-CI](OPS_LOCAL_CI_MIGRATION_20261022.md) |
+| Attestation PC read-only et smoke vidéo synthétique 75 s | [REL-004](REL_004_CI_RELEASE_PROOF_VIDEO75.md) |
 | Livraison : casse de LOCAL_PC_ENABLED et JSON Python 3.14 | [Incident du 16/10](INCIDENT_2026-10-16_LIVRAISON_JSON.md) |
 | Transfert MinIO incertain et reprise des médias | [MinIO médias](MINIO_MEDIA_RECOVERY.md) |
 | Résultat image incertain, timeout et fichier privé conservé | [Runbook images](IMAGE_GENERATION_RECOVERY.md) |
@@ -14,6 +16,7 @@
 | Mécanisme de déploiement sécurisé et rollback | [AUTONOMOUS_DELIVERY](../AUTONOMOUS_DELIVERY.md) |
 | Studio : sécurité, sessions et recette | [STUDIO_PRIVATE](../STUDIO_PRIVATE.md) |
 | Qwen : contrats et sorties IA | [QWEN_HARDENING](../QWEN_HARDENING.md) |
+| Production multi-agents, critique bloquante et contrôle MP4 (proposé, non livré) | [STUDIO CREW](../ARVOR_MULTI_AGENT_PRODUCTION_2026-10-17.md) |
 | Mode async, worker PostgreSQL, idempotence | [ASYNC_EDITORIAL_WORKER](../ASYNC_EDITORIAL_WORKER.md) |
 | Workflow métier, audit, snapshots | [EDITORIAL_WORKFLOW](../EDITORIAL_WORKFLOW.md) |
 | Rapport d'audit technique et dette SaaS non corrigée | [QA_SECURITY_AUDIT_2026-10-14](../QA_SECURITY_AUDIT_2026-10-14.md) |
@@ -139,3 +142,10 @@ La gravité est à adapter à l'impact réel : un `/ready=503` peut relever de P
 
 **Responsabilités :** l'opérateur MCO valide les actions système, secrets et sauvegardes ; le responsable code revoit les correctifs ; le responsable éditorial valide le contenu produit. Une CI verte ne vaut pas recette utilisateur ni acceptation métier.
 
+
+- 25 octobre 2026 — provenance CI locale : état, procédure WSL exacte-SHA et limites dans [OPS-LOCAL-CI runbook](OPS_LOCAL_CI_RUNBOOK.md#25-octobre-2026--provenance-hôte-vérifiée-en-attente-de-recette-finale-215) et [décision de migration](OPS_LOCAL_CI_MIGRATION_20261022.md#mise-à-jour-du-modèle-de-provenance--25-octobre-2026). La PRD/passation distincte n'a pas été trouvée dans le dépôt ou Drive lors de cette session.
+- [18 octobre 2026 — PR #208 : démarrage CI bloqué par facturation/quota](INCIDENT_2026-10-18_CI_PR208.md).
+
+- [21 octobre 2026 — intégration Arvor des huit PR bloquée par le même démarrage CI](INCIDENT_2026-10-21_CI_BILLING_INTEGRATION_ARVOR.md).
+
+- [18 octobre 2026 — verrou d’approbation à la finalisation média](INCIDENT_2026-10-18_MEDIA_APPROVAL_RACE.md).

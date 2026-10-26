@@ -4,7 +4,7 @@ import math
 import struct
 import zlib
 
-from editorial.visuals import ImageUnavailable, validate_png
+from editorial.media_rules import ImageUnavailable, validate_png
 
 
 def check_png_integrity(png):

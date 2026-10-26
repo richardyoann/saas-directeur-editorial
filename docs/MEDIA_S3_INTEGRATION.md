@@ -1,6 +1,6 @@
 # ARVOR-MEDIA-S3-INTEGRATION
 
-L'adaptateur existant exige désormais HTTPS, une CA PEM absolue lisible via
+L'adaptateur canonique infrastructure/media/s3.py exige désormais HTTPS, une CA PEM absolue lisible via
 AWS_CA_BUNDLE et deux fichiers MEDIA_S3_ACCESS_KEY_FILE / MEDIA_S3_SECRET_KEY_FILE.
 Les valeurs directes sont refusées. Aucun fallback AWS ou compte administrateur.
 TLS vérifie la chaîne et le nom/IP. Endpoint privé à IP littérale ou localhost,
@@ -61,3 +61,21 @@ ni validation du parcours HTTP métier n'en découle.
 Les versions requirements.txt restent celles de main : boto3 1.40.0 fournit
 IfNoneMatch et les options checksum utilisées. La PR dépendances #213 est séparée.
 `pip check` confirme la cohérence de l'environnement de test, pas l'absence de CVE.
+
+## Actualisation après intégration #214/#215
+
+Les imports historiques editorial.media_storage restent une façade de l'adaptateur
+canonique infrastructure.media.s3, utilisé aussi par les chemins médias réels.
+Le durcissement HTTPS s'applique à cet unique propriétaire ; les tests d'identité
+de façade et de frontières architecturales restent actifs.
+L'image inclut infrastructure, production et le rendu local importé par la chaîne
+média. Son smoke test importe réellement apps.api.main et le pipeline de production.
+Le contexte Docker autorise aussi ci/local pour les reconstructions futures de CI,
+sans inclure de secrets et sans ajouter ces fichiers à l'image API.
+La recette identifie le SHA depuis son propre dépôt même si le cwd diffère ; une
+indisponibilité de Git reste une erreur JSON contrôlée avant tout accès MinIO.
+Cette CLI de recette s'exécute depuis un checkout WSL avec Git ; l'image API n'a
+pas besoin de Git et fait l'objet de contrôles séparés.
+Les preuves antérieures dans MEDIA_S3_EVIDENCE.json restent historiques. La nouvelle
+qualification et les attestations sur le SHA final sont publiées dans la PR après
+le gel, afin de ne pas invalider cette identité par un commit documentaire tardif.

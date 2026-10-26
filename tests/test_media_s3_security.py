@@ -1,13 +1,12 @@
 """TLS and credential boundaries, without a live MinIO dependency."""
 import os
 from pathlib import Path
-import ssl
 import tempfile
 import unittest
 from unittest.mock import patch
 from botocore.httpsession import get_cert_path
 
-from editorial.media_storage import client, MediaStorageError
+from infrastructure.media.s3 import client, MediaStorageError
 
 
 class S3SecurityTests(unittest.TestCase):

@@ -13,3 +13,8 @@ Préparé : adaptateur renforcé, tests de sécurité et recette réelle opt-in,
 non privilégiée, profil API. Hors livraison : migration des médias existants,
 création de bucket/policy, modification des volumes et déploiement PC.
 Les résultats effectifs et limites sont consignés dans PASSATION_MEDIA_S3.md.
+
+Compatibilité requise sur main intégré : adaptateur canonique infrastructure.media.s3,
+façade historique conservée et image API contenant tous les imports runtime.
+Les preuves de qualification doivent porter sur le SHA final de #221, sans réemploi
+des attestations historiques précédant les fusions #214/#215.

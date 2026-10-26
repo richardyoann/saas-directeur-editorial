@@ -168,12 +168,26 @@ def run_report(event, repository, token, pc_enabled=""):
     return f"Created PR #{number} CI triage comment.\n"
 
 
+def manual_report_event(event, repo, token):
+    """Resolve an explicit manual run ID through GitHub, never supplied metadata."""
+    value = (event.get("inputs") or {}).get("run_id", "")
+    if not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]{0,19}", value):
+        raise ValueError("Manual reporting requires a numeric run_id")
+    run = api("GET", f"/repos/{repo}/actions/runs/{value}", token)
+    resolved = {"action": "completed", "workflow_run": run}
+    if run.get("id") != int(value) or identify(resolved, repo) is None:
+        raise ValueError("Manual run is incomplete, unrelated or untrusted")
+    return resolved
+
+
 def main():
     try:
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
         repo = os.environ["GITHUB_REPOSITORY"]
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
             raise ValueError("Invalid repository")
+        if os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch":
+            event = manual_report_event(event, repo, os.environ["GITHUB_TOKEN"])
         report = run_report(event, repo, os.environ["GITHUB_TOKEN"],
                             os.getenv("LOCAL_PC_ENABLED", ""))
         if os.getenv("GITHUB_STEP_SUMMARY"):

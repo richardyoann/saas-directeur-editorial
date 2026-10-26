@@ -7,6 +7,9 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY apps ./apps
 COPY editorial ./editorial
+COPY infrastructure ./infrastructure
+COPY production ./production
+COPY scripts/__init__.py scripts/render_episode.py ./scripts/
 COPY workflows ./workflows
 COPY workers ./workers
 COPY pilotage ./pilotage

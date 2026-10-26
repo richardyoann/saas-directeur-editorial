@@ -39,3 +39,15 @@ sans volume PC. Elle est arrêtée après les tests, sans suppression de volumes
 La PR draft porte [skip ci] pour éviter les workflows payants à l'ouverture.
 Aucune CI GitHub réussie n'en est déduite. La livraison PC attend la validation
 humaine du SHA complet final, après résolution des critères ouverts.
+
+
+## Reprise finale sur main après #214/#215
+
+Base main intégrée : be3d5522636cd3ed62e18373e46dc6bb8ccbe24d.
+La nouvelle architecture canonique infrastructure/media/s3.py est préservée,
+la façade historique reste compatible. Les modules infrastructure/production et
+leur rendu local sont inclus dans l'image API ; le contexte permet aussi le build CI.
+Les résultats 287 tests et les blocages OpenCode ci-dessus sont historiques.
+Ils ne certifient pas cette version. La nouvelle recette complète, la revue et les
+preuves exactes-SHA seront consignées dans les commentaires de #221 et l'archive
+privée. Les déploiements, migrations et volumes métier restent exclus.

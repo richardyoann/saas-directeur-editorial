@@ -1,0 +1,4 @@
+# Immutable scanner policy copied into /trusted by the host.
+# Preserve all upstream Gitleaks default detectors. No allowlists.
+[extend]
+useDefault = true

@@ -126,3 +126,11 @@ effacement automatique n'est effectué. Ne pas relancer un appel d'image ambigu
 
 Aucun montage vidéo, synchronisation de lèvres, piste audio générée, publication
 réseaux sociaux ou entraînement automatique n'est prétendu livré par ce lot.
+
+## Découplage média ARCH-MEDIA-01 — 18 octobre 2026
+
+Les règles pures sont extraites dans `editorial/media_rules.py` ; les imports historiques depuis `editorial.visuals` restent disponibles. Le stockage MinIO utilise désormais la politique URL neutre, supprimant le cycle de modules. Formats, validation, configuration et commandes de déploiement restent identiques. Voir [le dossier de revue](plans/ARCH_MEDIA_01_REVIEW.md) pour les preuves, limites et la base SHA ; aucune activation PC par ce changement.
+
+## Service média et adaptateurs — 18 octobre 2026
+
+Le cas d’usage GenerateSceneImage et les ports remplacent l’orchestration dans la route HTTP. Les implémentations PostgreSQL, rendu privé et disque/MinIO ont des propriétaires distincts ; les imports historiques restent accessibles. La finalisation revérifie l’approbation sous verrou traitement puis asset. Configuration, schéma et commandes PC inchangés ; aucune activation. Voir [architecture média](ARCHITECTURE_MEDIA.md) et [preuve de concurrence](mco/INCIDENT_2026-10-18_MEDIA_APPROVAL_RACE.md).
