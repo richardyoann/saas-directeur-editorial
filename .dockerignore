@@ -12,7 +12,6 @@
 !production/
 !production/**
 !scripts/
-!scripts/__init__.py
 !scripts/render_episode.py
 !workflows/
 !workflows/**

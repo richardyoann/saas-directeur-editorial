@@ -9,7 +9,7 @@ COPY apps ./apps
 COPY editorial ./editorial
 COPY infrastructure ./infrastructure
 COPY production ./production
-COPY scripts/__init__.py scripts/render_episode.py ./scripts/
+COPY scripts/render_episode.py ./scripts/
 COPY workflows ./workflows
 COPY workers ./workers
 COPY pilotage ./pilotage
