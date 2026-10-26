@@ -1,9 +1,40 @@
 # OPS-LOCAL-CI — Préparation de migration OpenCode (22/10/2026)
 
-Statut : **migration non activée**. Vérification le 25/10/2026 sur main
-`d08fe0afe62f0ea209da239aeade0bd5f042d30d`, PR #214 `a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9`,
-PR #215 `4751917560605009a20b673595448d200dc899be`. Aucun workflow n'a été
-désactivé, aucun statut local n'a été publié, aucun merge ni déploiement.
+Statut au 25/10/2026 : **bascule incomplète; aucun merge ni statut signé publié**.
+Main est `d08fe0afe62f0ea209da239aeade0bd5f042d30d`; #214 est au candidat
+`da0f9b067811f2fad059b5ecc12cb57c42bb7968`, #215 au contrôleur
+`204b686e9756bbc9528f35bbeebc1e4eae6ef762`, et le PR de contrôle workflow #220
+au SHA `4c0acae5628bb855398b63fb5de658c3123abdac`. Aucun déclencheur hébergé
+n'a encore été désactivé sur le dépôt principal; aucun déploiement PC n'a eu lieu.
+
+OpenCode est installé dans le WSL Ubuntu 26.04 à
+`/home/yoann_admin/.opencode/bin/opencode`, version `2.0.32`. La découverte du
+modèle local Qwen réussit, mais une requête de génération OpenAI-compatible a
+expiré; la commande projet OpenCode n'est donc pas encore qualifiée.
+Une clé Ed25519 locale est créée hors dépôt à
+`~/.local/share/arvor-local-ci/status-signing-ed25519.pem` (répertoire 0700,
+clé 0600). Empreinte publique DER SHA256 :
+`7468f9b7ddac97c8199b69d8f86e3d01c34b7707876f7579fc1ec0fbaafab514`.
+Elle n'a pas servi à signer de preuve.
+
+La recette isolée de #214 sur `da0f9b0`, avec le contrôleur `43d5f01`, a exécuté
+16/16 gates, construit l'image auditée fraîche
+`sha256:2669c0fbbc5bc7d7c7a2a58d874d28b361cb47f6659f28b8b3ca13c91c23b49e`
+et vérifié les 16 journaux. **Cette preuve n'est pas signable** : la revue
+automatisée indépendante a trouvé des contournements successifs de dispatch et
+de résultat `unittest` dans le contrôleur `43d5f01`, `b06f79f` puis `a819e60`.
+Le correctif `204b686` passe 65 tests contrôleur, incluant des PoC
+`TextTestRunner`, `TestSuite.__call__`, `TestCase` et des mutations de
+`TextTestResult` à l'import, pendant un test et dans un sous-test; sa revue
+incrémentale indépendante et une nouvelle recette complète restent à faire.
+
+Le PR #220 sépare la politique de CI et ne contient plus que `workflow_dispatch`
+pour la vidéo. Il n'est pas encore fusionné. La revue automatisée indépendante
+confirme le trigger manuel; la validation vidéo synthétique locale a réussi
+(`verified=true`, 75 s, 720x1280, `ffprobe=passed`, aucune mutation). Le PR #214
+a retiré le changement de workflow de son diff net; après fusion éventuelle de
+#220, il faudra réaligner le fichier du candidat sur la version manuelle de la
+base puis refaire la recette exacte-SHA.
 
 ## Inventaire de consommation et correspondance
 
@@ -38,21 +69,19 @@ doublons de tests et restent protégés.
 
 ## Blocages de bascule constatés
 
-- `opencode` est absent (`command not found`) dans l'environnement de cette
-  session;
-  aucune commande `/arvor-ci` n'est installée ni testable ici. Le script existant
-  `scripts/qualify_arvor_ci_wsl.sh` ne cible que la recette #214 et refuse
-  correctement son changement de workflow protégé.
+- OpenCode existe mais sa requête locale de génération expire; aucune commande
+  générique OpenCode pour PR n'est encore qualifiée. Le script de recette actuel
+  est spécialisé pour #214.
 - Le contrôleur #215 et son publisher ne sont pas fusionnés ni validés par une
   revue indépendante. Il n'y a aucun statut local réel publié.
 - `GET /branches/main/protection` répond HTTP 403 : GitHub indique qu'un plan
   Pro ou un dépôt public est nécessaire. Le dépôt doit rester privé. Il est donc
   impossible de confirmer/configurer ici les statuts requis; ne pas retirer les
   contrôles hébergés.
-- Aucun fichier de clé Ed25519 n'est configuré dans le lab consulté. Ne pas
-  créer ni utiliser une clé tant qu'une preuve de recette valide et un chemin
-  sécurisé hors dépôt/conteneur ne sont pas disponibles.
-- Aucun déclencheur hébergé n'a été arrêté. Les runs visibles échouent avant
+- La clé Ed25519 hôte existe avec permissions privées, mais aucune attestation
+  valide n'a été signée et publiée. Un manifeste de confiance hôte épinglant
+  contrôleur, politique, image et clé reste à configurer après la revue finale.
+- Aucun déclencheur hébergé n'a été arrêté sur main. Les runs visibles échouent avant
   démarrage; le montant réellement facturé demeure inconnu. Le propriétaire
   doit consulter l'onglet GitHub Actions de la facturation avec son accès UI,
   sans augmenter le plafond ni changer le caractère privé du dépôt.
@@ -67,7 +96,10 @@ Exécuter les contrôles coûteux localement, en isolation, sans confondre exéc
 4. Produire une attestation JSON par SHA (version du plan, environnement, commandes, codes de retour, compteurs, durée, hashes des artefacts), signée par un service de confiance hors checkout. Un échec, skip, preuve manquante ou SHA changé interdit PASS.
 5. Le service de publication, distinct du candidat, revalide la tête distante avant d'envoyer un statut GitHub. Ne jamais laisser le code testé accéder au token de publication ou à la clé de signature.
 6. Slack : un message de fin OK/KO par exécution, lien PR, SHA, gates, erreurs catégorisées, prochaine action; aucun prompt, jeton, log brut ou donnée métier.
-7. Revue humaine obligatoire avant fusion. Fusion et livraison PC sont des opérations séparées; SHA exact approuvé pour chaque livraison.
+7. Pour ces merges, revue automatisée distincte de l'implémentation et preuve
+   liée au SHA sont requises; aucune approbation GitHub humaine additionnelle
+   n'est demandée par l'utilisateur. Cela ne remplace pas l'approbation éditoriale
+   des contenus ni l'approbation du SHA nécessaire à une livraison PC.
 
 ## Migration progressive
 - Phase A : scripts et tests unitaires du contrôleur, exécution en mode shadow, comparaison aux anciens workflows.

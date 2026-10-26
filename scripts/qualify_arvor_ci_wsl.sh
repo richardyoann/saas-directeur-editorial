@@ -5,19 +5,21 @@ set -Eeuo pipefail
 umask 077
 
 usage() {
-  printf 'Usage: bash scripts/qualify_arvor_ci_wsl.sh CONTROLLER_SHA PR214_SHA BASE_SHA\n' >&2
+  printf 'Usage: bash scripts/qualify_arvor_ci_wsl.sh CONTROLLER_SHA PR_NUMBER CANDIDATE_SHA BASE_SHA\n' >&2
   exit 2
 }
 fail() {
   printf 'ARVOR_CI_QUALIFICATION_BLOCKED: %s\n' "$*" >&2
   exit 2
 }
-[[ $# -eq 3 ]] || usage
+[[ $# -eq 4 ]] || usage
 controller_sha=$1
-candidate_sha=$2
-base_sha=$3
+pr_number=$2
+candidate_sha=$3
+base_sha=$4
 sha_pattern='^[0-9a-f]{40}$'
 [[ $controller_sha =~ $sha_pattern ]] || fail "controller SHA incomplet"
+[[ $pr_number =~ ^[1-9][0-9]{0,8}$ ]] || fail "PR number invalid"
 [[ $candidate_sha =~ $sha_pattern ]] || fail "candidate SHA incomplet"
 [[ $base_sha =~ $sha_pattern ]] || fail "base SHA incomplet"
 
@@ -25,7 +27,7 @@ lab=${ARVOR_CI_LAB_DIR:-"$HOME/arvor-ci-lab"}
 [[ $lab == /* && $lab != / && $lab != "$HOME" ]] || fail "lab path non borne"
 [[ -d $lab && ! -L $lab ]] || fail "lab absent ou lien symbolique"
 controller="$lab/ci-source"
-candidate="$lab/pr214"
+candidate="$lab/pr$pr_number"
 python="$lab/ci-venv/bin/python"
 [[ -d $controller/.git && -d $candidate/.git ]] || fail "checkouts autonomes requis"
 [[ -x $python ]] || fail "venv CI absent"
@@ -45,8 +47,8 @@ git -C "$candidate" merge-base --is-ancestor "$base_sha" "$candidate_sha" \
   || fail "base non ancetre du candidat"
 
 cd "$controller"
-printf 'Controleur: %s\nCandidat PR #214: %s\nBase: %s\n' \
-  "$controller_sha" "$candidate_sha" "$base_sha"
+printf 'Controleur: %s\nCandidat PR #%s: %s\nBase: %s\n' \
+  "$controller_sha" "$pr_number" "$candidate_sha" "$base_sha"
 "$python" -m unittest \
   tests.test_arvor_ci_wsl_qualification \
   tests.test_arvor_ci_host_supervisor \
@@ -90,7 +92,7 @@ printf 'Image: %s\nPolitique de confiance: %s\nPreuves privees: %s\n' "$image_id
   --image-id "$image_id" --checkout "$candidate" \
   --trusted "$trusted" --evidence "$evidence" \
   --sha "$candidate_sha" --base-sha "$base_sha" \
-  --controller-sha "$controller_sha" --pr 214 --execute \
+  --controller-sha "$controller_sha" --pr "$pr_number" --execute \
   || fail "16 gates hote KO (preuves conservees dans $evidence)"
 
 shopt -s nullglob

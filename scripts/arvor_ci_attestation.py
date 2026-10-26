@@ -12,6 +12,10 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 from scripts.arvor_ci_trust import POLICY_VERSION
+from scripts.arvor_ci_host_trust import (
+    DEFAULT_TRUST_PATH, load_host_trust, verify_host_controller,
+    verify_host_key, verify_host_signer, verify_private_key,
+)
 from scripts.arvor_local_ci import GATES, SHA
 
 
@@ -153,6 +157,18 @@ def main():
                 or not a.trusted_controller or not a.trusted_policy or not a.controller_sha
                 or not a.image_id or not a.policy_sha256):
             p.error("Signing requires host observation and pinned controller/policy/image identity")
+        host_trust = load_host_trust(DEFAULT_TRUST_PATH)
+        if (a.key.resolve(strict=True) != Path(host_trust["private_key_path"])
+                or a.key_id != host_trust["key_id"]
+                or a.controller_sha != host_trust["controller_sha"]
+                or a.image_id != host_trust["image_id"]
+                or a.policy_sha256 != host_trust["policy_sha256"]
+                or a.trusted_policy.resolve(strict=True)
+                   != Path(host_trust["trusted_policy_path"])):
+            raise ValueError("Signing arguments differ from host trust pins")
+        verify_host_controller(host_trust, host_trust["controller_path"])
+        verify_host_signer(host_trust, __file__)
+        verify_host_controller(host_trust, a.trusted_controller)
         # The script and imported policy execute only from the pinned controller checkout.
         from scripts.arvor_ci_evidence_verify import verify_receipt
         verification, checked_receipt, provenance = verify_receipt(
@@ -181,6 +197,7 @@ def main():
                 or key_stat.st_uid != os.getuid()
                 or stat.S_IMODE(key_stat.st_mode) != 0o600):
             raise ValueError("Signing key must be a host-owned 0600 regular file")
+        verify_private_key(host_trust, key_path.read_bytes())
         if a.output.resolve().is_relative_to(candidate):
             raise ValueError("Signed output must remain outside candidate checkout")
         signed_bytes = canonical(sign(checked_receipt, key_path.read_bytes(), a.key_id, provenance)) + b"\n"
@@ -191,7 +208,15 @@ def main():
             os.fsync(output.fileno())
         print("Attestation signed. Not a merge/deploy approval.")
     else:
-        result = verify(json.loads(a.input.read_text(encoding="utf-8")), a.key.read_bytes(), a.key_id)
+        host_trust = load_host_trust(DEFAULT_TRUST_PATH)
+        if (a.key.resolve(strict=True) != Path(host_trust["public_key_path"])
+                or a.key_id != host_trust["key_id"]):
+            raise ValueError("Verification key differs from host trust pins")
+        verify_host_controller(host_trust, host_trust["controller_path"])
+        verify_host_signer(host_trust, __file__)
+        public = a.key.read_bytes()
+        verify_host_key(host_trust, public)
+        result = verify(json.loads(a.input.read_text(encoding="utf-8")), public, a.key_id)
         print(json.dumps({"sha": result["sha"], "status": result["status"]}))
 
 

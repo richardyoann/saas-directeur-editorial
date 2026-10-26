@@ -40,6 +40,13 @@ _TRUSTED_TEST_CASE_METHODS = {
     name: value for name, value in unittest.TestCase.__dict__.items()
     if callable(value)
 }
+_TRUSTED_CASE_DISPATCH = tuple(
+    name for name in (
+        "_callSetUp", "_callTestMethod", "_callTearDown", "_callCleanup",
+        "doCleanups", "_addDuration", "_addExpectedFailure",
+        "_addUnexpectedSuccess",
+    ) if name in _TRUSTED_TEST_CASE_METHODS
+)
 _TRUSTED_SKIP_TEST = unittest.SkipTest
 _TRUSTED_ASSERTION_ERROR = unittest.TestCase.failureException
 
@@ -97,6 +104,21 @@ def run_suite(root: Path, suite_name: str):
             restore_result_methods(result)
 
             case = self._case
+            # A candidate-defined __getattribute__ can defeat instance-level
+            # dispatch pinning because TestCase.run resolves callbacks on the
+            # instance. Reject such cases before executing any candidate code.
+            lookup_methods = ("__getattribute__", "__getattr__")
+            lookup_overrides = {
+                cls: {name: cls.__dict__[name] for name in lookup_methods
+                      if name in cls.__dict__}
+                for cls in type(case).__mro__
+                if cls is not _TRUSTED_TEST_CASE and cls is not object
+            }
+            if any(lookup_overrides.values()):
+                observed["errors"] += 1
+                print("Rejected TestCase with candidate attribute lookup override",
+                      file=sys.stderr)
+                return None
             method_name = getattr(case, "_testMethodName", "")
             expected_failure = (
                 getattr(case.__class__, "__unittest_expecting_failure__", False)
@@ -111,8 +133,31 @@ def run_suite(root: Path, suite_name: str):
                 observed["skipped"] += 1
             callbacks = ["setUp", method_name, "tearDown", "asyncSetUp", "asyncTearDown"]
             originals = {}
+            for name in _TRUSTED_CASE_DISPATCH:
+                originals[name] = getattr(case, name)
+                method = _TRUSTED_TEST_CASE_METHODS[name]
+                setattr(case, name, method.__get__(case, _TRUSTED_TEST_CASE))
 
             def wrap_callback(callback):
+                def restore_attribute_lookup():
+                    changed = False
+                    for cls in type(case).__mro__:
+                        if cls is _TRUSTED_TEST_CASE or cls is object:
+                            continue
+                        original = lookup_overrides.get(cls, {})
+                        for name in lookup_methods:
+                            if name in original:
+                                if cls.__dict__.get(name) is not original[name]:
+                                    setattr(cls, name, original[name])
+                                    changed = True
+                            elif name in cls.__dict__:
+                                delattr(cls, name)
+                                changed = True
+                    if changed:
+                        observed["errors"] += 1
+                        print("Rejected runtime mutation of TestCase attribute lookup",
+                              file=sys.stderr)
+
                 if inspect.iscoroutinefunction(callback):
                     async def wrapped(*args, **kwargs):
                         try:
@@ -121,6 +166,7 @@ def run_suite(root: Path, suite_name: str):
                             record(error)
                             raise
                         finally:
+                            restore_attribute_lookup()
                             restore_result_methods(result)
                 else:
                     def wrapped(*args, **kwargs):
@@ -130,6 +176,7 @@ def run_suite(root: Path, suite_name: str):
                             record(error)
                             raise
                         finally:
+                            restore_attribute_lookup()
                             restore_result_methods(result)
                 return wrapped
 

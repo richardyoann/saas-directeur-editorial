@@ -26,6 +26,7 @@ POLICY_FILES = (
     "scripts/arvor_ci_host_supervisor.py",
     "scripts/arvor_ci_evidence_verify.py",
     "scripts/arvor_ci_attestation.py",
+    "scripts/arvor_ci_host_trust.py",
     "scripts/arvor_ci_publish.py",
     "ci/local/Dockerfile",
     "ci/local/requirements-ci.txt",

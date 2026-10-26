@@ -10,11 +10,14 @@ les minutes réelles sont également inaccessibles au jeton actuel. Les runs
 observés échouent avant les étapes pour le blocage de facturation, pas sur les
 assertions de tests. Aucun statut vert local n'a été publié.
 
-`opencode` n'est pas disponible dans l'environnement courant. Le script
-`qualify_arvor_ci_wsl.sh` reste un contrôleur de recette #214, pas une commande
-OpenCode générique. Les mécanismes de livraison PC restent actifs, verrouillés
-par `LOCAL_PC_ENABLED` et le SHA complet approuvé; aucune livraison n'a été
-déclenchée.
+OpenCode est installé dans le WSL Ubuntu 26.04 à
+`/home/yoann_admin/.opencode/bin/opencode`, version `2.0.32`. Le point de
+terminaison local annonce Qwen, mais les requêtes de génération expirent; aucune
+commande OpenCode projet n'a donc été qualifiée. Le script de recette est
+maintenant générique (`CONTROLLER_SHA PR_NUMBER CANDIDATE_SHA BASE_SHA`), mais
+il ne signe, ne publie et ne fusionne rien. Les mécanismes de livraison PC
+restent actifs, verrouillés par `LOCAL_PC_ENABLED` et le SHA exact approuvé;
+aucune livraison n'a été déclenchée.
 
 ## 25 octobre 2026 — Refus de privilèges et volumes Docker inattendus
 
@@ -49,6 +52,7 @@ Après revue indépendante et positionnement du checkout `ci-source` sur le
 cd "${HOME}/arvor-ci-lab/ci-source"
 bash scripts/qualify_arvor_ci_wsl.sh \
   CONTROLLER_SHA_COMPLET_APPRouve \
+  214 \
   a4f885ead324fbf7aa7fc61be3f37cddc0bfd6e9 \
   d08fe0afe62f0ea209da239aeade0bd5f042d30d
 ```
@@ -215,7 +219,11 @@ Configurer dans le processus de publication externe, jamais dans le dépôt ou l
 - ARVOR_SLACK_WEBHOOK_URL : URL du webhook Slack privé du destinataire cible, sur hooks.slack.com.
 - Clé publique épinglée et dossier d'anti-rejeu privé.
 
-La publication est également **bloquée par défaut** : le superviseur de confiance doit définir ARVOR_LOCAL_CI_FULL_PARITY_APPROVED=true seulement après les contrôles d'isolation et de parité 7/7. Ne pas définir cette variable pour contourner la recette.
+La publication reste explicitement opt-in avec `--publish`. Le statut est
+informatif et ne prouve ni la parité complète de la migration ni l'approbation
+de fusion. La signature exige un manifeste hôte strict, hors dépôt, épinglant
+le contrôleur, la politique, l'image, la clé publique et le chemin d'anti-rejeu;
+aucun booléen d'environnement ne sert de preuve ou d'autorisation.
 
 Après recette et approbation du mécanisme de publication :
 
@@ -273,7 +281,8 @@ Le cache pip-audit est préchargé au build et recopié en espace temporaire. Si
 - Une réussite 75 s synthétique ne remplace pas les recettes Qwen réel, voix, GPU, ni la validation éditoriale.
 - Aucun test sur l'image Docker complète n'a été lancé dans cet environnement, qui n'a pas de Docker et n'est pas le PC de l'utilisateur.
 - Le workflow de notification GitHub/Slack n'est pas branché automatiquement à OpenCode et aucun webhook privé n'est configuré.
-- Ne jamais considérer ARVOR_LOCAL_CI_FULL_PARITY_APPROVED comme une preuve d'isolation en soi. Le laisser désactivé avant certification.
+- Aucun booléen d'environnement ne certifie la provenance ou la parité. Les
+  pins de confiance proviennent uniquement du manifeste hôte protégé.
 - Aucun workflow GitHub Actions existant n'est encore désactivé; #214 reste en brouillon; aucun merge ni déploiement PC autorisé par cette préparation.
 
 ### Tests locaux de développement
@@ -512,7 +521,7 @@ export BASE_SHA="SHA_COMPLET_MAIN"
 cd "$LAB/ci-source"
 test "$(git rev-parse HEAD)" = "$CONTROLLER_SHA"
 test -z "$(git status --porcelain)"
-bash scripts/qualify_arvor_ci_wsl.sh "$CONTROLLER_SHA" "$PR214_SHA" "$BASE_SHA"
+bash scripts/qualify_arvor_ci_wsl.sh "$CONTROLLER_SHA" 214 "$PR214_SHA" "$BASE_SHA"
 ```
 
 La sortie imprime les chemins neufs `Politique de confiance` et `Preuves
@@ -549,9 +558,8 @@ réponse GitHub perdue, le publisher réconcilie l'URL unique de run dans
 l'historique avant tout POST, puis relit la PR immédiatement avant écriture.
 Pour Slack, un échec laisse un marqueur `pending`; aucune relance automatique
 n'a lieu. N'utiliser `--confirm-slack-not-delivered` qu'après vérification
-indépendante de l'absence du message. L'environnement
-`ARVOR_LOCAL_CI_FULL_PARITY_APPROVED` reste une barrière opérationnelle
-supplémentaire et ne vaut jamais preuve de provenance.
+indépendante de l'absence du message. Un statut GitHub signé reste informatif;
+il ne suffit pas à établir la parité de migration ou à autoriser la fusion.
 
 ### Résultat de qualification de la PR #215 — 25 octobre 2026
 
@@ -578,3 +586,53 @@ privé avec le plan actuel, donc les exigences de fusion n'ont pas pu être
 établies. Pas de signature Ed25519, statut `arvor/local-ci-attested`, message
 Slack, passage en ready ou fusion tant que la recette séparée, la revue finale
 et les contrôles de fusion ne sont pas effectifs.
+
+### Reprise de migration WSL — 25 octobre 2026
+
+Cette section remplace les états antérieurs lorsqu'ils se contredisent.
+
+- Environnement : WSL2 Ubuntu 26.04 sur `DESKTOP-NQH3CJF`; OpenCode existe à
+  `/home/yoann_admin/.opencode/bin/opencode`, version `2.0.32`. Le serveur local
+  renvoie l'ID Qwen `Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M`, mais la requête de
+  génération a expiré. Aucun appel à un fournisseur payant n'a été effectué;
+  aucune commande projet OpenCode n'est qualifiée.
+- Têtes vérifiées : main `d08fe0afe62f0ea209da239aeade0bd5f042d30d`;
+  #214 `da0f9b067811f2fad059b5ecc12cb57c42bb7968`; #215
+  `204b686e9756bbc9528f35bbeebc1e4eae6ef762`; #220
+  `4c0acae5628bb855398b63fb5de658c3123abdac`. Aucun de ces PR n'est fusionné.
+- #214 avec contrôleur `43d5f01`: 16/16 gates exécutés; audit Docker frais
+  `ARVOR_AUDIT_STATUS=OK`, image
+  `sha256:2669c0fbbc5bc7d7c7a2a58d874d28b361cb47f6659f28b8b3ca13c91c23b49e`;
+  les hashes des 16 journaux ont été vérifiés. Reçu
+  `/tmp/arvor-pr215-final-lab/evidence-qualification.zFFHdQFL/bc17d4f9-5df3-4ccd-8201-080363ed937f.json`,
+  SHA256 `af41575e43259ecd9cafa7e555e1abbd3047ebab0e603a2616b938b54a4173e1`;
+  observation hôte SHA256
+  `66b7ecdeefe455712d23b7db2e20c72c85d4902491ded6e3936e8eb1efff6335`.
+- Cette preuve est **non signable/non publiable** : la revue automatisée
+  indépendante a démontré des faux verts dans le collecteur `43d5f01`,
+  `b06f79f` et `a819e60`. Le SHA courant `204b686` ajoute une comptabilisation
+  indépendante des cas et des contre-tests des mutations de `TextTestResult`,
+  dont pendant un test et dans un sous-test; 65 tests contrôleur passent. Sa
+  revue indépendante et une nouvelle recette 16 gates restent en attente.
+- Gate vidéo synthétique : succès local observé (75 s, `720x1280`, ffprobe
+  passé, `data_mutation=false`). Le PR #220 déplace le workflow dans une PR de
+  contrôle distincte et le limite à `workflow_dispatch`; sa revue automatisée
+  est positive. Cela ne vaut ni recette contrôleur ni livraison PC.
+- Clé Ed25519 créée hors dépôt/conteneur dans
+  `~/.local/share/arvor-local-ci/`; dossier `0700`, clé privée `0600`.
+  Empreinte publique DER SHA256
+  `7468f9b7ddac97c8199b69d8f86e3d01c34b7707876f7579fc1ec0fbaafab514`.
+  Aucune preuve n'a été signée. Le manifeste hôte de confiance, l'orchestrateur
+  OpenCode générique, la publication réelle du statut et la fusion locale gardée
+  restent à finaliser.
+- Aucun déclencheur GitHub de `main` n'a été arrêté, aucun statut signé n'a été
+  publié et aucune PR n'a été fusionnée. Les protections GitHub serveur sont
+  indisponibles sur le plan actuel pour ce dépôt privé; un garde local ne peut
+  pas empêcher une fusion directe via GitHub.
+
+Après revue sans constat bloquant, requalifier les têtes exactes. Si #220 est
+fusionné avant #214, réaligner le fichier vidéo du candidat #214 sur la version
+manuelle de `main` et refaire les gates. Ne désactiver les workflows de tests
+qu'après recette complète et statut distant vérifié; conserver annotations,
+notifications et les deux workflows de livraison jusqu'à qualification de
+remplacements opérationnels. Aucun test de livraison ne doit déployer sur PC.
