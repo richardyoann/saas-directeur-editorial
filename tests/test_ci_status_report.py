@@ -20,6 +20,21 @@ def event(conclusion="failure", source="pull_request"):
 
 
 class AutomatedTriageTests(unittest.TestCase):
+    def test_manual_report_resolves_only_completed_trusted_run(self):
+        run = event()["workflow_run"]
+        with patch.object(reporter, "api", return_value=run) as request:
+            self.assertEqual(reporter.manual_report_event({"inputs": {"run_id": "123"}}, REPO, "synthetic"), event())
+            request.assert_called_once_with("GET", f"/repos/{REPO}/actions/runs/123", "synthetic")
+        for value in ("", "../secrets", "123?x=1", "0"):
+            with patch.object(reporter, "api") as request:
+                with self.assertRaises(ValueError):
+                    reporter.manual_report_event({"inputs": {"run_id": value}}, REPO, "synthetic")
+                request.assert_not_called()
+        for override in ({"status": "in_progress"}, {"id": 124}, {"head_repository": {"full_name": "other/repo"}}):
+            with patch.object(reporter, "api", return_value=run | override):
+                with self.assertRaises(ValueError):
+                    reporter.manual_report_event({"inputs": {"run_id": "123"}}, REPO, "synthetic")
+
     def test_unrelated_events_are_rejected(self):
         data = event()
         data["workflow_run"]["head_repository"]["full_name"] = "other/repository"

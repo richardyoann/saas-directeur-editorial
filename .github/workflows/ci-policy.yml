@@ -1,10 +1,6 @@
 name: CI supply-chain guardrails
+# Local attested CI is authoritative; hosted execution is explicit opt-in only.
 on:
-  pull_request:
-  push:
-    branches: [main]
-  schedule:
-    - cron: '43 5 * * *'
   workflow_dispatch:
 permissions:
   contents: read

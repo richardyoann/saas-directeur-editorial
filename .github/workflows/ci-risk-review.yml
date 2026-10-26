@@ -1,7 +1,6 @@
 name: Automated PR risk review
+# Local attested CI is authoritative; hosted execution is explicit opt-in only.
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,7 +21,7 @@ jobs:
           python-version: '3.12'
       - name: Inventory change risks without repo write access
         env:
-          REVIEW_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEW_HEAD_SHA: ${{ github.sha }}
         run: |
           python scripts/ci_autonomy.py --base origin/main --head HEAD --sha "$REVIEW_HEAD_SHA"
       - name: Verify review algorithm tests

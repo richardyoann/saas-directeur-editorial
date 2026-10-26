@@ -1,0 +1,429 @@
+"""Host-owned isolated CI supervisor. Never run from the untrusted PR checkout.
+
+Each gate is launched by the trusted host through Docker exec. Docker, not a
+PR-supplied receipt, supplies the observed return code. Only the host writes
+logs and receipt: the sandbox has NO evidence mount, credentials or Docker
+socket. This improves provenance but is not remote/cryptographic attestation.
+No signing, GitHub statuses, merges or deployments.
+"""
+import argparse
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import selectors
+import signal
+import subprocess
+import sys
+import time
+from uuid import uuid4
+
+from scripts.arvor_local_ci import (
+    GATES, MIN_BROWSER_TESTS, MIN_REGRESSION_TESTS,
+    audit_diagnostic, browser_counts, regression_counts,
+)
+from scripts.arvor_ci_evidence_verify import video_proof
+from scripts.arvor_ci_trust import (
+    POLICY_FILES, POLICY_VERSION, SANDBOX_POLICY_FILES, canonical_json, policy_digest, policy_snapshot,
+    validate_docker_inspection,
+)
+
+SHA = re.compile(r"[a-f0-9]{40}\Z")
+IMAGE = re.compile(r"sha256:[a-f0-9]{64}\Z")
+# Security policy and test-discovery code must not be replaced by candidate
+# modifications before its own green gates can be trusted. Functional tests,
+# browser journeys and video acceptance fixtures can evolve under review;
+# test-count floors and gate results remain mandatory.
+PROTECTED_EXACT = frozenset((
+    "scripts/run_regression.py",
+    "scripts/prepare_test_database.py",
+    "scripts/benchmark_editorial_sql.py",
+    "scripts/ci_policy.py",
+    "scripts/ci_autonomy.py",
+    "scripts/arvor_ci_sandbox.py",
+    "scripts/arvor_ci_trust.py",
+    "scripts/arvor_ci_host_supervisor.py",
+    "scripts/arvor_local_ci.py",
+    "scripts/arvor_ci_entrypoint.sh",
+    "scripts/arvor_ci_evidence_verify.py",
+    "scripts/arvor_ci_attestation.py",
+    "scripts/arvor_ci_publish.py",
+    "AGENTS.md",
+))
+PROTECTED_PREFIX = ("ci/local/", ".github/workflows/", "docs/mco/OPS_LOCAL_CI")
+PROTECTED_CONFIG = frozenset((".gitleaks.toml", ".gitleaksignore"))
+
+REPO = "richardyoann/saas-directeur-editorial"
+
+
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def call(argv, *, cwd=None, timeout=30):
+    return subprocess.run(
+        argv, cwd=cwd, capture_output=True, text=True,
+        check=True, timeout=timeout,
+    ).stdout.strip()
+
+
+def git(root, *args):
+    return call(["git", "-C", str(root), *args])
+
+
+def _sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def protected_candidate_changes(paths):
+    """Return gate/policy changes requiring a separate reviewed control-plane PR."""
+    changed = []
+    for path in paths:
+        if (path in PROTECTED_EXACT or path.startswith(PROTECTED_PREFIX)
+                or path in PROTECTED_CONFIG
+                or path.startswith("scripts/arvor_ci_")):
+            changed.append(path)
+    return sorted(set(changed))
+
+
+def enforce_policy_not_self_modified(root, base, sha):
+    raw = subprocess.run(
+        ["git", "-C", str(root), "diff", "--no-renames", "--name-only", "-z", base, sha],
+        check=True, capture_output=True, timeout=20,
+    ).stdout
+    if not raw or not raw.endswith(b"\0"):
+        # Empty diff is fine; nonempty malformed diff blocks the CI.
+        if raw:
+            raise ValueError("Malformed git change path report")
+        paths = []
+    else:
+        paths = [part.decode("utf-8") for part in raw[:-1].split(b"\0")]
+    blocked = protected_candidate_changes(paths)
+    if blocked:
+        raise ValueError(
+            "CONTROL_PLANE_REVIEW_REQUIRED: candidate modified trusted policy: "
+            + ", ".join(blocked[:12])
+        )
+    return True
+
+
+def validate_inputs(image, checkout, trusted, evidence, sha, base, pr, controller_sha):
+    if (not IMAGE.fullmatch(image) or not SHA.fullmatch(sha)
+            or not SHA.fullmatch(base) or not SHA.fullmatch(controller_sha)):
+        raise ValueError("Immutable image ID and exact Git SHAs required")
+    if type(pr) is not int or pr < 1:
+        raise ValueError("Positive PR ID required")
+    root = checkout.resolve(strict=True)
+    controller = Path(__file__).resolve().parent.parent
+    trusted = trusted.resolve(strict=True)
+    dest = evidence.resolve(strict=True)
+    if any(not x.is_dir() for x in (root, controller, trusted, dest)):
+        raise ValueError("All roots must exist")
+    if (len({root, controller, trusted, dest}) != 4 or
+            any(a.is_relative_to(b) for a in (root, controller, trusted, dest)
+                for b in (root, controller, trusted, dest) if a != b)):
+        raise ValueError("Checkout, policy, trusted and host evidence overlap")
+    if (not (root / ".git").is_dir() or (root / ".git").is_symlink()
+            or not (controller / ".git").is_dir()):
+        raise ValueError("Standalone checkouts required")
+    if git(root, "rev-parse", "HEAD") != sha or git(root, "status", "--porcelain"):
+        raise ValueError("Candidate is not pinned or clean")
+    if git(root, "rev-parse", base) != base:
+        raise ValueError("Missing base")
+    if subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor",
+                       base, sha], capture_output=True, timeout=15).returncode != 0:
+        raise ValueError("Base SHA is not an ancestor")
+    enforce_policy_not_self_modified(root, base, sha)
+    if git(controller, "rev-parse", "HEAD") != controller_sha:
+        raise ValueError("Supervisor checkout differs from explicitly approved controller SHA")
+    if git(controller, "status", "--porcelain"):
+        raise ValueError("Supervisor checkout must be clean and pinned")
+    for filename in SANDBOX_POLICY_FILES:
+        source = controller / "scripts" / filename
+        target = trusted / filename
+        if target.is_symlink() or not source.is_file() or not target.is_file():
+            raise ValueError("Missing or linked trusted policy")
+        if _sha256(source) != _sha256(target):
+            raise ValueError("Trusted policy differs from reviewed checkout: " + filename)
+    if dest.is_symlink() or dest.stat().st_mode & 0o077:
+        raise ValueError("Host evidence directory must be private (0700)")
+    return root, controller, trusted, dest
+
+
+def docker_command(image, checkout, trusted, sha, base, pr, name):
+    def mount(path, target):
+        if any(ch in str(path) for ch in (",", "\n", "\r")):
+            raise ValueError("Unsupported mount path")
+        return "--mount=type=bind,source=" + str(path) + ",target=" + target + ",readonly"
+    return [
+        "docker", "run", "--detach", "--rm", "--pull=never", "--init", "--name=" + name,
+        "--network=none", "--read-only", "--cap-drop=ALL",
+        "--security-opt=no-new-privileges", "--pids-limit=512",
+        "--memory=6g", "--cpus=4", "--shm-size=512m",
+        "--user=999:999", "--workdir=/workspace",
+        "--tmpfs=/tmp:rw,exec,nosuid,nodev,size=1073741824,uid=999,gid=999",
+        "--tmpfs=/var/lib/postgresql/data:rw,nosuid,nodev,size=1073741824,uid=999,gid=999,mode=0700",
+        "--tmpfs=/run/postgresql:rw,nosuid,nodev,size=16777216,uid=999,gid=999",
+        mount(checkout, "/workspace"),
+        mount(trusted, "/trusted"),
+        "--env=ARVOR_CI_ISOLATED=1",
+        "--env=PYTHONDONTWRITEBYTECODE=1", "--env=HOME=/tmp",
+        "--env=STUDIO_BROWSER_TESTS=yes",
+        "--env=PO_TEST_DATABASE_URL=postgresql://po_test:ephemeral_ci_only@127.0.0.1:5432/po_test",
+        "--env=TRACE_TEST_DATABASE_URL=postgresql://po_test:ephemeral_ci_only@127.0.0.1:5432/po_test",
+        "--env=PO_ALLOW_TEST_MIGRATION=yes",
+        image, "/bin/sh", "/trusted/arvor_ci_supervised_entrypoint.sh",
+    ]
+
+
+def inspect_isolation(container, checkout, trusted, image, *, run=call):
+    payload = json.loads(run(["docker", "inspect", container]))
+    if not isinstance(payload, list) or len(payload) != 1:
+        raise ValueError("Unexpected docker inspect result")
+    obj = payload[0]
+    validate_docker_inspection(obj, checkout, trusted, image)
+    if obj.get("Id") and obj["Id"] != container:
+        raise ValueError("Docker inspected a different container")
+    # Keep only host-observed isolation fields. Config.Env is deliberately
+    # omitted so ephemeral PostgreSQL credentials never enter the receipt.
+    return {
+        "Id": obj.get("Id", container),
+        "Image": obj["Image"],
+        "HostConfig": obj["HostConfig"],
+        "Config": {"User": obj["Config"]["User"]},
+        "Mounts": obj["Mounts"],
+    }
+
+
+def _check_gate(name, proc, log):
+    if name.startswith("regression_") or name == "browser":
+        counts = regression_counts(log)
+        floor = MIN_BROWSER_TESTS if name == "browser" else MIN_REGRESSION_TESTS
+        return bool(proc.returncode == 0 and counts and counts["tests"] >= floor
+                    and all(counts.get(k) == 0 for k in ("failures", "errors", "skipped"))), counts
+    if name == "dependencies":
+        status = audit_diagnostic(log, proc.returncode)
+        return proc.returncode == 0 and status == "OK", status
+    if name == "video_75":
+        return proc.returncode == 0 and video_proof(log), None
+    return proc.returncode == 0, None
+
+
+MAX_GATE_OUTPUT_BYTES = 8 * 1024 * 1024
+
+
+def run_gate_bounded(argv, *, timeout=1200, max_output_bytes=MAX_GATE_OUTPUT_BYTES):
+    """Capture untrusted docker-exec output without unbounded host RAM usage."""
+    if max_output_bytes < 1 or timeout <= 0:
+        raise ValueError("Positive output/timeout limits required")
+    proc = subprocess.Popen(
+        argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, start_new_session=True,
+    )
+    selector = selectors.DefaultSelector()
+    selector.register(proc.stdout, selectors.EVENT_READ)
+    collected = bytearray()
+    deadline = time.monotonic() + timeout
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(argv, timeout)
+            for key, _ in selector.select(remaining):
+                # Read at most one byte beyond the limit to detect overflow.
+                allowance = min(65536, max_output_bytes - len(collected) + 1)
+                chunk = os.read(key.fd, allowance)
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                elif len(collected) + len(chunk) > max_output_bytes:
+                    raise ValueError("CI gate output exceeds host limit")
+                else:
+                    collected.extend(chunk)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(argv, timeout)
+        return subprocess.CompletedProcess(
+            argv, proc.wait(timeout=remaining),
+            stdout=collected.decode("utf-8"), stderr="",
+        )
+    except BaseException:
+        # A child may exit while descendants still hold its output pipe open.
+        # Kill the entire session before reaping the direct child.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait(timeout=5)
+        raise
+    finally:
+        selector.close()
+        proc.stdout.close()
+
+
+def execute(image, checkout, trusted, evidence, sha, base, pr, controller_sha, *,
+            run=subprocess.run, gate_run=run_gate_bounded):
+    root, controller, code, out = validate_inputs(
+        image, checkout, trusted, evidence, sha, base, pr, controller_sha)
+    name = "arvor-host-ci-" + uuid4().hex
+    command = docker_command(image, root, code, sha, base, pr, name)
+    run_id = str(uuid4())
+    receipt = {
+        "schema": "arvor-local-ci-v1", "run_id": run_id,
+        "repo": REPO, "pr": pr, "sha": sha, "base_sha": base,
+        "started_at": now(), "finished_at": None,
+        "source": "isolated-local-tests", "status": "failure", "gates": [],
+        "host_supervision": {},
+    }
+    container = None
+    observation = {
+        "schema": "arvor-host-observation-v1", "run_id": run_id,
+        "repo": REPO, "pr": pr, "sha": sha, "base_sha": base,
+        "controller_sha": controller_sha, "policy_version": POLICY_VERSION,
+        "policy_files_sha256": policy_snapshot(controller),
+        "policy_sha256": policy_digest(controller), "image_id": image,
+        "container_id": None, "docker_inspect": None,
+        "gate_exec_observations": [], "started_at": receipt["started_at"],
+        "finished_at": None, "docker_stop_returncode": None,
+    }
+    try:
+        result = run(command, capture_output=True, text=True, timeout=45, check=False)
+        if result.returncode or not re.fullmatch(r"[a-f0-9]{64}", result.stdout.strip()):
+            raise ValueError("Docker sandbox failed to start")
+        container = result.stdout.strip()
+        observation["container_id"] = container
+        observation["docker_inspect"] = inspect_isolation(container, root, code, image)
+        # Observe PG readiness from the HOST, not from a PR-supplied receipt.
+        for _ in range(30):
+            ready = run([
+                "docker", "exec", container,
+                "/opt/arvor/py312/bin/python", "-c",
+                "import psycopg; c = psycopg.connect('postgresql://po_test:"
+                "ephemeral_ci_only@127.0.0.1:5432/po_test',"
+                " connect_timeout=3); c.close()",
+            ], capture_output=True, text=True, timeout=8, check=False)
+            if ready.returncode == 0:
+                break
+            time.sleep(1)
+        else:
+            raise ValueError("Disposable PostgreSQL did not become ready")
+        for gate in GATES:
+            argv = [
+                "docker", "exec", "--user=999:999", "--workdir=/workspace",
+                container, "/opt/arvor/py314/bin/python",
+                "/trusted/arvor_ci_gate.py", "--gate", gate, "--base-sha", base
+            ]
+            try:
+                proc = gate_run(argv, timeout=1200)
+                output = (proc.stdout or "") + "\n" + (proc.stderr or "")
+                code_rc = proc.returncode
+            except (subprocess.TimeoutExpired, ValueError, UnicodeError) as exc:
+                output = "HOST: gate rejected or timed out\n"
+                code_rc = 124 if isinstance(exc, subprocess.TimeoutExpired) else 125
+            log_file = out / (run_id + "-" + gate + ".log")
+            with log_file.open("x", encoding="utf-8") as stream:
+                stream.write(output)
+            log_file.chmod(0o600)
+            stub = type("Return", (), {"returncode": code_rc})()
+            passed, details = _check_gate(gate, stub, output)
+            item = {
+                "name": gate, "passed": bool(passed), "returncode": code_rc,
+                "log_sha256": hashlib.sha256(output.encode("utf-8")).hexdigest(),
+                "tests": details if isinstance(details, dict) else None,
+            }
+            if gate == "dependencies":
+                item["diagnostic_status"] = details
+            receipt["gates"].append(item)
+            observation["gate_exec_observations"].append({
+                "name": gate, "docker_exec_returncode": code_rc,
+                "log_sha256": item["log_sha256"],
+                "gate_command_sha256": hashlib.sha256(canonical_json(argv)).hexdigest(),
+            })
+            print(gate + ": " + ("OK" if passed else "KO"), flush=True)
+            if not passed:
+                break
+    finally:
+        if container:
+            stopped = run(["docker", "stop", "--time=5", container],
+                          capture_output=True, text=True, timeout=20,
+                          check=False)
+            observation["docker_stop_returncode"] = stopped.returncode
+            if stopped.returncode != 0:
+                receipt["host_supervision"]["docker_cleanup_failed"] = True
+        receipt["finished_at"] = now()
+        observation["finished_at"] = receipt["finished_at"]
+        receipt["status"] = (
+            "success" if (len(receipt["gates"]) == len(GATES)
+                          and all(g["passed"] for g in receipt["gates"])
+                          and not receipt["host_supervision"].get("docker_cleanup_failed"))
+            else "failure"
+        )
+        if git(root, "rev-parse", "HEAD") != sha or git(root, "status", "--porcelain"):
+            receipt["status"] = "failure"
+            receipt["checkout_changed"] = True
+        # This structured host record is never mounted into the candidate.
+        # It contains actual inspect data and host-observed exec results; no
+        # booleans in the candidate receipt establish provenance.
+        host_bytes = canonical_json(observation) + b"\n"
+        host_path = out / (run_id + ".host.json")
+        with host_path.open("xb") as stream:
+            stream.write(host_bytes)
+        host_path.chmod(0o600)
+        receipt["host_supervision"] = {
+            "version": 2, "controller_sha": controller_sha,
+            "policy_version": POLICY_VERSION,
+            "policy_files_sha256": observation["policy_files_sha256"],
+            "policy_sha256": observation["policy_sha256"],
+            "image_id": image, "container_id": container,
+            "host_observation_sha256": hashlib.sha256(host_bytes).hexdigest(),
+        }
+        with (out / (run_id + ".json")).open("x", encoding="utf-8") as stream:
+            json.dump(receipt, stream, indent=2, sort_keys=True)
+        (out / (run_id + ".json")).chmod(0o600)
+        print(json.dumps({
+            "receipt": str(out / (run_id + ".json")),
+            "status": receipt["status"], "sha": sha, "run_id": run_id,
+            "host_observation": str(host_path),
+            "provenance_certified": "pending independent verification",
+        }), flush=True)
+    return receipt
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--image-id", required=True)
+    p.add_argument("--checkout", required=True, type=Path)
+    p.add_argument("--trusted", required=True, type=Path)
+    p.add_argument("--evidence", required=True, type=Path)
+    p.add_argument("--sha", required=True)
+    p.add_argument("--base-sha", required=True)
+    p.add_argument("--pr", required=True, type=int)
+    p.add_argument("--controller-sha", required=True)
+    p.add_argument("--execute", action="store_true")
+    a = p.parse_args()
+    try:
+        roots = validate_inputs(
+            a.image_id, a.checkout, a.trusted, a.evidence,
+            a.sha, a.base_sha, a.pr, a.controller_sha)
+        if not a.execute:
+            print(json.dumps({
+                "mode": "dry-run", "host_provenance_design": "docker-exec",
+                "image": a.image_id, "sha": a.sha, "pr": a.pr,
+                "host_evidence": str(roots[3]),
+                "no_evidence_mount": True,
+            }))
+            return 0
+        receipt = execute(
+            a.image_id, a.checkout, a.trusted,
+            a.evidence, a.sha, a.base_sha, a.pr, a.controller_sha)
+        return 0 if receipt["status"] == "success" else 1
+    except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError,
+            subprocess.SubprocessError) as exc:
+        print("HOST SUPERVISOR BLOCKED: " + type(exc).__name__
+              + " (" + str(exc)[:180] + ")", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
