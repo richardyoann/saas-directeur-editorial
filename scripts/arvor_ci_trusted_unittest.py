@@ -38,10 +38,21 @@ _TRUSTED_TEST_CASE = unittest.TestCase
 _TRUSTED_TEST_CASE_RUN = unittest.TestCase.run
 _TRUSTED_ASYNC_TEST_CASE = unittest.IsolatedAsyncioTestCase
 _TRUSTED_ASYNC_TEST_CASE_RUN = unittest.IsolatedAsyncioTestCase.run
+_TRUSTED_ASYNC_TEST_CASE_METHODS = {
+    name: value for name, value in unittest.IsolatedAsyncioTestCase.__dict__.items()
+    if callable(value)
+}
 _TRUSTED_TEST_CASE_METHODS = {
     name: value for name, value in unittest.TestCase.__dict__.items()
     if callable(value)
 }
+_TRUSTED_CASE_DISPATCH = tuple(
+    name for name in (
+        "_callSetUp", "_callTestMethod", "_callTearDown", "_callCleanup",
+        "doCleanups", "_addDuration", "_addExpectedFailure",
+        "_addUnexpectedSuccess",
+    ) if name in _TRUSTED_TEST_CASE_METHODS
+)
 _TRUSTED_SKIP_TEST = unittest.SkipTest
 _TRUSTED_ASSERTION_ERROR = unittest.TestCase.failureException
 
@@ -95,10 +106,38 @@ def run_suite(root: Path, suite_name: str):
                 setattr(_TRUSTED_TEST_CASE, name, method)
             for name, method in _TRUSTED_TEXT_TEST_RESULT_METHODS.items():
                 setattr(_TRUSTED_TEXT_TEST_RESULT, name, method)
+            for name, method in _TRUSTED_ASYNC_TEST_CASE_METHODS.items():
+                setattr(_TRUSTED_ASYNC_TEST_CASE, name, method)
             observed["tests"] += 1
             restore_result_methods(result)
 
             case = self._case
+            # A candidate-defined __getattribute__ can defeat instance-level
+            # dispatch pinning because TestCase.run resolves callbacks on the
+            # instance. Reject such cases before executing any candidate code.
+            lookup_methods = ("__getattribute__", "__getattr__")
+            lookup_overrides = {
+                cls: {name: cls.__dict__[name] for name in lookup_methods
+                      if name in cls.__dict__}
+                for cls in type(case).__mro__
+                if cls not in (_TRUSTED_TEST_CASE, _TRUSTED_ASYNC_TEST_CASE, object)
+            }
+            if any(lookup_overrides.values()):
+                observed["errors"] += 1
+                print("Rejected TestCase with candidate attribute lookup override",
+                      file=sys.stderr)
+                return None
+            dispatch_overrides = {
+                cls: tuple(name for name in _TRUSTED_CASE_DISPATCH
+                           if name in cls.__dict__)
+                for cls in type(case).__mro__
+                if cls not in (_TRUSTED_TEST_CASE, _TRUSTED_ASYNC_TEST_CASE, object)
+            }
+            if any(dispatch_overrides.values()):
+                observed["errors"] += 1
+                print("Rejected TestCase with candidate dispatch override or descriptor",
+                      file=sys.stderr)
+                return None
             method_name = getattr(case, "_testMethodName", "")
             expected_failure = (
                 getattr(case.__class__, "__unittest_expecting_failure__", False)
@@ -109,12 +148,41 @@ def run_suite(root: Path, suite_name: str):
                 getattr(case.__class__, "__unittest_skip__", False)
                 or getattr(getattr(case, method_name, None), "__unittest_skip__", False)
             )
+            if expected_failure:
+                observed["failures"] += 1
+                print("Rejected expectedFailure test; expected failures cannot pass a gate",
+                      file=sys.stderr)
+                return None
             if expected_skip:
                 observed["skipped"] += 1
             callbacks = ["setUp", method_name, "tearDown", "asyncSetUp", "asyncTearDown"]
             originals = {}
+            for name in _TRUSTED_CASE_DISPATCH:
+                originals[name] = getattr(case, name)
+                method = (_TRUSTED_ASYNC_TEST_CASE_METHODS.get(name, _TRUSTED_TEST_CASE_METHODS[name])
+                          if isinstance(case, _TRUSTED_ASYNC_TEST_CASE) else _TRUSTED_TEST_CASE_METHODS[name])
+                setattr(case, name, method.__get__(case, type(case)))
 
             def wrap_callback(callback):
+                def restore_attribute_lookup():
+                    changed = False
+                    for cls in type(case).__mro__:
+                        if cls is _TRUSTED_TEST_CASE or cls is object:
+                            continue
+                        original = lookup_overrides.get(cls, {})
+                        for name in lookup_methods:
+                            if name in original:
+                                if cls.__dict__.get(name) is not original[name]:
+                                    setattr(cls, name, original[name])
+                                    changed = True
+                            elif name in cls.__dict__:
+                                delattr(cls, name)
+                                changed = True
+                    if changed:
+                        observed["errors"] += 1
+                        print("Rejected runtime mutation of TestCase attribute lookup",
+                              file=sys.stderr)
+
                 if inspect.iscoroutinefunction(callback):
                     async def wrapped(*args, **kwargs):
                         try:
@@ -123,6 +191,7 @@ def run_suite(root: Path, suite_name: str):
                             record(error)
                             raise
                         finally:
+                            restore_attribute_lookup()
                             restore_result_methods(result)
                 else:
                     def wrapped(*args, **kwargs):
@@ -132,6 +201,7 @@ def run_suite(root: Path, suite_name: str):
                             record(error)
                             raise
                         finally:
+                            restore_attribute_lookup()
                             restore_result_methods(result)
                 return wrapped
 
@@ -140,8 +210,9 @@ def run_suite(root: Path, suite_name: str):
                     if not expected_skip:
                         observed["skipped"] += 1
                 elif isinstance(error, _TRUSTED_ASSERTION_ERROR):
-                    if not expected_failure:
-                        observed["failures"] += 1
+                    # Expected failures are not successful gates. The local
+                    # policy requires every discovered assertion to pass.
+                    observed["failures"] += 1
                 else:
                     observed["errors"] += 1
 

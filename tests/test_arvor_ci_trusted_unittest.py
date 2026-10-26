@@ -155,6 +155,92 @@ class TrustedCollectorTests(unittest.TestCase):
         })
         self.assertIn("case dispatch must fail", stderr)
 
+    def test_candidate_subclass_cannot_override_internal_test_dispatch(self):
+        source = (
+            "import unittest\n"
+            "class Fails(unittest.TestCase):\n"
+            "    def _callTestMethod(self, method): return None\n"
+            "def fail(self): self.fail('internal dispatch must reach test')\n"
+            "for index in range(400):\n"
+            "    setattr(Fails, 'test_%03d' % index, fail)\n"
+        )
+        code, stdout, stderr = self._run("regression", source)
+        self.assertEqual(code, 1)
+        summary = json.loads(stdout)
+        self.assertEqual(summary, {
+            "tests": 400, "failures": 0, "errors": 400, "skipped": 0,
+        })
+        self.assertIn("dispatch override or descriptor", stderr)
+
+    def test_candidate_data_descriptor_cannot_override_internal_dispatch(self):
+        source = (
+            "import unittest\n"
+            "class Fails(unittest.TestCase):\n"
+            "    @property\n"
+            "    def _callTestMethod(self): return lambda method: None\n"
+            "    @_callTestMethod.setter\n"
+            "    def _callTestMethod(self, value): pass\n"
+            "def fail(self): self.fail('data descriptor bypassed dispatch')\n"
+            "for index in range(400):\n"
+            "    setattr(Fails, 'test_%03d' % index, fail)\n"
+        )
+        code, stdout, stderr = self._run("regression", source)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(stdout), {
+            "tests": 400, "failures": 0, "errors": 400, "skipped": 0,
+        })
+        self.assertIn("dispatch override or descriptor", stderr)
+
+    def test_expected_failures_are_not_accepted_as_a_green_gate(self):
+        source = (
+            "import unittest\n"
+            "class Fails(unittest.TestCase): pass\n"
+            "@unittest.expectedFailure\n"
+            "def fail(self): self.fail('expected failure cannot be green')\n"
+            "for index in range(400):\n"
+            "    setattr(Fails, 'test_%03d' % index, fail)\n"
+        )
+        code, stdout, stderr = self._run("regression", source)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(stdout), {
+            "tests": 400, "failures": 400, "errors": 0, "skipped": 0,
+        })
+        self.assertIn("expectedFailure", stderr)
+
+    def test_candidate_subclass_cannot_override_attribute_lookup(self):
+        source = (
+            "import unittest\n"
+            "class Fails(unittest.TestCase):\n"
+            "    def __getattribute__(self, name):\n"
+            "        if name == '_callTestMethod': return lambda method: None\n"
+            "        return object.__getattribute__(self, name)\n"
+            "def fail(self): self.fail('attribute lookup bypassed dispatch')\n"
+            "for index in range(400):\n"
+            "    setattr(Fails, 'test_%03d' % index, fail)\n"
+        )
+        code, stdout, stderr = self._run("regression", source)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(stdout), {
+            "tests": 400, "failures": 0, "errors": 400, "skipped": 0,
+        })
+        self.assertIn("attribute lookup override", stderr)
+
+    def test_runtime_attribute_lookup_mutation_is_reported_and_restored(self):
+        source = (
+            "import unittest\n"
+            "class Fails(unittest.TestCase):\n"
+            "    def setUp(self):\n"
+            "        self.__class__.__getattribute__ = lambda self, name: None\n"
+            "    def test_failure(self): self.fail('runtime lookup mutation')\n"
+        )
+        code, stdout, stderr = self._run("regression", source)
+        self.assertEqual(code, 1)
+        self.assertEqual(json.loads(stdout), {
+            "tests": 1, "failures": 1, "errors": 1, "skipped": 0,
+        })
+        self.assertIn("runtime mutation", stderr)
+        self.assertIn("runtime lookup mutation", stderr)
+
     def test_candidate_cannot_patch_text_result_during_discovery_to_hide_failure(self):
         source = (
             "import unittest\n"

@@ -11,6 +11,10 @@ from uuid import UUID
 
 from scripts.arvor_ci_attestation import verify
 from scripts.arvor_ci_trust import POLICY_VERSION, policy_digest
+from scripts.arvor_ci_host_trust import (
+    DEFAULT_TRUST_PATH, load_host_trust, verify_host_controller,
+    verify_host_key,
+)
 
 REPO = "richardyoann/saas-directeur-editorial"
 
@@ -85,8 +89,6 @@ def publish(envelope, key, key_id, token, slack_url, sent_dir, *,
     )
     if not token:
         raise ValueError("Missing GitHub publisher token")
-    if os.environ.get("ARVOR_LOCAL_CI_FULL_PARITY_APPROVED") != "true":
-        raise ValueError("Local CI parity and supervisor are not yet approved")
     if slack_url and not slack_url.startswith("https://hooks.slack.com/"):
         raise ValueError("Invalid configured private Slack webhook")
     sent_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -173,9 +175,21 @@ def main():
     p.add_argument("--publish", action="store_true", help="External network write, explicitly opt-in")
     a = p.parse_args()
     try:
+        host_trust = load_host_trust(DEFAULT_TRUST_PATH)
+        if (a.public_key.resolve(strict=True) != Path(host_trust["public_key_path"])
+                or a.key_id != host_trust["key_id"]
+                or a.controller_sha != host_trust["controller_sha"]
+                or a.image_id != host_trust["image_id"]
+                or a.policy_sha256 != host_trust["policy_sha256"]
+                or a.trusted_controller.resolve(strict=True)
+                   != Path(host_trust["controller_path"])
+                or a.sent_dir.resolve(strict=False) != Path(host_trust["sent_dir"])):
+            raise ValueError("Publisher arguments differ from fixed host trust pins")
         evidence = json.loads(a.attestation.read_text(encoding="utf-8"))
         public = a.public_key.read_bytes()
         trusted = a.trusted_controller.resolve(strict=True)
+        verify_host_key(host_trust, public)
+        verify_host_controller(host_trust, trusted)
         if (not Path(__file__).resolve().is_relative_to(trusted)
                 or git(trusted, "rev-parse", "HEAD") != a.controller_sha
                 or git(trusted, "status", "--porcelain")

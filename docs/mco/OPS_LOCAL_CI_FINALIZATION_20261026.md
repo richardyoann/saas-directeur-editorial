@@ -59,3 +59,12 @@ message [skip ci], avant que la politique locale #215 soit présente dans main.
 Les résultats définitifs doivent être publiés après gel dans les commentaires
 GitHub et les preuves privées, afin de conserver les identités certifiées.
 Aucun test ignoré, aucune réussite simulée ni ancien reçu ne valide une fusion.
+
+## Intégration concurrente préservée
+
+Les commits distants bb2c45d/6e92183 ont été fusionnés sans réécriture. Les pins
+hôte fixes ~/.config/arvor-local-ci/trust.json restent obligatoires pour signer
+et publier : contrôleur/image/politique/clé et chemin signataire vérifiés. Une
+variable de provenance/réussite ne remplace aucune de ces vérifications. Les
+dispatchs asyncio standards sont distingués des overrides candidats interdits.
+Les tests de ces pins et du gate de fusion sont inclus au lanceur de qualification.

@@ -1,7 +1,6 @@
 """Negative-path tests for the local CI evidence and publisher. No network calls."""
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-import os
 from unittest.mock import patch
 from tempfile import TemporaryDirectory
 import unittest
@@ -90,7 +89,17 @@ class LocalCITests(unittest.TestCase):
                     "--controller-sha", CONTROLLER_SHA, "--image-id", IMAGE_ID,
                     "--policy-sha256", POLICY_SHA, "--sha", SHA,
                     "--base-sha", BASE, "--pr", "215"]
-            with patch("sys.argv", argv), patch(
+            host_trust = {"private_key_path": str(private), "key_id": "k1",
+                "controller_sha": CONTROLLER_SHA, "image_id": IMAGE_ID,
+                "policy_sha256": POLICY_SHA, "trusted_policy_path": str(root / "policy"),
+                "controller_path": str(root / "controller"),
+                "public_key_sha256": __import__('hashlib').sha256(
+                    serialization.load_pem_public_key(self.public).public_bytes(
+                        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)).hexdigest()}
+            with patch("scripts.arvor_ci_attestation.load_host_trust", return_value=host_trust), \
+                    patch("scripts.arvor_ci_attestation.verify_host_controller"), \
+                    patch("scripts.arvor_ci_attestation.verify_host_signer"), \
+                    patch("sys.argv", argv), patch(
                     "scripts.arvor_ci_evidence_verify.verify_receipt",
                     return_value=({"independent_execution_provenance_verified": True}, report, verified)):
                 private.chmod(0o644)
@@ -195,11 +204,12 @@ class LocalCITests(unittest.TestCase):
                 return {"state": "success"}
             return {"ok": True}
         envelope = self.signed()
-        with patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}), TemporaryDirectory() as folder:
+        with TemporaryDirectory() as folder:
             self.assertEqual(pub.publish(envelope, self.public, "k1", "mock", "https://hooks.slack.com/services/mock",
                                          Path(folder), controller_sha=CONTROLLER_SHA,
                                          expected_policy_sha256=POLICY_SHA,
-                                         expected_image_id=IMAGE_ID, request=fake), "success")
+                                         expected_image_id=IMAGE_ID,
+                                         request=fake), "success")
             with self.assertRaises(ValueError):
                 pub.publish(envelope, self.public, "k1", "mock", None, Path(folder),
                     controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
@@ -215,7 +225,7 @@ class LocalCITests(unittest.TestCase):
                 return {"state": "open", "head": {"sha": SHA, "repo": {"full_name": pub.REPO}},
                         "base": {"sha": BASE, "ref": "main"}}
             return [] if method == "GET" else {"state": "success"}
-        with TemporaryDirectory() as directory, patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}):
+        with TemporaryDirectory() as directory:
             result = pub.publish(self.signed(), self.public, "k1", "synthetic", None, Path(directory),
                 controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
                 expected_image_id=IMAGE_ID, request=request)
@@ -237,7 +247,7 @@ class LocalCITests(unittest.TestCase):
                         "base": {"sha": BASE, "ref": "main"}}
             writes.append(url)
             return {"state": "success"}
-        with patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}), TemporaryDirectory() as folder:
+        with TemporaryDirectory() as folder:
             with self.assertRaisesRegex(ValueError, "revision"):
                 pub.publish(self.signed(), self.public, "k1", "mock",
                     "https://hooks.slack.com/services/mock", Path(folder),
@@ -266,7 +276,7 @@ class LocalCITests(unittest.TestCase):
             writes["slack"] += 1
             return {"ok": True}
         envelope = self.signed()
-        with patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}), TemporaryDirectory() as folder:
+        with TemporaryDirectory() as folder:
             with self.assertRaises(ConnectionError):
                 pub.publish(envelope, self.public, "k1", "mock",
                     "https://hooks.slack.com/services/mock", Path(folder),
@@ -334,7 +344,7 @@ class LocalCITests(unittest.TestCase):
                 raise ConnectionError("simulated Slack outage")
             return {"ok": True}
         e = self.signed()
-        with patch.dict(os.environ, {"ARVOR_LOCAL_CI_FULL_PARITY_APPROVED": "true"}), TemporaryDirectory() as folder:
+        with TemporaryDirectory() as folder:
             with self.assertRaises(ConnectionError):
                 pub.publish(e, self.public, "k1", "mock", "https://hooks.slack.com/services/mock", Path(folder),
                     controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
@@ -345,7 +355,8 @@ class LocalCITests(unittest.TestCase):
                     expected_image_id=IMAGE_ID, request=fake)
             self.assertEqual(pub.publish(e, self.public, "k1", "mock", "https://hooks.slack.com/services/mock",
                 Path(folder), controller_sha=CONTROLLER_SHA, expected_policy_sha256=POLICY_SHA,
-                expected_image_id=IMAGE_ID, confirm_slack_not_delivered=True, request=fake), "success")
+                expected_image_id=IMAGE_ID,
+                confirm_slack_not_delivered=True, request=fake), "success")
         self.assertEqual(calls, {"github": 1, "slack": 2})
 
 

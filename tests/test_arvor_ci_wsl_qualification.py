@@ -19,10 +19,10 @@ class WslQualificationScriptTests(unittest.TestCase):
         )
         return proc.stdout.strip()
 
-    def _fake_lab(self, temp):
+    def _fake_lab(self, temp, pr=214):
         lab = Path(temp) / "arvor-lab"
         controller = lab / "ci-source"
-        candidate = lab / "pr214"
+        candidate = lab / f"pr{pr}"
         ci_bin = lab / "ci-venv" / "bin"
         fakebin = Path(temp) / "fakebin"
         for path in (controller, candidate, ci_bin, fakebin):
@@ -94,7 +94,7 @@ class WslQualificationScriptTests(unittest.TestCase):
     def test_invalid_sha_blocks_before_side_effects(self):
         with tempfile.TemporaryDirectory() as temp:
             proc = subprocess.run(
-                ["bash", str(SCRIPT), "bad-sha", "b" * 40, "c" * 40],
+                ["bash", str(SCRIPT), "bad-sha", "214", "b" * 40, "c" * 40],
                 env={**os.environ, "ARVOR_CI_LAB_DIR": temp},
                 capture_output=True, text=True, timeout=5,
             )
@@ -106,7 +106,7 @@ class WslQualificationScriptTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             absent = Path(temp) / "absent"
             proc = subprocess.run(
-                ["bash", str(SCRIPT), "a" * 40, "b" * 40, "c" * 40],
+                ["bash", str(SCRIPT), "a" * 40, "214", "b" * 40, "c" * 40],
                 env={**os.environ, "ARVOR_CI_LAB_DIR": str(absent)},
                 capture_output=True, text=True, timeout=5,
             )
@@ -129,11 +129,11 @@ class WslQualificationScriptTests(unittest.TestCase):
 
     def test_orchestration_with_stubbed_services_uses_fresh_private_evidence(self):
         with tempfile.TemporaryDirectory() as temp:
-            lab, controller, candidate, env = self._fake_lab(temp)
+            lab, controller, candidate, env = self._fake_lab(temp, pr=318)
             head = self._git(controller, "rev-parse", "HEAD")
             pr_head = self._git(candidate, "rev-parse", "HEAD")
             proc = subprocess.run(
-                ["bash", str(SCRIPT), head, pr_head, pr_head],
+                ["bash", str(SCRIPT), head, "318", pr_head, pr_head],
                 env=env, capture_output=True, text=True, timeout=10,
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
@@ -154,7 +154,7 @@ class WslQualificationScriptTests(unittest.TestCase):
             pr_head = self._git(candidate, "rev-parse", "HEAD")
             (candidate / "README.md").write_text("dirty", encoding="utf-8")
             proc = subprocess.run(
-                ["bash", str(SCRIPT), head, pr_head, pr_head],
+                ["bash", str(SCRIPT), head, "214", pr_head, pr_head],
                 env=env, capture_output=True, text=True, timeout=10,
             )
             self.assertEqual(proc.returncode, 2)
@@ -167,7 +167,7 @@ class WslQualificationScriptTests(unittest.TestCase):
             head = self._git(controller, "rev-parse", "HEAD")
             pr_head = self._git(candidate, "rev-parse", "HEAD")
             proc = subprocess.run(
-                ["bash", str(SCRIPT), head, pr_head, pr_head],
+                ["bash", str(SCRIPT), head, "214", pr_head, pr_head],
                 env={**env, "MOCK_BUILD_FAIL": "1"},
                 capture_output=True, text=True, timeout=10,
             )
