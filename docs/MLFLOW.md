@@ -183,9 +183,8 @@ Exécution : `scripts/mlflow_acceptance.py`, avec Qwen réel
 `fr_FR-siwis-medium`. Deux exécutions complètes ont réussi : la première avant
 la revue indépendante (`109e5cc`), la seconde après durcissement (`26a4547`).
 Le reçu final est conservé hors dépôt :
-`/tmp/opencode/mlflow-acceptance-final-26a4547.json`. Les identifiants de runs
-et de traces ci-dessous sont ceux de la première exécution et servent de
-traçabilité ; le reçu final contient les identifiants de l'exécution qualifiée.
+`/tmp/opencode/mlflow-acceptance-final-26a4547.json`. Le tableau ci-dessous
+reprend les preuves de cette exécution finale qualifiée.
 
 15 contrôles réussis, 0 échec à chaque exécution :
 
@@ -198,14 +197,14 @@ traçabilité ; le reçu final contient les identifiants de l'exécution qualifi
 | isolation base métier | `CONNECT` refusé sur `editorial` |
 | persistance après redémarrage | paramètre relu après `stop/start` |
 | artefact MinIO + isolation | aller-retour OK, bucket métier refusé |
-| Qwen réel + trace | run `a4db762e55e841de98fff633be400a8f`, trace `tr-dbc0383a8d5a4a75d0d2f39229112f20`, span `arvor.scenario.analysis` |
-| comparaison de deux runs | `50b5bcf1430245138e3141c4b4ae798c` et `c1eab3e80e624bc08e347908bd129620`, même SHA de prompt, tokens/durées distincts |
-| image réelle | run `3f1b1d11fb7641ccb2e576a50b87058f`, 512×512, 153,29 s, SHA-256 `783e9e70…e84702` |
-| voix Piper réelle | run `d205caaba1f54e108a3765ccf259274f`, 75 s, SHA-256 `6543f5ac…924a2d` |
-| vidéo 75 s + audio | run `6230fe4171694bd1a3181ccc578bdf64`, 75 s, audio présent, SHA-256 `deb3705f…58e0d1` |
-| panne MLflow | soumission 0,0003 s, spool puis rejeu `replayed=1`, un seul run |
+| Qwen réel + trace | run `19bb6e81bb914dffa6057d9d009c13d4`, trace `tr-451b287de0a934683946a9fc6a6af9d9`, span `arvor.scenario.analysis` |
+| comparaison de deux runs | même SHA de prompt, tokens/durées distincts, deux runs comparables |
+| image réelle | run `e9020a340c4b40cbb9da178e9051d983`, 512×512, 153,61 s, SHA-256 `6535bb67…a9cc0ee` |
+| voix Piper réelle | run `8198278e3c9949ac84766735b7589493`, 75 s, SHA-256 `71db9fd0…56ab107` |
+| vidéo 75 s + audio | run `4d948d44b54941058249ebf4c7f380be`, 75 s, audio présent, SHA-256 `e1491f85…e824bd`, voix `c9cc8eff…c1c2d8` |
+| panne MLflow | soumission 0,0003 s, spool puis rejeu `replayed=1`, un seul run (`f6f5b5b2…a3d414`) |
 | absence de fuite | 4 marqueurs et 4 secrets recherchés, 0 correspondance en base et dans les artefacts |
-| empreinte bornée | base 11,99 Mo, 7 expériences, 16 objets, 6 273 octets d'artefacts, mémoire 1,75 Gio |
+| empreinte bornée | base 12,37 Mo, 7 expériences, 20 objets, 7 907 octets d'artefacts, mémoire 1,75 Gio |
 | bucket métier intact | 4 objets métier toujours présents |
 
 La vidéo de recette contient une piste audio Piper réelle et un WAV de 75 s
