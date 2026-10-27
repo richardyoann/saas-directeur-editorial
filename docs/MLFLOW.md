@@ -8,7 +8,7 @@ expériences, mesures, traces et références pseudonymisées.
 
 - Branche : `feat/mlflow-integration-20261027`
 - Base : `origin/main` `079317cd912168ec58ce4df377c49441cfc40186`
-- SHA de code qualifié : `26a4547b0a1cb0c41446cf7505d680785dabdd62`
+- SHA de code qualifié : `9d579e94f74d2758147fad44be23c72b5f4a41db`
   (le reçu JSON contient ce SHA ; un commit documentaire peut suivre sans
   changement de code).
 - Version MLflow : `3.17.2` ; Python du serveur : `3.12.15`
@@ -180,10 +180,10 @@ contenir des identifiants de runs, jamais de secret applicatif.
 
 Exécution : `scripts/mlflow_acceptance.py`, avec Qwen réel
 (`172.31.48.1:8081`), sd.cpp réel (`172.31.48.1:8082`), FFmpeg 8.0.1 et Piper
-`fr_FR-siwis-medium`. Deux exécutions complètes ont réussi : la première avant
-la revue indépendante (`109e5cc`), la seconde après durcissement (`26a4547`).
-Le reçu final est conservé hors dépôt :
-`/tmp/opencode/mlflow-acceptance-final-26a4547.json`. Le tableau ci-dessous
+`fr_FR-siwis-medium`. Trois exécutions complètes ont réussi : avant la revue
+indépendante (`109e5cc`), après le premier durcissement (`26a4547`), puis après
+les correctifs résiduels (`9d579e94`). Le reçu final est conservé hors dépôt :
+`/tmp/opencode/mlflow-acceptance-final-9d579e94.json`. Le tableau ci-dessous
 reprend les preuves de cette exécution finale qualifiée.
 
 15 contrôles réussis, 0 échec à chaque exécution :
@@ -197,14 +197,14 @@ reprend les preuves de cette exécution finale qualifiée.
 | isolation base métier | `CONNECT` refusé sur `editorial` |
 | persistance après redémarrage | paramètre relu après `stop/start` |
 | artefact MinIO + isolation | aller-retour OK, bucket métier refusé |
-| Qwen réel + trace | run `19bb6e81bb914dffa6057d9d009c13d4`, trace `tr-451b287de0a934683946a9fc6a6af9d9`, span `arvor.scenario.analysis` |
+| Qwen réel + trace | run `72e50e1527d14f669949e7c2a023cfa3`, trace `tr-042b7a44479b747271c5abea75883ebe`, span `arvor.scenario.analysis` |
 | comparaison de deux runs | même SHA de prompt, tokens/durées distincts, deux runs comparables |
-| image réelle | run `e9020a340c4b40cbb9da178e9051d983`, 512×512, 153,61 s, SHA-256 `6535bb67…a9cc0ee` |
-| voix Piper réelle | run `8198278e3c9949ac84766735b7589493`, 75 s, SHA-256 `71db9fd0…56ab107` |
-| vidéo 75 s + audio | run `4d948d44b54941058249ebf4c7f380be`, 75 s, audio présent, SHA-256 `e1491f85…e824bd`, voix `c9cc8eff…c1c2d8` |
-| panne MLflow | soumission 0,0003 s, spool puis rejeu `replayed=1`, un seul run (`f6f5b5b2…a3d414`) |
+| image réelle | run `74eafb3c4c134bbc8e3854d299a45274`, 512×512, 153,45 s, SHA-256 `5f29c9d4…4c6e9f` |
+| voix Piper réelle | run `d0357bf807d14c79a324e58486a38726`, 75 s, SHA-256 `883178eb…da0c3a` |
+| vidéo 75 s + audio | run `895d8908e0cf4925900b77fc5c049398`, 75 s, audio présent, SHA-256 `b84feedf…3791d4`, voix `c5b731fd…0c32eb` |
+| panne MLflow | soumission 0,0002 s, spool puis rejeu `replayed=1`, un seul run (`b375c12a…79bbd0ba`) |
 | absence de fuite | 4 marqueurs et 4 secrets recherchés, 0 correspondance en base et dans les artefacts |
-| empreinte bornée | base 12,37 Mo, 7 expériences, 20 objets, 7 907 octets d'artefacts, mémoire 1,75 Gio |
+| empreinte bornée | base 12,49 Mo, 7 expériences, 22 objets, 8 723 octets d'artefacts, mémoire 1,75 Gio |
 | bucket métier intact | 4 objets métier toujours présents |
 
 La vidéo de recette contient une piste audio Piper réelle et un WAV de 75 s
@@ -215,7 +215,7 @@ instrumenté comme `external-wav`. Les fichiers de recette restent sous
 
 Une revue `security-reviewer` en lecture seule a été exécutée après la première
 recette. Aucun constat bloquant. Les constats majeurs et mineurs retenus ont été
-corrigés avant la recette finale :
+corrigés avant la recette finale (dix correctifs au total) :
 
 | Constat | Correction |
 | --- | --- |
@@ -225,7 +225,10 @@ corrigés avant la recette finale :
 | borne du spool non stricte | taille projetée vérifiée sous verrou avant écriture |
 | les traces acceptaient des clés libres | liste fermée `TRACE_KEYS`, rejet de l'événement hors liste |
 | la télémétrie d'export était dans le bloc qui supprime un export en échec | appel déplacé hors du bloc protégé |
-| `write_private` suivait un lien symbolique | `O_NOFOLLOW` ajouté |
+| `write_private` suivait un lien symbolique | `O_NOFOLLOW` ajouté, répertoire forcé en `0700`, `fsync` avant remplacement |
+| un spool UTF-8 corrompu pouvait tuer le thread de télémétrie | lecture protégée, fichier brut restauré, rejeu gardé par `except BaseException` |
+| `trace.name` restait un canal libre | motif fermé `arvor.<kind>...`, rejet sinon |
+| le verrou du spool suivait un lien | ouverture du verrou avec `O_NOFOLLOW` |
 
 Risques résiduels acceptés et documentés : la déduplication reste locale au
 processus (deux processus distincts peuvent rarement créer deux runs pour un

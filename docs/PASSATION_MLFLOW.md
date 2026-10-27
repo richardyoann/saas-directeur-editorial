@@ -2,8 +2,8 @@
 
 Date : 27 octobre 2026. Branche `feat/mlflow-integration-20261027`, base
 `origin/main` `079317cd912168ec58ce4df377c49441cfc40186`. SHA de code qualifié :
-`26a4547b0a1cb0c41446cf7505d680785dabdd62` (le HEAD documentaire peut différer
-sans changement de code).
+`9d579e94f74d2758147fad44be23c72b5f4a41db` (le HEAD documentaire peut
+différer sans changement de code).
 
 ## État livré localement
 
@@ -17,12 +17,12 @@ sans changement de code).
 - Instrumentation Qwen, image sd.cpp, voix Piper, piste WAV existante et export
   FFmpeg.
 - Recette réelle 15/15 sur le poste WSL ; rapport JSON hors dépôt.
-- 529 tests réussis sous Python 3.12 et 3.14 avec PostgreSQL jetable, 0 ignoré ;
+- 531 tests réussis sous Python 3.12 et 3.14 avec PostgreSQL jetable, 0 ignoré ;
   benchmark SQL 1 200 runs et smoke vidéo 75 s réussis.
-- Revue indépendante `security-reviewer` : aucun bloquant ; sept correctifs de
+- Revue indépendante `security-reviewer` : aucun bloquant ; dix correctifs de
   durcissement appliqués. Les cas de rejeu concurrent du spool, d'allowlist de
-  traces et de télémétrie d'export sont couverts par des tests. Revue Codex non
-  disponible (quota épuisé), donc non revendiquée.
+  traces, de spool corrompu et de télémétrie d'export sont couverts par des
+  tests. Revue Codex non disponible (quota épuisé), donc non revendiquée.
 - Documentation d'exploitation : `docs/MLFLOW.md`.
 
 ## Ce qui n'a pas été fait
