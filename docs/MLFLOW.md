@@ -121,7 +121,9 @@ Quatre expériences : `arvor-scenario-generation`, `arvor-image-generation`,
 Le tracker est *fail-open* :
 
 - file bornée de 64 événements ; au-delà, écriture dans un spool local borné
-  (5 Mio, permissions `0600`, borne vérifiée sous verrou avant écriture) ;
+  (5 Mio pour le fichier actif, permissions `0600`, borne vérifiée sous verrou
+  avant écriture) ; pendant un rejeu, le fichier réclamé et le nouveau fichier
+  actif peuvent coexister, soit environ 10 Mio transitoires au maximum ;
 - thread démon unique, aucun appel MLflow sur le chemin métier ;
 - délai HTTP court et un seul réessai ;
 - le worker inactif rejoue le spool une fois par minute ;
@@ -233,8 +235,10 @@ corrigés avant la recette finale (dix correctifs au total) :
 Risques résiduels acceptés et documentés : la déduplication reste locale au
 processus (deux processus distincts peuvent rarement créer deux runs pour un
 même événement) ; l'écriture du spool reste synchrone lorsqu'une file pleine
-déborde (latence bornée) ; l'outil de recette utilise les identifiants MinIO
-racine pour vérifier, sans les imprimer, que le bucket métier est intact.
+déborde (latence bornée) ; pendant un rejeu, le spool peut occuper jusqu'à
+environ 10 Mio (fichier réclamé + nouveau fichier actif) ; l'outil de recette
+utilise les identifiants MinIO racine pour vérifier, sans les imprimer, que le
+bucket métier est intact.
 
 ## 9. Ce qui reste hors périmètre
 
