@@ -29,6 +29,11 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
+try:  # POSIX (WSL/Linux); Windows is out of scope for the private runtime.
+    import fcntl
+except ImportError:  # pragma: no cover - keeps imports portable for tests
+    fcntl = None
+
 MAX_TEXT_BYTES = 262144
 MAX_QUEUE = 64
 MAX_SPOOL_BYTES = 5 * 1024 * 1024
@@ -69,6 +74,14 @@ FORBIDDEN_KEYS = frozenset({
     "prompt", "response", "content", "text", "narration", "tenant", "actor",
     "password", "secret", "token", "credentials",
 })
+# Traces have their own strict allowlist: a trace payload can never become a
+# free-form channel for business content.
+TRACE_KEYS = frozenset({
+    "prompt_sha256", "prompt_chars", "output_chars", "text_sha256", "text_chars",
+    "status", "error_code", "finish", "width", "height", "audio_seconds",
+    "real_seconds", "scene_count", "target_seconds", "model",
+    "duration_seconds", "engine", "ffmpeg_version",
+})
 
 
 class TrackerConfigurationError(ValueError):
@@ -78,24 +91,6 @@ class TrackerConfigurationError(ValueError):
 # --------------------------------------------------------------------------
 # Configuration
 # --------------------------------------------------------------------------
-
-def _read_secret(name: str):
-    value = os.getenv(name)
-    filename = os.getenv(name + "_FILE")
-    if value and filename:
-        return None
-    if value:
-        return value
-    if filename:
-        try:
-            path = Path(filename)
-            if path.stat().st_size > 16384:
-                return None
-            return path.read_text(encoding="utf-8").strip() or None
-        except OSError:
-            return None
-    return None
-
 
 def _loopback_uri(value: str) -> str:
     """Accept only an explicit loopback HTTP(S) endpoint without path/query."""
@@ -132,8 +127,6 @@ def _configuration():
         uri = _loopback_uri(os.getenv("MLFLOW_TRACKING_URI", ""))
     except TrackerConfigurationError:
         return None
-    username = _read_secret("MLFLOW_TRACKING_USERNAME")
-    password = _read_secret("MLFLOW_TRACKING_PASSWORD")
     spool = os.getenv("ARVOR_MLFLOW_SPOOL", "").strip()
     if spool:
         try:
@@ -142,8 +135,10 @@ def _configuration():
                 spool = ""
         except (OSError, ValueError):
             spool = ""
-    return {"uri": uri, "username": username, "password": password,
-            "spool": spool, "code_version": code_version()}
+    # Credentials are read by the MLflow client from its own environment
+    # (MLFLOW_TRACKING_USERNAME/PASSWORD). The tracker never copies them into
+    # os.environ, so child processes such as ffmpeg/piper cannot inherit them.
+    return {"uri": uri, "spool": spool, "code_version": code_version()}
 
 
 def configured_uri(value: str) -> str:
@@ -229,28 +224,35 @@ def _validate(event: dict) -> dict:
         raise ValueError("trace_shape")
     clean["trace"] = {
         "name": str(trace.get("name") or f"arvor.{kind}")[:64],
-        "inputs": _safe_mapping(trace.get("inputs")),
-        "outputs": _safe_mapping(trace.get("outputs")),
-        "attributes": _safe_mapping(trace.get("attributes")),
+        "inputs": _safe_trace_mapping(trace.get("inputs")),
+        "outputs": _safe_trace_mapping(trace.get("outputs")),
+        "attributes": _safe_trace_mapping(trace.get("attributes")),
     }
     return clean
 
 
-def _safe_mapping(value) -> dict:
-    if not isinstance(value, dict) or len(value) > 32:
+def _safe_trace_mapping(value) -> dict:
+    """Strict trace allowlist: only measurements, never free-form business text."""
+    if value is None:
         return {}
+    if not isinstance(value, dict) or len(value) > 32:
+        raise ValueError("trace_mapping")
     result = {}
     for key, item in value.items():
-        if not isinstance(key, str) or len(key) > 64 or not KEY.fullmatch(key.replace("_", "-").lower()):
+        if not isinstance(key, str) or key not in TRACE_KEYS or key in FORBIDDEN_KEYS:
+            raise ValueError("trace_key")
+        if item is None:
             continue
         if isinstance(item, bool):
             result[key] = item
-        elif isinstance(item, (int, float)) and not isinstance(item, bool) and math.isfinite(float(item)):
+        elif isinstance(item, (int, float)) and math.isfinite(float(item)):
             result[key] = item
         elif isinstance(item, str):
             text = item.strip()
             if len(text) <= 200 and not any(ord(ch) < 32 for ch in text):
                 result[key] = text
+        else:
+            raise ValueError("trace_value")
     return result
 
 
@@ -428,12 +430,24 @@ def _import_mlflow():
     return mlflow
 
 
-def _apply_credentials(config: dict) -> None:
-    """Materialise *_FILE secrets for the MLflow client without logging them."""
-    for key, value in (("MLFLOW_TRACKING_USERNAME", config.get("username")),
-                       ("MLFLOW_TRACKING_PASSWORD", config.get("password"))):
-        if value and not os.getenv(key):
-            os.environ[key] = str(value)
+_publish_lock = threading.Lock()
+
+
+def _lock_spool(path):
+    """Cross-process lock for the bounded spool (append and replay)."""
+    handle = open(str(path) + ".lock", "a+", encoding="utf-8")
+    os.chmod(handle.name, stat.S_IRUSR | stat.S_IWUSR)
+    if fcntl is not None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+    return handle
+
+
+def _unlock_spool(handle):
+    try:
+        if fcntl is not None:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        handle.close()
 
 
 def _publish(event: dict, config: dict, mlflow_module=None) -> bool:
@@ -443,7 +457,6 @@ def _publish(event: dict, config: dict, mlflow_module=None) -> bool:
     except (ValueError, TypeError):
         return False
     try:
-        _apply_credentials(config)
         mlflow = mlflow_module or _import_mlflow()
         mlflow.set_tracking_uri(config["uri"])
         from mlflow.entities import Metric, Param, RunTag  # noqa: PLC0415
@@ -451,16 +464,20 @@ def _publish(event: dict, config: dict, mlflow_module=None) -> bool:
         experiment = client.get_experiment_by_name(event["experiment"])
         experiment_id = (client.create_experiment(event["experiment"])
                          if experiment is None else experiment.experiment_id)
-        existing = client.search_runs(
-            [experiment_id],
-            filter_string=f"tags.`arvor_event_id` = '{event['event_id']}'",
-            max_results=1,
-        )
-        if existing:
-            return True
-        tags = dict(event["tags"])
-        tags["arvor_event_id"] = event["event_id"]
-        run = client.create_run(experiment_id, run_name=event["run_name"], tags=tags)
+        existing = None
+        # Within one process, make search+create atomic so the daemon thread and
+        # an explicit --replay cannot both create the same event.
+        with _publish_lock:
+            existing = client.search_runs(
+                [experiment_id],
+                filter_string=f"tags.`arvor_event_id` = '{event['event_id']}'",
+                max_results=1,
+            )
+            if existing:
+                return True
+            tags = dict(event["tags"])
+            tags["arvor_event_id"] = event["event_id"]
+            run = client.create_run(experiment_id, run_name=event["run_name"], tags=tags)
         stamp = int(time.time() * 1000)
         client.log_batch(
             run.info.run_id,
@@ -576,15 +593,24 @@ class _Sink:
         try:
             target = Path(path)
             target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            if target.exists() and target.stat().st_size > MAX_SPOOL_BYTES:
-                return False
             line = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
-            if len(line.encode("utf-8")) > MAX_TEXT_BYTES:
+            payload = (line + "\n").encode("utf-8")
+            if len(payload) > MAX_TEXT_BYTES:
                 return False
-            with open(target, "a", encoding="utf-8") as handle:
-                handle.write(line + "\n")
-            os.chmod(target, stat.S_IRUSR | stat.S_IWUSR)
-            return True
+            lock = _lock_spool(target)
+            try:
+                # Check the projected size under the same lock as the append so
+                # the announced 5 MiB bound is strict even with concurrent writers.
+                size = target.stat().st_size if target.exists() else 0
+                if size + len(payload) > MAX_SPOOL_BYTES:
+                    return False
+                fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+                with os.fdopen(fd, "wb") as handle:
+                    handle.write(payload)
+                os.chmod(target, stat.S_IRUSR | stat.S_IWUSR)
+                return True
+            finally:
+                _unlock_spool(lock)
         except OSError:
             return False
 
@@ -643,28 +669,64 @@ def spool_path() -> str:
     return (config or {}).get("spool", "")
 
 
+def _append_spool(path: Path, payload: bytes) -> None:
+    lock = _lock_spool(path)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(payload)
+        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+    finally:
+        _unlock_spool(lock)
+
+
 def flush_spool(timeout=15.0) -> dict:
-    """Replay the local spool once. Idempotent: existing event ids are skipped."""
+    """Replay the local spool once. Idempotent: existing event ids are skipped.
+
+    The spool is claimed by an atomic rename before publishing, so events
+    appended by the daemon during the replay land in a new file and cannot be
+    overwritten. Failures are merged back under a cross-process lock.
+    """
     config = _configuration()
     if config is None or not config.get("spool"):
         return {"replayed": 0, "failed": 0, "skipped": 0, "error": "disabled"}
     path = Path(config["spool"])
-    if not path.exists():
-        return {"replayed": 0, "failed": 0, "skipped": 0, "error": ""}
-    replayed = failed = 0
+    try:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        lock = _lock_spool(path)
+    except OSError:
+        return {"replayed": 0, "failed": 0, "skipped": 0, "error": "locked"}
+    claimed = path.with_name(f"{path.name}.{uuid.uuid4().hex}.replay")
+    try:
+        if not path.exists():
+            return {"replayed": 0, "failed": 0, "skipped": 0, "error": ""}
+        os.replace(path, claimed)
+    except OSError:
+        return {"replayed": 0, "failed": 0, "skipped": 0, "error": "claim"}
+    finally:
+        _unlock_spool(lock)
+    replayed = failed = skipped = 0
     remaining = []
     deadline = time.monotonic() + max(1.0, timeout)
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = claimed.read_text(encoding="utf-8").splitlines()
     except OSError:
+        try:
+            _append_spool(path, claimed.read_bytes())
+        except OSError:
+            return {"replayed": 0, "failed": 0, "skipped": 0, "error": "unreadable"}
+        claimed.unlink(missing_ok=True)
         return {"replayed": 0, "failed": 0, "skipped": 0, "error": "unreadable"}
     for line in lines:
+        if not line.strip():
+            continue
         if time.monotonic() > deadline:
             remaining.append(line)
             continue
         try:
             event = json.loads(line)
         except ValueError:
+            skipped += 1
             continue
         if _publish(event, config):
             replayed += 1
@@ -673,13 +735,12 @@ def flush_spool(timeout=15.0) -> dict:
             failed += 1
     try:
         if remaining:
-            path.write_text("\n".join(remaining) + "\n", encoding="utf-8")
-            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
-        else:
-            path.unlink(missing_ok=True)
+            _append_spool(path, ("\n".join(remaining) + "\n").encode("utf-8"))
+        claimed.unlink(missing_ok=True)
     except OSError:
-        return {"replayed": replayed, "failed": failed, "skipped": 0, "error": "rewrite"}
-    return {"replayed": replayed, "failed": failed, "skipped": 0, "error": ""}
+        return {"replayed": replayed, "failed": failed, "skipped": skipped,
+                "error": "rewrite"}
+    return {"replayed": replayed, "failed": failed, "skipped": skipped, "error": ""}
 
 
 # --------------------------------------------------------------------------

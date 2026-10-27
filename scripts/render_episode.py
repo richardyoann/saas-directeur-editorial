@@ -134,20 +134,25 @@ def render(manifest, destination, *, arvor_75=False):
             if voice:
                 receipt["voice_sha256"] = digest(destination / "voice.wav")
             (destination / "receipt.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
-        preproduction = data.get("preproduction") if isinstance(data.get("preproduction"), dict) else {}
-        try:
-            story_id = uuid.UUID(str(preproduction.get("run_id")))
-        except (ValueError, TypeError):
-            story_id = uuid.uuid5(uuid.NAMESPACE_URL, str(manifest))
-        mlflow_tracker.record_export_receipt(
-            receipt, tenant=uuid.uuid5(story_id, "offline-export-tenant"),
-            story_id=story_id, encode_seconds=round(time.monotonic() - started, 3),
-        )
-        return receipt
     except BaseException:
         # Only this invocation's newly created directory can be removed.
         shutil.rmtree(destination)
         raise
+    # Telemetry runs after the protected export block: even an unexpected
+    # BaseException from the tracker can never delete a successful export.
+    preproduction = data.get("preproduction") if isinstance(data.get("preproduction"), dict) else {}
+    try:
+        story_id = uuid.UUID(str(preproduction.get("run_id")))
+    except (ValueError, TypeError):
+        story_id = uuid.uuid5(uuid.NAMESPACE_URL, str(manifest))
+    try:
+        mlflow_tracker.record_export_receipt(
+            receipt, tenant=uuid.uuid5(story_id, "offline-export-tenant"),
+            story_id=story_id, encode_seconds=round(time.monotonic() - started, 3),
+        )
+    except BaseException:  # noqa: BLE001 - observability never invalidates an export
+        pass
+    return receipt
 
 
 if __name__ == "__main__":

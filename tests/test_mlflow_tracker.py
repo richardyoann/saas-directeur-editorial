@@ -142,20 +142,6 @@ class ConfigurationTests(unittest.TestCase):
                 tenant=uuid4(), story_id=uuid4(), step="analysis", prompt="x",
                 response="y", status="success"), "disabled")
 
-    def test_file_credentials_are_applied_without_overwriting_environment(self):
-        with patch.dict(os.environ, {}, clear=True):
-            tracker._apply_credentials({"username": "file-user",
-                                        "password": "file-password"})
-            self.assertEqual(os.environ["MLFLOW_TRACKING_USERNAME"], "file-user")
-            self.assertEqual(os.environ["MLFLOW_TRACKING_PASSWORD"], "file-password")
-        with patch.dict(os.environ, {"MLFLOW_TRACKING_USERNAME": "env-user",
-                                     "MLFLOW_TRACKING_PASSWORD": "env-password"},
-                        clear=True):
-            tracker._apply_credentials({"username": "file-user",
-                                        "password": "file-password"})
-            self.assertEqual(os.environ["MLFLOW_TRACKING_USERNAME"], "env-user")
-            self.assertEqual(os.environ["MLFLOW_TRACKING_PASSWORD"], "env-password")
-
     def test_external_uri_disables_tracking_silently(self):
         with patch.dict(os.environ, {"ARVOR_MLFLOW_ENABLED": "true",
                                      "MLFLOW_TRACKING_URI": "http://8.8.8.8:5000"},
@@ -221,6 +207,19 @@ class SanitisationTests(unittest.TestCase):
             with self.subTest(candidate=candidate), self.assertRaises(ValueError):
                 tracker._validate(candidate)
 
+    def test_trace_rejects_free_form_business_content(self):
+        event = tracker.image_event(
+            tenant=uuid4(), story_id=uuid4(), scene_id=uuid4(), prompt="p",
+            status="ready", width=512, height=512)
+        tracker._validate(event)  # the builder's trace is allowed
+        for section, key in (("inputs", "narration"), ("outputs", "content"),
+                             ("attributes", "prompt")):
+            candidate = json.loads(json.dumps(event))
+            candidate["trace"][section][key] = SECRET_ANSWER
+            with self.subTest(section=section, key=key):
+                with self.assertRaises(ValueError):
+                    tracker._validate(candidate)
+
     def test_event_ids_are_deterministic(self):
         tenant, story = uuid4(), uuid4()
         first = tracker.scenario_event(tenant=tenant, story_id=story, step="analysis",
@@ -239,8 +238,7 @@ class PublicationTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.addCleanup(tracker.reset)
-        self.config = {"uri": "http://127.0.0.1:5000", "username": "u",
-                       "password": "p", "spool": "",
+        self.config = {"uri": "http://127.0.0.1:5000", "spool": "",
                        "code_version": "test-sha"}
 
     def test_publish_is_idempotent(self):
@@ -310,6 +308,48 @@ class PublicationTests(unittest.TestCase):
             sink._replay()
         self.assertFalse(spool.exists())
         self.assertEqual(len(fake.client.runs), 1)
+
+    def test_spool_file_never_contains_business_text(self):
+        spool = Path(self.temp.name) / "pending.jsonl"
+        sink = tracker._Sink({**self.config, "spool": str(spool)})
+        event = tracker.scenario_event(
+            tenant=uuid4(), story_id=uuid4(), step="analysis",
+            prompt=SECRET_PROMPT, response=SECRET_ANSWER, status="success")
+        self.assertTrue(sink._spool(event))
+        raw = spool.read_text(encoding="utf-8")
+        self.assertNotIn(SECRET_PROMPT, raw)
+        self.assertNotIn(SECRET_ANSWER, raw)
+        self.assertEqual(json.loads(raw)["event_id"], event["event_id"])
+
+    def test_replay_preserves_event_appended_after_claim(self):
+        spool = Path(self.temp.name) / "pending.jsonl"
+        sink = tracker._Sink({**self.config, "spool": str(spool)})
+        first = tracker.image_event(
+            tenant=uuid4(), story_id=uuid4(), scene_id=uuid4(), prompt="p",
+            status="ready", png_sha256="a" * 64)
+        second = tracker.image_event(
+            tenant=uuid4(), story_id=uuid4(), scene_id=uuid4(), prompt="q",
+            status="ready", png_sha256="b" * 64)
+        self.assertTrue(sink._spool(first))
+        fake = FakeMlflow()
+        original_publish = tracker._publish
+
+        def publish_during_replay(event, config, mlflow_module=None):
+            # Simulates the daemon appending while the claimed file is replayed.
+            sink._spool(second)
+            return original_publish(event, config, fake)
+
+        with patch.dict(os.environ,
+                        loopback_environment(ARVOR_MLFLOW_SPOOL=str(spool)),
+                        clear=True), \
+                patch.object(tracker, "_import_mlflow", return_value=fake), \
+                patch.object(tracker, "_publish", side_effect=publish_during_replay):
+            report = tracker.flush_spool()
+        self.assertEqual(report["replayed"], 1)
+        self.assertTrue(spool.exists())
+        lines = spool.read_text(encoding="utf-8").splitlines()
+        self.assertEqual([json.loads(line)["event_id"] for line in lines],
+                         [second["event_id"]])
 
     def test_spool_is_bounded(self):
         spool = Path(self.temp.name) / "pending.jsonl"

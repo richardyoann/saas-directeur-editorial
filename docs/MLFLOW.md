@@ -57,8 +57,7 @@ Variables lues par le tracker (aucune valeur par défaut secrète) :
 | --- | --- |
 | `ARVOR_MLFLOW_ENABLED` | `true` active l'envoi ; toute autre valeur le désactive |
 | `MLFLOW_TRACKING_URI` | doit être un URI loopback explicite, avec port |
-| `MLFLOW_TRACKING_USERNAME` / `MLFLOW_TRACKING_PASSWORD` | authentification du client |
-| `*_USERNAME_FILE` / `*_PASSWORD_FILE` | variante fichier, lue puis appliquée au client |
+| `MLFLOW_TRACKING_USERNAME` / `MLFLOW_TRACKING_PASSWORD` | authentification du client, lue par MLflow depuis son environnement |
 | `ARVOR_MLFLOW_SPOOL` | fichier de reprise borné (chemin absolu) |
 | `ARVOR_CODE_VERSION` | SHA ou version reportée dans chaque run |
 | `MLFLOW_HTTP_REQUEST_TIMEOUT` | délai court (3 s en exploitation locale) |
@@ -104,7 +103,9 @@ Quatre expériences : `arvor-scenario-generation`, `arvor-image-generation`,
 - Aucun prompt, aucune réponse, aucune narration, aucun contenu de scène n'est
   envoyé : seuls les SHA-256, longueurs et compteurs le sont.
 - Une liste d'autorisation refuse toute clé inconnue (`prompt`, `response`,
-  `password`, `token`, etc.) avant l'envoi.
+  `password`, `token`, etc.) avant l'envoi. Les traces ont leur propre liste
+  fermée (`prompt_sha256`, `status`, `error_code`, `*_chars`, etc.) : une clé
+  libre comme `narration` ou `content` fait rejeter l'événement entier.
 - Les erreurs MLflow sont avalées : le tracker ne journalise ni URI complète, ni
   identifiant, ni secret.
 - La recette scanne la base MLflow et les artefacts MinIO avec des marqueurs
@@ -119,12 +120,16 @@ Quatre expériences : `arvor-scenario-generation`, `arvor-image-generation`,
 Le tracker est *fail-open* :
 
 - file bornée de 64 événements ; au-delà, écriture dans un spool local borné
-  (5 Mio, permissions `0600`) ;
+  (5 Mio, permissions `0600`, borne vérifiée sous verrou avant écriture) ;
 - thread démon unique, aucun appel MLflow sur le chemin métier ;
 - délai HTTP court et un seul réessai ;
 - le worker inactif rejoue le spool une fois par minute ;
 - rejeu manuel possible : `python scripts/mlflow_healthcheck.py --replay` ;
-- un rejeu est idempotent grâce à `arvor_event_id` ;
+- le rejeu réclame le spool par renommage atomique, puis fusionne les échecs
+  sous verrou inter-processus : un événement ajouté pendant le rejeu n'est
+  jamais écrasé ;
+- un rejeu est idempotent grâce à `arvor_event_id` ; la création est
+  sérialisée dans le processus pour éviter deux runs pour le même événement ;
 - une panne MLflow ne modifie ni l'entité, ni l'audit, ni l'outbox, ni le
   résultat d'une génération.
 
@@ -138,7 +143,10 @@ Limites assumées :
   instrumentée et testée ;
 - le spool est un fichier local, non chiffré au repos, protégé par les
   permissions du compte et borné ; il ne contient que des données déjà
-  pseudonymisées ;
+  pseudonymisées (jamais de prompt, réponse ou secret) ;
+- les identifiants MLflow ne sont jamais recopiés dans `os.environ` par Arvor :
+  ils restent dans l'environnement fourni au processus, et les sous-processus
+  `ffmpeg`/`piper` ne les reçoivent pas par cette voie ;
 - aucune rétention automatique ni purge n'est activée.
 
 ## 6. Exploitation
@@ -199,7 +207,29 @@ La vidéo de recette contient une piste audio Piper réelle et un WAV de 75 s
 instrumenté comme `external-wav`. Les fichiers de recette restent sous
 `/tmp/opencode/mlflow-acceptance-*` et ne sont pas versionnés.
 
-## 8. Ce qui reste hors périmètre
+## 8. Revue indépendante et corrections
+
+Une revue `security-reviewer` en lecture seule a été exécutée après la première
+recette. Aucun constat bloquant. Les constats majeurs et mineurs retenus ont été
+corrigés avant la recette finale :
+
+| Constat | Correction |
+| --- | --- |
+| le mot de passe MLflow pouvait être recopié dans `os.environ`, donc hérité par `ffmpeg`/`piper` | suppression de la recopie et des variantes `*_FILE` ; MLflow lit ses identifiants dans l'environnement fourni au processus |
+| deux publieurs pouvaient créer le même run (recherche puis création non atomiques) | verrou de publication dans le processus ; limite multi-processus documentée |
+| un rejeu pouvait écraser une ligne ajoutée pendant la lecture | réclamation atomique par renommage, verrou inter-processus, fusion des échecs |
+| borne du spool non stricte | taille projetée vérifiée sous verrou avant écriture |
+| les traces acceptaient des clés libres | liste fermée `TRACE_KEYS`, rejet de l'événement hors liste |
+| la télémétrie d'export était dans le bloc qui supprime un export en échec | appel déplacé hors du bloc protégé |
+| `write_private` suivait un lien symbolique | `O_NOFOLLOW` ajouté |
+
+Risques résiduels acceptés et documentés : la déduplication reste locale au
+processus (deux processus distincts peuvent rarement créer deux runs pour un
+même événement) ; l'écriture du spool reste synchrone lorsqu'une file pleine
+déborde (latence bornée) ; l'outil de recette utilise les identifiants MinIO
+racine pour vérifier, sans les imprimer, que le bucket métier est intact.
+
+## 9. Ce qui reste hors périmètre
 
 - Push, PR, fusion et déploiement PC : non réalisés, à valider séparément sur
   le SHA complet.
