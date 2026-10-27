@@ -1,5 +1,17 @@
 # État du projet
 
+## MLFLOW — observabilité privée qualifiée localement, 27 octobre 2026
+
+Serveur MLflow 3.17.2 privé sur `127.0.0.1:5000` (service utilisateur systemd
+durci, un worker, authentification basique), PostgreSQL dédié `mlflow` et bucket
+MinIO `mlflow-artifacts` isolés. Instrumentation Qwen, images sd.cpp, voix Piper,
+piste WAV existante et export FFmpeg avec empreintes, durées, statuts et
+identifiants de corrélation ; aucun prompt, média ou secret dans MLflow.
+Tracker fail-open avec file/spool bornés et rejeu idempotent. Recette réelle
+15/15 sur WSL, dont panne MLflow sans blocage métier et absence de fuite.
+Aucun push, PR, fusion ni déploiement PC ; le runtime API déployé reste inchangé.
+Voir [MLFLOW.md](docs/MLFLOW.md) et [PASSATION_MLFLOW.md](docs/PASSATION_MLFLOW.md).
+
 ## ARVOR-MEDIA-S3-INTEGRATION — 25 octobre 2026
 
 Adaptateur S3 durci HTTPS/CA/fichiers applicatifs, image API non privilégiée et
