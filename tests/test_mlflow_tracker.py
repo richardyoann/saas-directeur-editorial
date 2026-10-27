@@ -219,6 +219,10 @@ class SanitisationTests(unittest.TestCase):
             with self.subTest(section=section, key=key):
                 with self.assertRaises(ValueError):
                     tracker._validate(candidate)
+        candidate = json.loads(json.dumps(event))
+        candidate["trace"]["name"] = SECRET_PROMPT
+        with self.assertRaises(ValueError):
+            tracker._validate(candidate)
 
     def test_event_ids_are_deterministic(self):
         tenant, story = uuid4(), uuid4()
@@ -260,6 +264,30 @@ class PublicationTests(unittest.TestCase):
         event = tracker.video_event(tenant=uuid4(), story_id=uuid4(),
                                     scene_count=3, target_seconds=75)
         self.assertFalse(tracker._publish(event, self.config, Broken()))
+
+    def test_publish_never_mutates_environment_with_credentials(self):
+        with patch.dict(os.environ, loopback_environment(), clear=True):
+            before = dict(os.environ)
+            fake = FakeMlflow()
+            event = tracker.image_event(
+                tenant=uuid4(), story_id=uuid4(), scene_id=uuid4(), prompt="p",
+                status="ready", png_sha256="f" * 64)
+            self.assertTrue(tracker._publish(event, self.config, fake))
+            self.assertEqual(os.environ, before)
+
+    def test_corrupt_spool_is_preserved_and_replay_does_not_raise(self):
+        spool = Path(self.temp.name) / "pending.jsonl"
+        spool.write_bytes(b"\xff\xfe\x00broken\n")
+        os.chmod(spool, 0o600)
+        sink = tracker._Sink({**self.config, "spool": str(spool)})
+        with patch.dict(os.environ,
+                        loopback_environment(ARVOR_MLFLOW_SPOOL=str(spool)),
+                        clear=True):
+            report = tracker.flush_spool()
+            sink._replay()
+        self.assertEqual(report["error"], "unreadable")
+        self.assertTrue(spool.exists())
+        self.assertEqual(spool.read_bytes(), b"\xff\xfe\x00broken\n")
 
     def test_spool_replay_is_idempotent_and_removes_file(self):
         spool = Path(self.temp.name) / "spool/pending.jsonl"

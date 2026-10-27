@@ -222,8 +222,11 @@ def _validate(event: dict) -> dict:
     trace = event.get("trace") or {}
     if set(trace) - {"name", "inputs", "outputs", "attributes"}:
         raise ValueError("trace_shape")
+    trace_name = str(trace.get("name") or f"arvor.{kind}")[:64]
+    if not re.fullmatch(r"arvor\.[a-z0-9_.-]{1,57}", trace_name):
+        raise ValueError("trace_name")
     clean["trace"] = {
-        "name": str(trace.get("name") or f"arvor.{kind}")[:64],
+        "name": trace_name,
         "inputs": _safe_trace_mapping(trace.get("inputs")),
         "outputs": _safe_trace_mapping(trace.get("outputs")),
         "attributes": _safe_trace_mapping(trace.get("attributes")),
@@ -435,7 +438,9 @@ _publish_lock = threading.Lock()
 
 def _lock_spool(path):
     """Cross-process lock for the bounded spool (append and replay)."""
-    handle = open(str(path) + ".lock", "a+", encoding="utf-8")
+    fd = os.open(str(path) + ".lock",
+                 os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    handle = os.fdopen(fd, "a+", encoding="utf-8")
     os.chmod(handle.name, stat.S_IRUSR | stat.S_IWUSR)
     if fcntl is not None:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
@@ -582,9 +587,9 @@ class _Sink:
         try:
             if not Path(path).exists() or not Path(path).stat().st_size:
                 return
-        except OSError:
+            flush_spool(5)
+        except BaseException:  # noqa: BLE001 - never kill the telemetry thread
             return
-        flush_spool(5)
 
     def _spool(self, event: dict) -> bool:
         path = self.config.get("spool") if self.config else ""
@@ -710,7 +715,7 @@ def flush_spool(timeout=15.0) -> dict:
     deadline = time.monotonic() + max(1.0, timeout)
     try:
         lines = claimed.read_text(encoding="utf-8").splitlines()
-    except OSError:
+    except (OSError, UnicodeError):
         try:
             _append_spool(path, claimed.read_bytes())
         except OSError:

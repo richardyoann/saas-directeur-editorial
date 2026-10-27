@@ -39,11 +39,17 @@ def secret_file(path, generator, length=48):
 def write_private(path, content):
     path = Path(path)
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        os.chmod(path.parent, 0o700)
+    except OSError:
+        pass
     temporary = path.with_suffix(path.suffix + ".tmp")
     fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC
                  | getattr(os, "O_NOFOLLOW", 0), 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
         handle.write(content)
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(temporary, path)
 
 
