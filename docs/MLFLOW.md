@@ -8,8 +8,9 @@ expériences, mesures, traces et références pseudonymisées.
 
 - Branche : `feat/mlflow-integration-20261027`
 - Base : `origin/main` `079317cd912168ec58ce4df377c49441cfc40186`
-- SHA de code qualifié : reporté dans la section « Preuves de recette » après
-  le commit de qualification (le reçu JSON contient le SHA complet).
+- SHA de code qualifié : `26a4547b0a1cb0c41446cf7505d680785dabdd62`
+  (le reçu JSON contient ce SHA ; un commit documentaire peut suivre sans
+  changement de code).
 - Version MLflow : `3.17.2` ; Python du serveur : `3.12.15`
 - Serveur : `http://127.0.0.1:5000`, `--workers 1`, artefacts via MinIO
 - Aucun secret n'est versionné. Les valeurs ne figurent pas dans ce document.
@@ -179,10 +180,14 @@ contenir des identifiants de runs, jamais de secret applicatif.
 
 Exécution : `scripts/mlflow_acceptance.py`, avec Qwen réel
 (`172.31.48.1:8081`), sd.cpp réel (`172.31.48.1:8082`), FFmpeg 8.0.1 et Piper
-`fr_FR-siwis-medium`. Rapport JSON conservé hors dépôt :
-`/tmp/opencode/mlflow-acceptance-report.json`.
+`fr_FR-siwis-medium`. Deux exécutions complètes ont réussi : la première avant
+la revue indépendante (`109e5cc`), la seconde après durcissement (`26a4547`).
+Le reçu final est conservé hors dépôt :
+`/tmp/opencode/mlflow-acceptance-final-26a4547.json`. Les identifiants de runs
+et de traces ci-dessous sont ceux de la première exécution et servent de
+traçabilité ; le reçu final contient les identifiants de l'exécution qualifiée.
 
-15 contrôles réussis, 0 échec :
+15 contrôles réussis, 0 échec à chaque exécution :
 
 | Contrôle | Preuve |
 | --- | --- |
