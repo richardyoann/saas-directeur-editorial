@@ -20,8 +20,9 @@ sans changement de code).
 - 529 tests réussis sous Python 3.12 et 3.14 avec PostgreSQL jetable, 0 ignoré ;
   benchmark SQL 1 200 runs et smoke vidéo 75 s réussis.
 - Revue indépendante `security-reviewer` : aucun bloquant ; sept correctifs de
-  durcissement appliqués et couverts par des tests. Revue Codex non disponible
-  (quota épuisé), donc non revendiquée.
+  durcissement appliqués. Les cas de rejeu concurrent du spool, d'allowlist de
+  traces et de télémétrie d'export sont couverts par des tests. Revue Codex non
+  disponible (quota épuisé), donc non revendiquée.
 - Documentation d'exploitation : `docs/MLFLOW.md`.
 
 ## Ce qui n'a pas été fait
