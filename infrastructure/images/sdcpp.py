@@ -3,19 +3,34 @@ import asyncio
 import base64
 import binascii
 import json
+import os
 import httpx
 from editorial.media_rules import MAX_PNG_BYTES, IMAGE_PARAMETERS, ImageUnavailable, validate_png, private_image_url
+
+
+DEFAULT_IMAGE_TIMEOUT_SECONDS = 300
+
+
+def image_timeout_seconds():
+    """Bound a local diffusion call; sd.cpp can exceed two minutes on CPU/Vulkan."""
+    raw = os.getenv("ARVOR_IMAGE_TIMEOUT_SECONDS", "")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_IMAGE_TIMEOUT_SECONDS
+    return min(600, max(30, value))
 
 
 async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str):
     if not private_image_url(base_url):
         raise ImageUnavailable()
+    timeout = image_timeout_seconds()
     try:
-        async with asyncio.timeout(120):
+        async with asyncio.timeout(timeout):
             async with client.stream(
                 "POST", base_url.rstrip("/") + "/v1/images/generations",
                 json={"prompt": prompt, **IMAGE_PARAMETERS},
-                timeout=120.0, follow_redirects=False
+                timeout=float(timeout), follow_redirects=False
             ) as response:
                 if response.status_code >= 500:
                     raise ImageUnavailable("image_provider_response_uncertain")

@@ -8,14 +8,53 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
+import uuid
 import wave
+
+from infrastructure.observability import mlflow_tracker
 
 RATE = 24000
 CHANNELS = 1
 WIDTH = 2
 
 
-def synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmpeg"):
+def synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmpeg",
+                     tenant=None, story_id=None):
+    """Synthesize once, then publish best-effort, privacy-safe measurements."""
+    started = time.monotonic()
+    text = " ".join(scene.get("narration", "") for scene in scenes
+                    if isinstance(scene, dict) and isinstance(scene.get("narration"), str))
+    target = sum(scene.get("duration_seconds", 0) for scene in scenes
+                 if isinstance(scene, dict) and type(scene.get("duration_seconds")) is int)
+    surrogate = story_id or uuid.uuid5(uuid.NAMESPACE_URL, str(Path(destination).absolute()))
+    try:
+        surrogate_uuid = uuid.UUID(str(surrogate))
+    except (TypeError, ValueError):
+        surrogate_uuid = uuid.uuid5(uuid.NAMESPACE_URL, str(surrogate))
+    tenant_ref = tenant or uuid.uuid5(surrogate_uuid, "offline-voice-tenant")
+    try:
+        result = _synthesize_voice(scenes, model, destination, piper=piper, ffmpeg=ffmpeg)
+    except ValueError as error:
+        mlflow_tracker.record_voice(
+            tenant=tenant_ref, story_id=surrogate_uuid, engine="piper",
+            voice=Path(str(model)).name, text=text, status="failed",
+            error_code=str(error), target_seconds=target,
+            generation_seconds=round(time.monotonic() - started, 3),
+        )
+        raise
+    mlflow_tracker.record_voice(
+        tenant=tenant_ref, story_id=surrogate_uuid, engine="piper",
+        voice=Path(str(model)).name, text=text, status="ready",
+        audio_sha256=result["voice_sha256"],
+        byte_count=result.get("byte_count"),
+        audio_seconds=result["duration_seconds"], target_seconds=target,
+        generation_seconds=round(time.monotonic() - started, 3),
+    )
+    return result
+
+
+def _synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmpeg"):
     """Synthesize each narration, pad each scene; reject speech that exceeds its slot."""
     if not isinstance(scenes, list) or not 1 <= len(scenes) <= 6:
         raise ValueError("voice_scenes_invalid")
@@ -94,4 +133,5 @@ def synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmpe
             raise
     return {"voice_created": True, "duration_seconds": total,
             "sample_rate": RATE, "scene_count": len(scenes),
-            "voice_sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
+            "voice_sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+            "byte_count": target.stat().st_size}

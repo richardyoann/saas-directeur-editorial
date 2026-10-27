@@ -12,6 +12,7 @@ import unittest
 import httpx
 
 from editorial.visuals import image_prompt, render_png, ImageUnavailable
+from infrastructure.images.sdcpp import image_timeout_seconds
 from scripts.diagnose_image_runtime import inspect_models
 from test_editorial import outputs
 
@@ -118,6 +119,18 @@ class SDServerBridgeTests(unittest.IsolatedAsyncioTestCase):
         ) as client:
             with self.assertRaises(ImageUnavailable):
                 await render_png(client, self.address, "Une légende")
+
+
+class ImageTimeoutConfigurationTests(unittest.TestCase):
+    def test_timeout_is_bounded_and_configurable(self):
+        from unittest.mock import patch
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(image_timeout_seconds(), 300)
+        for raw, expected in (("240", 240), ("1", 30), ("9999", 600),
+                              ("invalid", 300), ("", 300)):
+            with self.subTest(raw=raw), patch.dict("os.environ",
+                                                   {"ARVOR_IMAGE_TIMEOUT_SECONDS": raw}):
+                self.assertEqual(image_timeout_seconds(), expected)
 
 
 if __name__ == "__main__":

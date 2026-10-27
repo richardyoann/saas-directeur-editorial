@@ -7,6 +7,10 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
+import uuid
+
+from infrastructure.observability import mlflow_tracker
 
 ARVOR_VIDEO_DURATION_SECONDS = 75
 
@@ -55,6 +59,7 @@ def stamp(seconds):
 
 def render(manifest, destination, *, arvor_75=False):
     manifest, destination = Path(manifest).resolve(), Path(destination).absolute()
+    started = time.monotonic()
     if destination.exists() or destination.is_symlink():
         raise ValueError("destination_exists")
     if manifest.stat().st_size > 128000:
@@ -129,6 +134,15 @@ def render(manifest, destination, *, arvor_75=False):
             if voice:
                 receipt["voice_sha256"] = digest(destination / "voice.wav")
             (destination / "receipt.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
+        preproduction = data.get("preproduction") if isinstance(data.get("preproduction"), dict) else {}
+        try:
+            story_id = uuid.UUID(str(preproduction.get("run_id")))
+        except (ValueError, TypeError):
+            story_id = uuid.uuid5(uuid.NAMESPACE_URL, str(manifest))
+        mlflow_tracker.record_export_receipt(
+            receipt, tenant=uuid.uuid5(story_id, "offline-export-tenant"),
+            story_id=story_id, encode_seconds=round(time.monotonic() - started, 3),
+        )
         return receipt
     except BaseException:
         # Only this invocation's newly created directory can be removed.
