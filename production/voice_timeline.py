@@ -13,6 +13,7 @@ import uuid
 import wave
 
 from infrastructure.observability import mlflow_tracker
+from infrastructure.process_env import child_environment
 
 RATE = 24000
 CHANNELS = 1
@@ -84,6 +85,8 @@ def _synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmp
     if (not target.parent.is_dir() or
             any(p.is_symlink() for p in (target.parent, *target.parent.parents))):
         raise ValueError("voice_private_directory_invalid")
+    # Media binaries never inherit telemetry or application credentials.
+    environment = child_environment()
     # The intermediate audio is private and discarded even on failure.
     segments = []
     with tempfile.TemporaryDirectory(prefix=".tts-", dir=target.parent) as temp:
@@ -94,13 +97,14 @@ def _synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmp
             try:
                 subprocess.run([binary, "--model", str(model), "--output_file", str(intermediate)],
                                input=(scene["narration"].strip() + "\n").encode("utf-8"),
-                               capture_output=True, timeout=120, check=True)
+                               capture_output=True, timeout=120, check=True,
+                               env=environment)
                 if not intermediate.is_file() or intermediate.stat().st_size > 16 * 1024 * 1024:
                     raise ValueError("tts_output_invalid")
                 subprocess.run([converter, "-nostdin", "-v", "error", "-y", "-i",
                                 str(intermediate), "-f", "s16le", "-ar", str(RATE),
                                 "-ac", "1", str(pcm)], capture_output=True,
-                               timeout=60, check=True)
+                               timeout=60, check=True, env=environment)
             except (OSError, subprocess.SubprocessError):
                 raise ValueError("tts_engine_failed") from None
             if not pcm.is_file() or pcm.stat().st_size > 16 * 1024 * 1024:

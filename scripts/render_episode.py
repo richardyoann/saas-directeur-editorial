@@ -11,6 +11,7 @@ import time
 import uuid
 
 from infrastructure.observability import mlflow_tracker
+from infrastructure.process_env import child_environment
 
 ARVOR_VIDEO_DURATION_SECONDS = 75
 
@@ -44,7 +45,8 @@ def local_file(root, name, suffix):
 
 def run(command):
     try:
-        return subprocess.run(command, check=True, capture_output=True, timeout=300).stdout
+        return subprocess.run(command, check=True, capture_output=True, timeout=300,
+                              env=child_environment()).stdout
     except (subprocess.SubprocessError, OSError):
         raise ValueError("media_command_failed") from None
 

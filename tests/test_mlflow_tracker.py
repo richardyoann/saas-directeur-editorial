@@ -1,6 +1,7 @@
 """Unit tests for privacy-safe, fail-open MLflow telemetry."""
 import json
 import os
+import re
 import sys
 import tempfile
 import types
@@ -36,13 +37,16 @@ class FakeRunInfo:
 
 
 class FakeRun:
-    info = FakeRunInfo()
+    def __init__(self, tags=None):
+        self.info = FakeRunInfo()
+        self.tags = dict(tags or {})
 
 
 class FakeClient:
     def __init__(self):
         self.runs = []
         self.searches = 0
+        self.filters = []
 
     def get_experiment_by_name(self, name):
         return FakeExperiment()
@@ -51,12 +55,17 @@ class FakeClient:
         return "1"
 
     def search_runs(self, experiment_ids, filter_string=None, max_results=None):
+        # Honor the tag filter so an idempotence regression cannot pass.
         self.searches += 1
-        return list(self.runs)
+        self.filters.append(filter_string)
+        expected = dict(re.findall(r"tags\.`([^`]+)` = '([^']*)'", filter_string or ""))
+        return [run for run in self.runs
+                if all(run.tags.get(key) == value for key, value in expected.items())]
 
     def create_run(self, experiment_id, run_name=None, tags=None):
-        self.runs.append(FakeRun())
-        return FakeRun()
+        run = FakeRun(tags)
+        self.runs.append(run)
+        return run
 
     def log_batch(self, run_id, metrics=None, params=None, tags=None):
         self.batch = {"metrics": metrics, "params": params, "tags": tags}
@@ -255,6 +264,23 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(len(fake.client.runs), 1)
         self.assertEqual(fake.client.terminated, "FINISHED")
         self.assertEqual(fake.span.name, "arvor.scenario.analysis")
+        # The idempotence key must be stored and used by the search filter:
+        # without it the second publish would create a duplicate run.
+        self.assertEqual(fake.client.runs[0].tags.get("arvor_event_id"),
+                         event["event_id"])
+        self.assertIn(event["event_id"], fake.client.filters[0])
+        self.assertEqual(fake.client.searches, 2)
+
+    def test_publish_creates_a_new_run_for_a_distinct_event(self):
+        fake = FakeMlflow()
+        tenant, story = uuid4(), uuid4()
+        first = tracker.scenario_event(tenant=tenant, story_id=story, step="analysis",
+                                       prompt="p", response="r", status="success")
+        second = tracker.scenario_event(tenant=tenant, story_id=story, step="storyboard",
+                                        prompt="p2", response="r2", status="success")
+        self.assertTrue(tracker._publish(first, self.config, fake))
+        self.assertTrue(tracker._publish(second, self.config, fake))
+        self.assertEqual(len(fake.client.runs), 2)
 
     def test_publish_failure_returns_false_without_raising(self):
         class Broken:
@@ -264,6 +290,14 @@ class PublicationTests(unittest.TestCase):
         event = tracker.video_event(tenant=uuid4(), story_id=uuid4(),
                                     scene_count=3, target_seconds=75)
         self.assertFalse(tracker._publish(event, self.config, Broken()))
+
+    def test_publish_rejects_an_event_with_an_unexpected_key(self):
+        fake = FakeMlflow()
+        event = tracker.image_event(tenant=uuid4(), story_id=uuid4(), scene_id=uuid4(),
+                                    prompt="p", status="ready")
+        event["tags"]["arvor_prompt_text"] = "leaked"
+        self.assertFalse(tracker._publish(event, self.config, fake))
+        self.assertEqual(fake.client.runs, [])
 
     def test_publish_never_mutates_environment_with_credentials(self):
         with patch.dict(os.environ, loopback_environment(), clear=True):
@@ -392,6 +426,80 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(tracker.record_image(
                 tenant="not-a-uuid", story_id=object(), scene_id=None,
                 prompt=object(), status="ready"), "dropped")
+
+    def test_spool_refuses_a_symbolic_link(self):
+        target = Path(self.temp.name) / "outside.jsonl"
+        target.write_text("", encoding="utf-8")
+        link = Path(self.temp.name) / "pending.jsonl"
+        link.symlink_to(target)
+        sink = tracker._Sink({**self.config, "spool": str(link)})
+        event = tracker.video_event(tenant=uuid4(), story_id=uuid4(),
+                                    scene_count=1, target_seconds=75)
+        self.assertFalse(sink._spool(event))
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(target.read_text(encoding="utf-8"), "")
+        with self.assertRaises(OSError):
+            tracker._append_spool(link, b"{}")
+
+
+class ChildEnvironmentTests(unittest.TestCase):
+    def test_media_children_never_inherit_credentials(self):
+        from infrastructure.process_env import child_environment
+        environment = {
+            "PATH": "/usr/bin", "HOME": "/home/example", "LANG": "C.UTF-8",
+            "MLFLOW_TRACKING_PASSWORD": "secret",
+            "ARVOR_MLFLOW_SPOOL": "/tmp/spool",
+            "AWS_SECRET_ACCESS_KEY": "secret",
+            "ARVOR_MINIO_SECRET_KEY": "secret",
+            "EDITORIAL_API_TOKEN": "secret",
+            "PGPASSWORD": "secret",
+            "DATABASE_URL": "postgresql://user:pass@host/db",
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            child = child_environment()
+        self.assertEqual(child, {"PATH": "/usr/bin", "HOME": "/home/example",
+                                 "LANG": "C.UTF-8"})
+
+    def test_voice_and_render_subprocesses_receive_the_filtered_environment(self):
+        from production import voice_timeline
+        from scripts import render_episode
+        calls = []
+
+        def fake_run(command, **kwargs):
+            calls.append((list(command), kwargs))
+            if "--output_file" in command:
+                Path(command[command.index("--output_file") + 1]).write_bytes(b"RIFF")
+            elif command and command[0].endswith(("ffmpeg", "ffprobe")):
+                if "-f" in command and command[command.index("-f") + 1] == "s16le":
+                    Path(command[-1]).write_bytes(b"\x01\x00")
+            return types.SimpleNamespace(stdout=b"")
+
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            model = root / "voice.onnx"
+            model.write_bytes(b"model")
+            scenes = [{"duration_seconds": 75, "narration": "Bonjour."}]
+            environment = {"PATH": "/usr/bin", "MLFLOW_TRACKING_PASSWORD": "secret",
+                           "AWS_SECRET_ACCESS_KEY": "secret",
+                           "EDITORIAL_API_TOKEN": "secret"}
+            with patch.dict(os.environ, environment, clear=True), \
+                    patch("production.voice_timeline.shutil.which",
+                          side_effect=lambda name: "/usr/bin/" + name), \
+                    patch("production.voice_timeline.subprocess.run",
+                          side_effect=fake_run), \
+                    patch("scripts.render_episode.subprocess.run",
+                          side_effect=fake_run):
+                voice_timeline._synthesize_voice(scenes, model, root / "voice.wav",
+                                                 piper="piper", ffmpeg="ffmpeg")
+                render_episode.run(["ffmpeg", "-version"])
+        self.assertTrue(calls)
+        for command, kwargs in calls:
+            child = kwargs.get("env")
+            self.assertIsInstance(child, dict, command)
+            self.assertEqual(child.get("PATH"), "/usr/bin")
+            for secret in ("MLFLOW_TRACKING_PASSWORD", "AWS_SECRET_ACCESS_KEY",
+                           "EDITORIAL_API_TOKEN"):
+                self.assertNotIn(secret, child)
 
 
 if __name__ == "__main__":

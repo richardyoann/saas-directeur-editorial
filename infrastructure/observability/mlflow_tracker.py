@@ -606,10 +606,15 @@ class _Sink:
             try:
                 # Check the projected size under the same lock as the append so
                 # the announced 5 MiB bound is strict even with concurrent writers.
+                # A pre-existing symlink would redirect pseudonymised events
+                # outside the private spool; refuse it and never follow it.
+                if target.is_symlink():
+                    return False
                 size = target.stat().st_size if target.exists() else 0
                 if size + len(payload) > MAX_SPOOL_BYTES:
                     return False
-                fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+                fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_APPEND
+                             | getattr(os, "O_NOFOLLOW", 0), 0o600)
                 with os.fdopen(fd, "wb") as handle:
                     handle.write(payload)
                 os.chmod(target, stat.S_IRUSR | stat.S_IWUSR)
@@ -677,7 +682,10 @@ def spool_path() -> str:
 def _append_spool(path: Path, payload: bytes) -> None:
     lock = _lock_spool(path)
     try:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        if path.is_symlink():
+            raise OSError("spool_symlink_forbidden")
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND
+                     | getattr(os, "O_NOFOLLOW", 0), 0o600)
         with os.fdopen(fd, "wb") as handle:
             handle.write(payload)
         os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)

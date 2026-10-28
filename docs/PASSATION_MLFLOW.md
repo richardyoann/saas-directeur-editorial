@@ -28,6 +28,9 @@ différer sans changement de code).
   durcissement appliqués. Les cas de rejeu concurrent du spool, d'allowlist de
   traces, de spool corrompu et de télémétrie d'export sont couverts par des
   tests. Revue Codex non disponible (quota épuisé), donc non revendiquée.
+- Seconde revue ciblée après CI : aucun bloquant ; environnement filtré des
+  sous-processus `piper`/`ffmpeg`, `O_NOFOLLOW` sur le spool, filtre
+  `arvor_event_id` réellement testé, limite d'ACL `PUBLIC` explicitée.
 - Documentation d'exploitation : `docs/MLFLOW.md`.
 
 ## Ce qui n'a pas été fait

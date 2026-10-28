@@ -36,7 +36,11 @@ une commande manuelle. Il tourne sous l'utilisateur WSL non privilégié, avec
 Points d'isolation vérifiés :
 
 - le rôle `mlflow_app` n'est pas superutilisateur, ne crée ni base ni rôle ;
-- `CONNECT` sur la base métier `editorial` est refusé (contrôle réel) ;
+- `CONNECT` sur la base métier `editorial` est refusé (contrôle réel) ; le
+  provisioning révoque ce droit pour `mlflow_app`, et l'isolation effective
+  est vérifiée par `has_database_privilege` **et** une tentative de connexion.
+  Aucune révocation globale de `PUBLIC` n'est appliquée automatiquement :
+  sur une autre installation, l'exploitant doit contrôler l'ACL réelle ;
 - l'utilisateur MinIO MLflow ne peut pas lister le bucket métier
   `editorial-artifacts` (contrôle réel) ;
 - le serveur n'écoute que sur `127.0.0.1:5000` ;
@@ -149,8 +153,10 @@ Limites assumées :
   permissions du compte et borné ; il ne contient que des données déjà
   pseudonymisées (jamais de prompt, réponse ou secret) ;
 - les identifiants MLflow ne sont jamais recopiés dans `os.environ` par Arvor :
-  ils restent dans l'environnement fourni au processus, et les sous-processus
-  `ffmpeg`/`piper` ne les reçoivent pas par cette voie ;
+  le tracker lit l'environnement fourni au processus. Les sous-processus
+  `piper`/`ffmpeg` reçoivent une copie filtrée par
+  `infrastructure/process_env.py` (exclusion de `MLFLOW_*`, `ARVOR_MLFLOW_*`,
+  `AWS_*`, `ARVOR_MINIO_*` et des secrets applicatifs), vérifiée par un test ;
 - aucune rétention automatique ni purge n'est activée.
 
 ## 6. Exploitation
@@ -263,13 +269,26 @@ corrigés avant la recette finale (dix correctifs au total) :
 | `trace.name` restait un canal libre | motif fermé `arvor.<kind>...`, rejet sinon |
 | le verrou du spool suivait un lien | ouverture du verrou avec `O_NOFOLLOW` |
 
+Une seconde revue ciblée, après qualification CI, a porté sur le diff complet
+et l'exploitation réelle. Aucun constat bloquant ; trois correctifs et une
+clarification ont été appliqués :
+
+| Constat | Correction |
+| --- | --- |
+| `piper`/`ffmpeg` héritaient des variables `MLFLOW_*` si l'opérateur les avait chargées dans le processus | environnement enfant filtré par `infrastructure/process_env.py`, appliqué aux deux chaînes de sous-processus et couvert par un test |
+| le spool était ouvert sans `O_NOFOLLOW` | refus d'un lien symbolique et `O_NOFOLLOW` sur les deux écritures |
+| le faux client de test ignorait le filtre `arvor_event_id`, donc une régression d'idempotence pouvait passer | filtre réellement appliqué, tag et filtre vérifiés, cas de deux événements distincts ajouté |
+| la révocation `CONNECT` du seul rôle applicatif ne couvre pas une ACL `PUBLIC` héritée sur une autre installation | limite explicitée ; la recette vérifie `has_database_privilege` et une connexion réelle |
+
 Risques résiduels acceptés et documentés : la déduplication reste locale au
 processus (deux processus distincts peuvent rarement créer deux runs pour un
 même événement) ; l'écriture du spool reste synchrone lorsqu'une file pleine
 déborde (latence bornée) ; pendant un rejeu, le spool peut occuper jusqu'à
 environ 10 Mio (fichier réclamé + nouveau fichier actif) ; l'outil de recette
 utilise les identifiants MinIO racine pour vérifier, sans les imprimer, que le
-bucket métier est intact.
+bucket métier est intact. La tête finale de la branche a été requalifiée
+16/16 après ces correctifs ; le reçu correspondant est référencé dans la
+PR #225.
 
 ## 9. Ce qui reste hors périmètre
 
