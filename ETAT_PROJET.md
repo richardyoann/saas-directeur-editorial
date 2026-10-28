@@ -7,15 +7,19 @@ Chaîne voix/vidéo depuis un storyboard approuvé : `POST .../voice` (Piper ré
 lecture et téléchargement privés via l'API et l'onglet Studio « Voix & vidéo ».
 Identifiants déterministes par scénario, réservation transactionnelle avec
 audit/outbox, isolation locataire, intégrité SHA-256, échec sans rejeu
-automatique et sans écrasement d'un média prêt. 45 tests ajoutés (cas d'usage,
-PostgreSQL réel, stockage, HTTP, navigateur) ; 576 tests réussis dans l'image CI
-avec PostgreSQL jetable, 19 parcours Chromium. Qualification CI locale 16/16 sur
-`7e44de0c`, provenance hôte et intégrité des 16 journaux vérifiées
-(`run_id f877b4d9-17db-4732-9c58-e8c73a266e64`). Recette réelle 14/14 sur
+automatique, sans écrasement d'un média prêt et avec une clé de stockage par
+tentative. 54 tests ajoutés (cas d'usage, PostgreSQL réel, stockage, HTTP,
+navigateur) ; 585 tests réussis dans l'image CI avec PostgreSQL jetable, 19
+parcours Chromium. Qualification CI locale 16/16 sur `262689c1`, provenance hôte
+et intégrité des 16 journaux vérifiées (`run_id
+71fc2ccc-f206-47a3-bd46-b5af250e5d73`). Recette réelle 15/15 sur
 PostgreSQL/MinIO jetables : voix Piper 75,000 s, vidéo H.264 720×1280 + AAC
-75,000 s, sous-titres, lecture/téléchargement privés, audit atomique, aucun
-secret exposé (images sd.cpp réutilisées, moteur non joignable pendant la
-recette). PR #226 ouverte, **non fusionnée**, **aucun déploiement PC**. Voir
+75,000 s, sous-titres, lecture/téléchargement privés, audit atomique, relance
+sur clé de tentative distincte, aucun secret exposé (images sd.cpp réutilisées,
+moteur non joignable pendant la recette). Une revue indépendante a relevé une
+réservation vocale pouvant rester `generating` et une relance impossible après
+échec de publication ; les deux sont corrigées et couvertes par des tests. PR
+#226 ouverte, **non fusionnée**, **aucun déploiement PC**. Voir
 [PRODUCTION_MEDIA_75S.md](docs/PRODUCTION_MEDIA_75S.md).
 
 ## MLFLOW — observabilité privée qualifiée localement, 27 octobre 2026
