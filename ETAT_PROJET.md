@@ -8,11 +8,11 @@ lecture et téléchargement privés via l'API et l'onglet Studio « Voix & vidé
 Identifiants déterministes par scénario, réservation transactionnelle avec
 audit/outbox, isolation locataire, intégrité SHA-256, échec sans rejeu
 automatique, sans écrasement d'un média prêt et avec une clé de stockage par
-tentative. 54 tests ajoutés (cas d'usage, PostgreSQL réel, stockage, HTTP,
-navigateur) ; 585 tests réussis dans l'image CI avec PostgreSQL jetable, 19
-parcours Chromium. Qualification CI locale 16/16 sur `262689c1`, provenance hôte
+tentative. 57 tests ajoutés (cas d'usage, PostgreSQL réel, stockage, HTTP,
+navigateur) ; 588 tests réussis dans l'image CI avec PostgreSQL jetable, 19
+parcours Chromium. Qualification CI locale 16/16 sur `b5449849`, provenance hôte
 et intégrité des 16 journaux vérifiées (`run_id
-71fc2ccc-f206-47a3-bd46-b5af250e5d73`). Recette réelle 15/15 sur
+3f17c797-0f8d-4187-acc9-a4f60cd97090`). Recette réelle 15/15 sur
 PostgreSQL/MinIO jetables : voix Piper 75,000 s, vidéo H.264 720×1280 + AAC
 75,000 s, sous-titres, lecture/téléchargement privés, audit atomique, relance
 sur clé de tentative distincte, aucun secret exposé (images sd.cpp réutilisées,

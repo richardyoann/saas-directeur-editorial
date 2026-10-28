@@ -135,7 +135,7 @@ sans détail technique.
 
 ## 9. Recette réelle du 28 octobre 2026
 
-Réalisée sur le code du SHA `262689c16215aa7fd3240578169aa2269bb834be`
+Réalisée sur le code du SHA `b5449849e42cab90276ebd7a8cd4deaa658f7065`
 (les commits de documentation postérieurs ne modifient aucun fichier exécuté),
 avec PostgreSQL 16 et MinIO jetables, un bucket et un utilisateur S3 dédiés,
 TLS vérifié par la CA locale et une seule instance API. Aucune base, aucun
@@ -147,15 +147,15 @@ bucket, aucun volume ni secret métier utilisés. 15 contrôles réussis.
 | run approuvé | 3 scènes, 75 s cumulées, storyboard approuvé |
 | images | 3 PNG stockés dans MinIO, empreinte `5f29c9d43b35b281dc3e70eabef7de9bb89161ab88e02fa6e59e18f4074c6e9f`, 614 251 octets |
 | plan avant voix | approuvé, voix possible, images complètes, vidéo non prête |
-| voix Piper via HTTP | 200, 75,000 s, 24 000 Hz, mono, 3 600 044 octets, SHA-256 `9aa7671ccd81ee30169487ee7fc2b482f8cc8b9d05d4ac383368d6ff41d4c926` |
-| vidéo FFmpeg via HTTP | 200, H.264 720×1280 + AAC, 75,000 s, 2 581 258 octets, SHA-256 `97280b7745c4520565b6d784cb906fa6db6441cbfa86a1601f2ac452cb6f0e7b` |
+| voix Piper via HTTP | 200, 75,000 s, 24 000 Hz, mono, 3 600 044 octets, SHA-256 `f0e7ca8d1bc3ad691ac98413113eec8eca4a44395694741922b2e44e2a71fa73` |
+| vidéo FFmpeg via HTTP | 200, H.264 720×1280 + AAC, 75,000 s, 2 579 772 octets, SHA-256 `6fbd0f1d417b7db3a8d9dc2197cbedfec61d27d0bda9e388b3d1b25f65e92f2b` |
 | sous-titres | 3 repères, dernier à 75,0 s, 275 octets, téléchargement `.srt` |
 | refus | 401 sans jeton et avec mauvais jeton, 404 média/run inconnus, 409 voix et vidéo déjà prêtes |
 | fuite | 0 correspondance sur 8 marqueurs (bucket, chemins, outils, jeton, modèle) |
 | PostgreSQL | 3 médias `ready` avec empreintes conformes, audit et outbox atomiques pour chaque actif |
 | MinIO | 6 objets (3 PNG, 1 WAV, 1 MP4, 1 SRT), tailles non nulles |
 | relance et tentative | clés `attempt=1` et `attempt=2` distinctes sur MinIO, relecture des octets de la tentative 2, réutilisation d'un upload identique, tentative falsifiée refusée |
-| durées | voix 5,6 s, montage 8,3 s |
+| durées | voix 5,5 s, montage 8,6 s |
 
 Limites de cette recette : le moteur sd.cpp n'était pas joignable au moment de
 la recette ; les images utilisées sont de vraies sorties sd.cpp générées le
