@@ -10,8 +10,11 @@ Depuis un storyboard **approuvé** de 75 secondes et ses images prêtes, le Stud
 peut produire, dans cet ordre :
 
 1. une narration Piper de 75 secondes (`POST /editorial/runs/{id}/voice`) ;
-2. un montage vertical 720×1280 avec audio et sous-titres
-   (`POST /editorial/runs/{id}/video`).
+2. un montage vertical 720×1280 ou 1080×1920 avec audio et sous-titres
+   (`POST /editorial/runs/{id}/video`). Le profil `standard` conserve
+   720×1280 sans mouvement pour la compatibilité CI ; `cinematic` produit
+   1080×1920, fond flou, Ken Burns, fondus de 0,5 s, sous-titres incrustés et
+   SRT latéral.
 
 Les fichiers sont stockés dans le stockage privé existant (système de fichiers
 ou MinIO), décrits en base PostgreSQL et consultables dans l'onglet
@@ -116,6 +119,28 @@ lecteur audio, lecteur vidéo vertical, liens de téléchargement WAV/MP4/SRT.
 Les états « en cours » découragent le double clic ; les erreurs sont affichées
 sans détail technique.
 
+## 7.1 Profil cinématique
+
+`ARVOR_VIDEO_PROFILE=cinematic` sélectionne le profil 1080×1920. Le profil
+`standard` reste la valeur par défaut : un déploiement existant n'est pas
+modifié par une simple mise à jour du code. Le reçu d'export enregistre le
+profil, `ken_burns`, les transitions et le mode de sous-titres ; le QC compare
+les dimensions réelles du flux aux dimensions déclarées et accepte uniquement
+720×1280 ou 1080×1920.
+
+Les sous-titres incrustés sont générés dans un fichier ASS privé avec
+`PlayResX/PlayResY` explicites. Sans cela, libass interprétait le SRT comme un
+script 288 lignes et dessinait des légendes surdimensionnées au milieu de la
+vidéo ; un test contrôle désormais la présence de pixels clairs dans le tiers
+inférieur d'une scène bleue unie. Le SRT latéral reste la source lisible par
+machine.
+
+Le backend fichiers des images conserve maintenant la référence de chemin
+`<racine>/<tenant>/<run>/<scene>.png` au lieu de la jeter. Sans cette
+référence, un épisode généré en mode fichiers produisait des images prêtes mais
+le montage répondait `media_incomplete`. La référence est revalidée avant
+lecture ; un chemin étranger est refusé.
+
 ## 8. Tests
 
 - `tests/test_production_media.py` : cas d'usage, prérequis, capacité,
@@ -126,8 +151,10 @@ sans détail technique.
   orpheline après le bail, audit/outbox, atomicité, sous-titres, scénario
   obsolète).
 - `tests/test_production_media_storage.py` : écriture exclusive, permissions,
-  intégrité, liens symboliques, images, backend inconnu, clés par tentative et
-  relance après échec.
+  intégrité, liens symboliques, images, backend inconnu, clés par tentative,
+  relance après échec et référence image du backend fichiers.
+- `tests/test_render_episode.py` : export réel 1080×1920, H.264/AAC, Ken Burns,
+  sous-titres incrustés vérifiés par pixels dans le tiers inférieur.
 - `tests/test_production_media_api.py` : authentification, codes 404/409/429/502/
   503, en-têtes, nom de téléchargement, nettoyage après envoi.
 - `browser_checks/test_studio_browser.py` : parcours navigateur réel voix puis
@@ -167,6 +194,25 @@ réellement produits pendant la recette. Aucun déploiement PC n'a eu lieu.
 Chaque exécution produit des octets différents (Piper et FFmpeg ne sont pas
 reproductibles au bit près) : les empreintes ci-dessus valent pour cette
 exécution et ne servent pas de référence fonctionnelle.
+
+### 9.1 Recette cinématique de l'épisode Ys (28 octobre 2026)
+
+Dans l'environnement isolé (`127.0.0.1:8021`, PostgreSQL jetable, stockage
+fichiers), l'épisode `be520301-a010-595e-8b6c-840c340924aa` a produit :
+
+| Élément | Valeur mesurée |
+| --- | --- |
+| voix Piper | 75,000 s, 24 000 Hz mono, 3 600 044 octets, SHA-256 `db325722330a28d951f0774189f937dc7b9b178c5b0df863dd5a74dbb7a43dd2` |
+| vidéo acceptée | 1080×1920, 24 fps, H.264 + AAC, 75,000 s, 18 248 959 octets, SHA-256 `be84da20da4fcb038a61cd6f65ebbfbb251d73a98d3101d520eddd2b7142ce5d`, tentative 5 |
+| sous-titres | 5 repères de 15 s, dernier à 75,000 s, 697 octets, SHA-256 `a489296c2658f008b0f93b5cc75b184fd41b857018746b339d40585d3b1ef0f1` |
+| légendes incrustées | pixels quasi blancs contrôlés dans le tiers inférieur aux instants 5 s et 65 s |
+| prototype | 3 scènes, 45,000 s, 1080×1920, SHA-256 `23d7a2aa934e0a9aeb4ff7f37e85e56eaffc74600b610f75b75d130f818b4e42` |
+
+Deux exports antérieurs ont été rejetés pour un défaut de mise en page des
+légendes (taille et position) puis une première correction non chargée par le
+processus API ; leurs objets restent conservés avec des clés `attempt`
+distinctes et leurs runs MLflow sont marqués `superseded`. Aucun fichier prêt
+n'a été écrasé.
 
 ## 10. Limites connues
 

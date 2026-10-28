@@ -82,7 +82,8 @@ class FakeConfig(SimpleNamespace):
 
 def config(work, **overrides):
     values = {"media_directory": work, "piper_bin": "piper", "piper_model": "/voice.onnx",
-              "ffmpeg_bin": "ffmpeg", "voice_ready": True, "video_ready": True}
+              "ffmpeg_bin": "ffmpeg", "voice_ready": True, "video_ready": True,
+              "video_profile": "standard"}
     values.update(overrides)
     return FakeConfig(**values)
 
@@ -273,13 +274,16 @@ class OptionTests(unittest.IsolatedAsyncioTestCase):
         storage = FakeStorage()
         telemetry, renders = [], []
 
-        def render(manifest, destination, *, arvor_75=False, telemetry=None):
+        def render(manifest, destination, *, arvor_75=False, telemetry=None, profile="standard"):
             renders.append({"manifest": Path(manifest).read_text(encoding="utf-8"),
-                            "arvor_75": arvor_75, "telemetry": telemetry})
+                            "arvor_75": arvor_75, "telemetry": telemetry,
+                            "profile": profile})
             Path(destination).mkdir(parents=True)
             (Path(destination) / "episode.mp4").write_bytes(b"mp4")
             (Path(destination) / "narration.srt").write_bytes(b"1\n")
-            return {"duration_seconds": 75, "ffmpeg_version": "ffmpeg 8.0.1"}
+            return {"duration_seconds": 75, "ffmpeg_version": "ffmpeg 8.0.1",
+                    "width": 720, "height": 1280, "fps": 24,
+                    "ken_burns": False, "transitions": "cut", "profile": "standard"}
 
         service = GenerateVideo(repository, storage, render, ProductionMediaCapacity(),
                                 config(self.temp.name),
@@ -287,6 +291,7 @@ class OptionTests(unittest.IsolatedAsyncioTestCase):
         result = await service.execute(self.identity, self.run_id)
         self.assertEqual(result["kind"], "video")
         self.assertTrue(renders[0]["arvor_75"])
+        self.assertEqual(renders[0]["profile"], "standard")
         self.assertTrue(callable(renders[0]["telemetry"]))
         self.assertEqual(repository.reserved[0][0], "video")
         completed = repository.completed[0][1]
@@ -333,7 +338,7 @@ class OptionTests(unittest.IsolatedAsyncioTestCase):
         }
         repository = FakeRepository(plan(scenario_id=inputs["scenario_id"]), inputs)
 
-        def render(manifest, destination, *, arvor_75=False, telemetry=None):
+        def render(manifest, destination, *, arvor_75=False, telemetry=None, profile="standard"):
             Path(destination).mkdir(parents=True)
             (Path(destination) / "episode.mp4").write_bytes(b"mp4")
             (Path(destination) / "narration.srt").write_bytes(b"1\n")
@@ -361,7 +366,7 @@ class OptionTests(unittest.IsolatedAsyncioTestCase):
         }
         repository = FakeRepository(plan(scenario_id=inputs["scenario_id"]), inputs)
 
-        def render(manifest, destination, *, arvor_75=False, telemetry=None):
+        def render(manifest, destination, *, arvor_75=False, telemetry=None, profile="standard"):
             Path(destination).mkdir(parents=True)
             (Path(destination) / "episode.mp4").write_bytes(b"mp4")
             (Path(destination) / "narration.srt").write_bytes(b"1\n")

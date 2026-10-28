@@ -185,7 +185,8 @@ class GenerateVideo:
                                          encoding="utf-8")
                 started = time.monotonic()
                 receipt = self.render(manifest_path, work / "export", arvor_75=True,
-                                      telemetry=lambda _receipt: None)
+                                      telemetry=lambda _receipt: None,
+                                      profile=self.config.video_profile)
                 encoded = round(time.monotonic() - started, 3)
                 video = self.storage.save(work / "export" / "episode.mp4", tenant, run_id,
                                           reservation["asset_id"], "video",
@@ -216,7 +217,10 @@ class GenerateVideo:
                            real_seconds=receipt["duration_seconds"], status="exported",
                            video_sha256=video.get("sha256"), byte_count=video.get("size"),
                            encode_seconds=encoded, ffmpeg_version=receipt.get("ffmpeg_version"),
-                           audio=True, resolution="720x1280", fps=24)
+                           audio=True, resolution=f"{receipt['width']}x{receipt['height']}",
+                           fps=receipt.get("fps", 24), ken_burns=receipt.get("ken_burns"),
+                           transitions=receipt.get("transitions"),
+                           video_profile=receipt.get("profile"))
         except Exception:  # noqa: BLE001 - telemetry never changes a published result
             pass
         return result

@@ -21,7 +21,7 @@ WIDTH = 2
 
 
 def synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmpeg",
-                     tenant=None, story_id=None):
+                     tenant=None, story_id=None, expected_seconds=75):
     """Synthesize once, then publish best-effort, privacy-safe measurements."""
     started = time.monotonic()
     text = " ".join(scene.get("narration", "") for scene in scenes
@@ -35,7 +35,8 @@ def synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmpe
         surrogate_uuid = uuid.uuid5(uuid.NAMESPACE_URL, str(surrogate))
     tenant_ref = tenant or uuid.uuid5(surrogate_uuid, "offline-voice-tenant")
     try:
-        result = _synthesize_voice(scenes, model, destination, piper=piper, ffmpeg=ffmpeg)
+        result = _synthesize_voice(scenes, model, destination, piper=piper, ffmpeg=ffmpeg,
+                                   expected_seconds=expected_seconds)
     except ValueError as error:
         mlflow_tracker.record_voice(
             tenant=tenant_ref, story_id=surrogate_uuid, engine="piper",
@@ -55,8 +56,11 @@ def synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmpe
     return result
 
 
-def _synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmpeg"):
+def _synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmpeg",
+                      expected_seconds=75):
     """Synthesize each narration, pad each scene; reject speech that exceeds its slot."""
+    if type(expected_seconds) is not int or not 1 <= expected_seconds <= 300:
+        raise ValueError("voice_expected_duration_invalid")
     if not isinstance(scenes, list) or not 1 <= len(scenes) <= 6:
         raise ValueError("voice_scenes_invalid")
     total = 0
@@ -69,8 +73,9 @@ def _synthesize_voice(scenes, model, destination, *, piper="piper", ffmpeg="ffmp
         if not isinstance(text, str) or not text.strip() or len(text) > 4000:
             raise ValueError("voice_narration_invalid")
         total += duration
-    if total != 75:
-        raise ValueError("voice_duration_not_75")
+    if total != expected_seconds:
+        raise ValueError("voice_duration_not_75" if expected_seconds == 75
+                         else "voice_duration_invalid")
     model = Path(model).absolute()
     if (model.suffix != ".onnx" or model.is_symlink() or not model.is_file()
             or model.stat().st_size == 0):

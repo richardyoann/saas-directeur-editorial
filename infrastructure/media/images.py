@@ -31,7 +31,7 @@ def save_png(tenant, run_id, scene_id, data):
 
 
 def load_png(tenant, run_id, scene_id, storage=None):
-    if storage:
+    if isinstance(storage, dict):
         from infrastructure.media.s3 import get_file, MediaStorageError
         try:
             with tempfile.TemporaryDirectory() as directory:
@@ -42,7 +42,11 @@ def load_png(tenant, run_id, scene_id, storage=None):
                 return data
         except (MediaStorageError, OSError):
             raise ImageUnavailable("image_storage_unavailable") from None
-    return read_png(media_location(tenant, run_id, scene_id))
+    expected = media_location(tenant, run_id, scene_id)
+    if storage is not None:
+        if not isinstance(storage, str) or Path(storage) != expected:
+            raise ImageUnavailable("image_storage_unavailable")
+    return read_png(expected)
 
 
 def media_preflight(tenant, run_id, scene_id):
@@ -66,7 +70,11 @@ class PrivateMediaStorage:
 
     def save(self, tenant, run_id, scene_id, data):
         saved = save_png(tenant, run_id, scene_id, data)
-        return StoredAsset(*saved) if isinstance(saved, tuple) else StoredAsset(None, None)
+        # The filesystem backend returns its tenant/run/scene-scoped path,
+        # which production media validates again before reading it. Keeping
+        # the reference is required for voice/video assembly; dropping it made
+        # any filesystem-backed episode impossible to render.
+        return StoredAsset(*saved) if isinstance(saved, tuple) else StoredAsset(str(saved), None)
 
     def load(self, tenant, run_id, scene_id, reference=None):
         return load_png(tenant, run_id, scene_id, reference)
