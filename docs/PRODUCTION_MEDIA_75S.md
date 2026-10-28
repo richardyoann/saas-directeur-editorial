@@ -31,11 +31,16 @@ n'est dupliqué dans MLflow.
 | échec de synthèse ou de montage | 502, erreur historisée, **aucun rejeu automatique** |
 | panne de stockage ou de base | 503, aucun média partiel publié |
 
-Une relance n'est possible qu'après un échec. Toute la phase post-réservation
-(dossier de travail, synthèse, écriture, publication) ferme la réservation par
-`failed` si elle échoue : aucun média ne reste `generating` indéfiniment. Le
-dossier de travail privé est validé **avant** la réservation. Un média prêt est
-immuable : une nouvelle réservation est refusée. Une révision du storyboard
+Une relance n'est possible qu'après un échec. La réservation et toute la phase
+post-réservation (synthèse, écriture, publication) s'exécutent dans le même fil
+de travail : une annulation de requête ne peut pas laisser une ligne
+`generating`. Un échec ferme la réservation par `failed` ; si la base est
+indisponible au point de rendre cette clôture impossible, la réservation
+orpheline est clôturée (`media_reservation_expired`) puis reprise
+automatiquement **après une heure**, délai très supérieur à la plus longue
+synthèse. Le nombre de tentatives est borné à 1 000. Le dossier de travail privé
+est validé **avant** la réservation. Un média prêt est immuable : une nouvelle
+réservation est refusée. Une révision du storyboard
 produit un nouveau `scenario_id`, donc de nouveaux identifiants de médias ;
 l'ancien reste consultable.
 
@@ -117,8 +122,9 @@ sans détail technique.
   échecs sans rejeu, fermeture de réservation après échec de publication,
   validation du dossier avant réservation, télémétrie, lecture temporaire.
 - `tests/test_production_media_postgres.py` : PostgreSQL réel jetable
-  (réservation, conflits, isolation locataire, audit/outbox, atomicité,
-  sous-titres, scénario obsolète).
+  (réservation, conflits, isolation locataire, reprise d'une réservation
+  orpheline après le bail, audit/outbox, atomicité, sous-titres, scénario
+  obsolète).
 - `tests/test_production_media_storage.py` : écriture exclusive, permissions,
   intégrité, liens symboliques, images, backend inconnu, clés par tentative et
   relance après échec.
@@ -173,6 +179,8 @@ exécution et ne servent pas de référence fonctionnelle.
 - Les objets des tentatives échouées restent orphelins dans le stockage privé
   (aucune suppression autorisée) ; ils ne sont ni référencés ni lisibles par
   l'API. Un nettoyage manuel contrôlé reste à définir.
+- Une réservation orpheline n'est reprise qu'après une heure : c'est le prix de
+  la sécurité face à une synthèse encore en cours, sans démon de redémarrage.
 - Le relais Studio matérialise une copie temporaire pour la lecture ; le
   nettoyage est déclenché en fin de réponse, un client qui coupe brutalement
   peut laisser un fichier temporaire jusqu'au prochain nettoyage système.

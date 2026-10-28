@@ -6,7 +6,7 @@ import tempfile
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
-from editorial.media.contracts import Identity, RunConflict
+from editorial.media.contracts import Identity, PersistenceUnavailable, RunConflict
 from production.media_pipeline import (
     GenerateVideo, GenerateVoice, ProductionMediaCapacity, ProductionMediaError,
     ReadProductionMedia, download_name,
@@ -213,6 +213,25 @@ class OptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.code, "voice_duration_not_75")
         self.assertEqual(repository.failures[0][1]["error_code"], "voice_duration_not_75")
         self.assertEqual(repository.completed, [])
+
+    async def test_secondary_fail_error_never_masks_the_publication_error(self):
+        repository = FakeRepository(plan())
+
+        def synthesize(scenes, model, destination, **kwargs):
+            Path(destination).write_bytes(b"RIFF" + b"\x00" * 8)
+            return {"duration_seconds": 75}
+
+        def complete(*args, **kwargs):
+            raise PersistenceUnavailable()
+
+        def fail(*args, **kwargs):
+            raise PersistenceUnavailable()
+
+        repository.complete, repository.fail = complete, fail
+        service = GenerateVoice(repository, FakeStorage(), synthesize,
+                                ProductionMediaCapacity(), config(self.temp.name))
+        with self.assertRaises(PersistenceUnavailable):
+            await service.execute(self.identity, self.run_id)
 
     async def test_voice_publish_failure_closes_the_reservation(self):
         repository = FakeRepository(plan())

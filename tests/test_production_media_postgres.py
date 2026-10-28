@@ -145,6 +145,35 @@ class ProductionMediaPostgresTests(unittest.TestCase):
         plan = self.repository.plan(self.tenant, run_id)
         self.assertEqual(plan["media"]["voice"]["status"], "failed")
 
+    def test_an_abandoned_reservation_is_recovered_after_the_lease(self):
+        run_id, scenario_id, _ = self.approved_run()
+        self.repository.reserve(self.tenant, self.actor, run_id, "voice",
+                                scenario_id=scenario_id)
+        clock = ["2026-10-28T00:00:00Z"]
+        repository = PostgresProductionMediaRepository(
+            self.store.connect, self.store._write, self.store.get,
+            lambda: clock[0], lambda: "test-sha")
+        clock[0] = "2026-10-28T00:59:59Z"
+        with self.assertRaises(RunConflict):
+            repository.reserve(self.tenant, self.actor, run_id, "voice",
+                               scenario_id=scenario_id)
+        clock[0] = "2026-10-28T01:00:00Z"
+        recovered = repository.reserve(self.tenant, self.actor, run_id, "voice",
+                                       scenario_id=scenario_id)
+        self.assertEqual(recovered["attempt"], 2)
+        plan = repository.plan(self.tenant, run_id)
+        self.assertEqual(plan["media"]["voice"]["status"], "generating")
+        asset_id = repository.asset_id(scenario_id, "voice")
+        with self.store.connect() as conn:
+            counts = conn.execute(
+                "SELECT (SELECT count(*) FROM po_audit WHERE correlation_id=%s AND entity_id=%s),"
+                " (SELECT count(*) FROM po_outbox o JOIN po_audit a USING(event_id)"
+                "  WHERE a.correlation_id=%s AND a.entity_id=%s)",
+                (run_id, asset_id, run_id, asset_id)).fetchone()
+        # Initial reservation, expiry closure and new reservation: three writes.
+        self.assertEqual(counts[0], 3)
+        self.assertEqual(counts[0], counts[1])
+
     def test_complete_requires_a_reservation_and_exposes_a_scoped_reference(self):
         run_id, scenario_id, _ = self.approved_run()
         with self.assertRaises(RunConflict):

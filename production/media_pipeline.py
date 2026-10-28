@@ -88,13 +88,14 @@ class GenerateVoice:
         if not self.capacity.acquire(blocking=False):
             raise ProductionMediaError("media_capacity_busy")
         try:
-            reservation = await offload(self.repository.reserve, identity, run_id, "voice",
-                                        plan["scenario_id"])
-            return await offload(self._run, identity, run_id, plan, reservation, directory)
+            return await offload(self._run, identity, run_id, plan, directory)
         finally:
             self.capacity.release()
 
-    def _run(self, identity, run_id, plan, reservation, directory):
+    def _run(self, identity, run_id, plan, directory):
+        # Reservation, synthesis, storage and publication run in the same worker
+        # thread: a task cancellation cannot leave a "generating" row behind.
+        reservation = self.repository.reserve(identity, run_id, "voice", plan["scenario_id"])
         try:
             with tempfile.TemporaryDirectory(prefix="arvor-voice-", dir=directory) as work:
                 destination = Path(work) / "voice.wav"
@@ -146,15 +147,16 @@ class GenerateVideo:
         if not self.capacity.acquire(blocking=False):
             raise ProductionMediaError("media_capacity_busy")
         try:
-            inputs = await offload(self.repository.inputs, identity, run_id, "video")
-            reservation = await offload(self.repository.reserve, identity, run_id, "video",
-                                        plan["scenario_id"])
-            return await offload(self._run, identity, run_id, inputs, reservation)
+            return await offload(self._run, identity, run_id)
         finally:
             self.capacity.release()
 
-    def _run(self, identity, run_id, inputs, reservation):
+    def _run(self, identity, run_id):
+        # Inputs, reservation, render, storage and publication share one worker
+        # thread, so a cancelled request cannot strand a "generating" row.
+        inputs = self.repository.inputs(identity, run_id, "video")
         tenant, scenario_id = identity.tenant, inputs["scenario_id"]
+        reservation = self.repository.reserve(identity, run_id, "video", scenario_id)
         encoded = None
         try:
             with tempfile.TemporaryDirectory(prefix="arvor-video-",

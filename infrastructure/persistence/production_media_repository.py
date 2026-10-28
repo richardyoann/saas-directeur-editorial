@@ -3,6 +3,7 @@
 Bytes are written by the storage adapter outside the transaction. This module
 only owns rows, version checks, audit and outbox; no HTTP, renderer or S3 call.
 """
+from datetime import datetime, timezone
 from uuid import UUID, uuid5
 
 import psycopg
@@ -18,7 +19,13 @@ KINDS = (VOICE, VIDEO, SUBTITLES)
 _SUFFIX = {"voice": "production-voice-v1", "video": "production-video-v1",
            "subtitles": "production-subtitles-v1"}
 UNCERTAIN = frozenset({"voice_provider_timeout", "voice_storage_result_uncertain",
-                       "video_render_interrupted", "video_storage_result_uncertain"})
+                       "video_render_interrupted", "video_storage_result_uncertain",
+                       "media_reservation_expired"})
+# A reservation that was never closed (process crash, database outage during
+# publication) may be recovered after this delay; the longest synthesis is far
+# below it, so an in-flight job is never taken over.
+LEASE_SECONDS = 3600
+MAX_ATTEMPTS = 1000
 
 
 class PostgresProductionMediaRepository:
@@ -123,6 +130,18 @@ class PostgresProductionMediaRepository:
                                    in zip(scenes, missing) if absent]}
 
     @staticmethod
+    def _timestamp(value):
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+    def _abandoned(self, record):
+        created, now = self._timestamp(record.get("created_at")), self._timestamp(self._clock())
+        return bool(created and now and (now - created).total_seconds() >= LEASE_SECONDS)
+
+    @staticmethod
     def _image_id(scene_id):
         return uuid5(UUID(str(scene_id)), "private-image-v1")
 
@@ -172,13 +191,28 @@ class PostgresProductionMediaRepository:
             asset_id = self.asset_id(scenario_id, kind)
             row = self._asset(conn, tenant, asset_id)
             version, previous = (row if row else (0, None))
-            if previous and previous.get("status") in ("generating", "ready"):
+            if previous and previous.get("status") == "ready":
+                raise RunConflict()
+            if previous and previous.get("status") == "generating":
+                if not self._abandoned(previous):
+                    raise RunConflict()
+                expired = dict(previous)
+                expired.update(status="failed", finished_at=self._clock(),
+                               error_code="media_reservation_expired",
+                               outcome_uncertain=True)
+                self._write(conn, tenant, actor, run_id, "result", asset_id, expired,
+                            version)
+                version, previous = version + 1, expired
+            elif previous and previous.get("status") != "failed":
+                raise RunConflict()
+            attempt = (previous or {}).get("attempt", 0) + 1
+            if attempt > MAX_ATTEMPTS:
                 raise RunConflict()
             record = {"type": "production_media", "run_id": str(run_id),
                       "scenario_id": scenario_id, "kind": kind,
                       "status": "generating", "created_at": self._clock(),
                       "code_version": self._code_version(),
-                      "attempt": (previous or {}).get("attempt", 0) + 1}
+                      "attempt": attempt}
             self._write(conn, tenant, actor, run_id, "result", asset_id, record, version)
             result = {"asset_id": asset_id, "version": version + 1,
                       "attempt": record["attempt"], "scenario_id": scenario_id}
@@ -214,7 +248,8 @@ class PostgresProductionMediaRepository:
                         "storage": reference.get("reference", reference),
                         "sha256": reference.get("sha256"),
                         "byte_count": reference.get("size"),
-                        "attempt": (side_previous or {}).get("attempt", 0) + 1}
+                        "attempt": reference.get("attempt")
+                        or (side_previous or {}).get("attempt", 0) + 1}
                 self._write(conn, tenant, actor, run_id, "result", side_id, side, side_version)
             return {"media_id": str(asset_id), "kind": kind, "sha256": sha256,
                     "size_bytes": byte_count, "duration_seconds": duration_seconds}

@@ -35,6 +35,20 @@ class MediaStorageTests(unittest.TestCase):
         self.assertEqual(self.source.read_bytes(), self.payload)
         self.api.head_object.assert_called_once_with(Bucket="private-media", Key=reference["key"], VersionId="version-1")
 
+    def test_attempt_keys_are_distinct_and_validated(self):
+        first = storage.object_key(*self.ids, "voice")
+        second = storage.object_key(*self.ids, "voice", 2)
+        self.assertNotEqual(first, second)
+        self.assertTrue(second.endswith("-a2.wav"))
+        reference = {"backend": "minio", "bucket": "private-media", "key": second,
+                     "kind": "voice", "size": len(self.payload),
+                     "sha256": hashlib.sha256(self.payload).hexdigest(), "attempt": 3}
+        with self.assertRaisesRegex(storage.MediaStorageError, "media_reference_invalid"):
+            storage.get_file(reference, self.root / "copy.wav", *self.ids, "voice")
+        for invalid in (0, 1001, "2", True):
+            with self.assertRaisesRegex(storage.MediaStorageError, "media_attempt_invalid"):
+                storage.object_key(*self.ids, "voice", invalid)
+
     def test_timeout_reuses_only_an_identical_object(self):
         self.api.put_object.side_effect = TimeoutError()
         reference = storage.put_file(self.source, *self.ids, "voice")
