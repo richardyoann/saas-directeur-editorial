@@ -66,11 +66,13 @@ class MediaRuleTests(unittest.TestCase):
                     "Ambiance : calme. Description artistique : Une lanterne.")
         self.assertEqual(rules.image_prompt(run, 1), expected)
         refs = [{**board["cast"][0], "first_scene": 1, "scenes": [1]}]
-        self.assertEqual(rules.image_provenance(run, 1, expected), {
+        seed = rules.image_seed("scene-1")
+        self.assertEqual(rules.image_provenance(run, 1, expected, seed=seed), {
             "contract_version": "private-image-v2", "provider": "sd.cpp-compatible",
             "parameters": {"n": 1, "size": "512x512", "output_format": "png"},
-            "model": None, "seed": None,
-            "model_seed_reason": "not_reported_by_image_contract",
+            "sample_parameters": rules.IMAGE_SAMPLE_PARAMETERS,
+            "model": None, "seed": seed,
+            "model_seed_reason": "seed_and_sampling_controlled_by_request",
             "prompt_sha256": hashlib.sha256(expected.encode()).hexdigest(),
             "character_reference_sha256": hashlib.sha256(json.dumps(
                 refs, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest(),

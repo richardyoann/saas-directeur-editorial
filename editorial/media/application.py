@@ -10,7 +10,9 @@ from editorial.media.contracts import (
     Identity, ImageRequest, MediaRepository, ImageRenderer, MediaStorage, MediaCapacity,
     MediaOperationError, PersistenceUnavailable, RunConflict, RunMissing,
 )
-from editorial.media_rules import ImagePromptTooLong, ImageUnavailable, validate_png
+from editorial.media_rules import (
+    IMAGE_PROMPT_VERSION, IMAGE_SAMPLE_PARAMETERS, ImagePromptTooLong,
+    ImageUnavailable, image_seed, validate_png)
 
 
 async def offload(function, *args, **kwargs):
@@ -65,7 +67,8 @@ class GenerateSceneImage:
 
         started = time.monotonic()
         try:
-            png = await self.renderer.render(scene['prompt'])
+            seed = image_seed(scene_id)
+            png = await self.renderer.render(scene['prompt'], seed=seed)
             width, height = validate_png(png)
             saved = await offload(self.storage.save, identity.tenant, request.run_id, scene_id, png)
             png_sha256 = hashlib.sha256(png).hexdigest()
@@ -87,10 +90,15 @@ class GenerateSceneImage:
                 pass  # A redundant recovery file is safer than a false API failure.
             self.telemetry(
                 tenant=identity.tenant, story_id=request.run_id, scene_id=scene_id,
-                prompt=scene['prompt'], status='ready', model='sd.cpp-compatible',
+                prompt=scene['prompt'], status='ready', model='sd-cpp-local',
+                prompt_version=IMAGE_PROMPT_VERSION,
                 width=width, height=height, duration_seconds=duration,
                 png_sha256=png_sha256, byte_count=len(png),
                 storage_ref=saved.reference, resolution='512x512', output_format='png',
+                seed=seed, sampler=IMAGE_SAMPLE_PARAMETERS['sample_method'],
+                steps=IMAGE_SAMPLE_PARAMETERS['sample_steps'],
+                cfg_scale=IMAGE_SAMPLE_PARAMETERS['txt_cfg'],
+                scheduler=IMAGE_SAMPLE_PARAMETERS['scheduler'], upscale='none',
             )
             return result
         except ImageUnavailable as error:
@@ -102,8 +110,13 @@ class GenerateSceneImage:
             self.telemetry(
                 tenant=identity.tenant, story_id=request.run_id, scene_id=scene_id,
                 prompt=scene['prompt'], status='failed', error_code=error.code,
-                model='sd.cpp-compatible', duration_seconds=round(time.monotonic() - started, 6),
-                resolution='512x512', output_format='png',
+                model='sd-cpp-local', prompt_version=IMAGE_PROMPT_VERSION,
+                duration_seconds=round(time.monotonic() - started, 6),
+                resolution='512x512', output_format='png', seed=seed,
+                sampler=IMAGE_SAMPLE_PARAMETERS['sample_method'],
+                steps=IMAGE_SAMPLE_PARAMETERS['sample_steps'],
+                cfg_scale=IMAGE_SAMPLE_PARAMETERS['txt_cfg'],
+                scheduler=IMAGE_SAMPLE_PARAMETERS['scheduler'], upscale='none',
             )
             raise MediaOperationError(error.code) from None
 

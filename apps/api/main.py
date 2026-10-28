@@ -20,6 +20,17 @@ from editorial.runtime_secrets import secret
 from apps.api.request_limits import RequestLimits
 # Existing process variables take precedence; never rewrite the environment file.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
+# Optional private MLflow client file (0600, outside the repository). Loading it
+# is explicit and fail-open: telemetry stays disabled if the file is absent or
+# untrusted, and a generation is never blocked. Child media processes filter
+# MLFLOW_/AWS_ variables out of their environment.
+_mlflow_env_file = os.getenv("ARVOR_MLFLOW_ENV_FILE", "").strip()
+if _mlflow_env_file:
+    try:
+        from infrastructure.observability.mlflow_env import load_client_environment
+        load_client_environment(_mlflow_env_file)
+    except Exception:  # noqa: BLE001 - startup must survive a bad telemetry file
+        pass
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):

@@ -137,6 +137,31 @@ def provision_minio(mc, endpoint, root_user, root_password, bucket, access_key,
         raise RuntimeError("bucket_unreadable")
 
 
+def write_client_environment(config_dir, state_dir, auth_password, minio_ca):
+    """Write the private client configuration consumed by the Arvor process.
+
+    ``REQUESTS_CA_BUNDLE`` is mandatory: MLflow downloads artifacts through
+    presigned MinIO URLs from the client process, which validates the private
+    CA.  The same CA already secures the server; no certificate is created
+    here.  The file stays ``0600`` and is never printed.
+    """
+    ca_path = Path(minio_ca).resolve(strict=True)
+    if not ca_path.is_file():
+        raise RuntimeError("minio_ca_invalid")
+    write_private(Path(config_dir) / "client.env", "\n".join([
+        "ARVOR_MLFLOW_ENABLED=true",
+        "MLFLOW_TRACKING_URI=http://127.0.0.1:5000",
+        "MLFLOW_TRACKING_USERNAME=arvor-admin",
+        f"MLFLOW_TRACKING_PASSWORD={auth_password}",
+        f"ARVOR_MLFLOW_SPOOL={(Path(state_dir) / 'spool/pending.jsonl').resolve()}",
+        "MLFLOW_HTTP_REQUEST_TIMEOUT=3",
+        "MLFLOW_HTTP_REQUEST_MAX_RETRIES=1",
+        f"REQUESTS_CA_BUNDLE={ca_path}",
+        f"AWS_CA_BUNDLE={ca_path}",
+        "",
+    ]))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state-dir", type=Path,
@@ -208,16 +233,8 @@ def main(argv=None):
         "MLFLOW_HTTP_REQUEST_TIMEOUT=3",
         "",
     ]))
-    write_private(args.config_dir / "client.env", "\n".join([
-        "ARVOR_MLFLOW_ENABLED=true",
-        "MLFLOW_TRACKING_URI=http://127.0.0.1:5000",
-        "MLFLOW_TRACKING_USERNAME=arvor-admin",
-        f"MLFLOW_TRACKING_PASSWORD={auth_password}",
-        f"ARVOR_MLFLOW_SPOOL={(args.state_dir / 'spool/pending.jsonl').resolve()}",
-        "MLFLOW_HTTP_REQUEST_TIMEOUT=3",
-        "MLFLOW_HTTP_REQUEST_MAX_RETRIES=1",
-        "",
-    ]))
+    write_client_environment(args.config_dir, args.state_dir,
+                             auth_password, args.minio_ca)
     print(json.dumps({
         "postgres_database": "mlflow", "postgres_role": "mlflow_app",
         "minio_bucket": "mlflow-artifacts", "minio_user": access_key,
