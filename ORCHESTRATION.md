@@ -153,6 +153,22 @@ une session Codex interactive avec l’authentification et les protections
 habituelles. Le lancement réel n’est pas testé dans l’environnement restreint.
 Aucun modèle imposé, infrastructure modifiée ou droit élevé demandé.
 
+## Observabilité MLflow
+
+Le suivi des générations est opt-in et ne remplace jamais PostgreSQL. Pour une
+mission qui produit des médias ou des textes :
+
+```bash
+systemctl --user status arvor-mlflow.service
+.venv/bin/python scripts/mlflow_healthcheck.py \
+  --env-file ~/.config/arvor-mlflow/client.env --wait 30
+```
+
+Le détail de l'architecture, des données autorisées, de la panne et du rejeu est
+dans `docs/MLFLOW.md`. Ne jamais activer `ARVOR_MLFLOW_ENABLED` sur le service
+API déployé sans autorisation de livraison du SHA exact ; ne jamais copier
+`client.env` ni les secrets dans un dépôt, un ticket ou un journal.
+
 ## Autorisations
 
 Demander confirmation avant suppression de données, migration appliquée,

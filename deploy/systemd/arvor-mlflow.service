@@ -1,0 +1,37 @@
+[Unit]
+Description=Arvor private MLflow tracking server (loopback, PostgreSQL, MinIO)
+Documentation=https://github.com/richardyoann/saas-directeur-editorial/blob/main/docs/MLFLOW.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.local/state/arvor-mlflow
+EnvironmentFile=%h/.config/arvor-mlflow/mlflow.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=%h/.local/state/arvor-mlflow/venv/bin/mlflow server --host 127.0.0.1 --port 5000 --workers 1 --serve-artifacts --app-name basic-auth
+Restart=on-failure
+RestartSec=10
+StartLimitBurst=5
+TimeoutStopSec=30
+UMask=0077
+
+# Least privilege: the server only reads its venv/configuration and writes
+# nothing except its private state directory.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/arvor-mlflow
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+[Install]
+WantedBy=default.target

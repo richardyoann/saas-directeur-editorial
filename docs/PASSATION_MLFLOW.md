@@ -1,0 +1,75 @@
+# Passation — MLflow privé Arvor
+
+Date : 28 octobre 2026. Branche `feat/mlflow-integration-20261027` poussée,
+PR #225 ouverte, base `origin/main`
+`079317cd912168ec58ce4df377c49441cfc40186`. SHA de code qualifié :
+`9d579e94f74d2758147fad44be23c72b5f4a41db` (le HEAD documentaire peut
+différer sans changement de code).
+
+## État livré localement
+
+- Service utilisateur `arvor-mlflow.service` : actif, `enabled`, redémarrage
+  automatique, durci, un seul worker, loopback `127.0.0.1:5000`.
+- PostgreSQL dédié `mlflow` / `mlflow_app` ; accès à la base métier refusé.
+- MinIO dédié `mlflow-artifacts` ; accès au bucket métier refusé.
+- Authentification basique active ; `/health` sans identifiants renvoie 401.
+- Tracker `infrastructure/observability/mlflow_tracker.py` : désactivé par
+  défaut, fail-open, file/spool bornés, rejeu idempotent.
+- Instrumentation Qwen, image sd.cpp, voix Piper, piste WAV existante et export
+  FFmpeg.
+- Recette réelle 15/15 sur le poste WSL ; rapport JSON hors dépôt.
+- 531 tests réussis sous Python 3.12 et 3.14 avec PostgreSQL jetable, 0 ignoré ;
+  benchmark SQL 1 200 runs et smoke vidéo 75 s réussis.
+- CI locale isolée 16/16 sur la tête `bf293a1` : 531 tests par version Python,
+  18 parcours Chromium, Gitleaks, audit de dépendances, supply-chain, revue de
+  risques et vidéo synthétique 75 s. Image épinglée et reçu privé
+  `run_id 1322464b-c2e5-4966-839e-193789412fb4`, provenance vérifiée.
+- Revue indépendante `security-reviewer` : aucun bloquant ; dix correctifs de
+  durcissement appliqués. Les cas de rejeu concurrent du spool, d'allowlist de
+  traces, de spool corrompu et de télémétrie d'export sont couverts par des
+  tests. Revue Codex non disponible (quota épuisé), donc non revendiquée.
+- Seconde revue ciblée après CI : aucun bloquant ; environnement filtré des
+  sous-processus `piper`/`ffmpeg`, `O_NOFOLLOW` sur le spool, filtre
+  `arvor_event_id` réellement testé, limite d'ACL `PUBLIC` explicitée.
+- Documentation d'exploitation : `docs/MLFLOW.md`.
+
+## Ce qui n'a pas été fait
+
+- Aucune fusion de la PR #225 : elle reste ouverte, sans déploiement.
+- Aucun déploiement PC, aucune modification de `~/editorial-runtime/current`.
+- Aucune migration métier, aucun changement de base, bucket, volume ou secret
+  métier.
+- Aucune activation MLflow dans le service API actuellement déployé.
+- Aucun abonnement ou service payant, aucune GitHub Action facturable.
+
+## Reprise opérateur
+
+1. Vérifier `systemctl --user is-active arvor-mlflow.service` et le healthcheck
+   avec `scripts/mlflow_healthcheck.py`.
+2. En cas de spool non vide, exécuter `--replay` une fois et vérifier
+   `replayed/failed` ; ne jamais supprimer le spool à la main sans diagnostic.
+3. Pour activer un client Arvor, fournir `client.env` (0600) au processus et
+   positionner `ARVOR_MLFLOW_ENABLED=true` ; sans cette variable, aucun envoi.
+4. Avant toute livraison PC, obtenir l'accord explicite sur le SHA complet et
+   suivre `docs/mco/RUNBOOK_DIAGNOSTIC_PC.md`.
+
+## Limites à traiter ensuite
+
+- Embarquer Piper dans l'image si la voix doit être disponible en production.
+- Décider d'une politique de rétention (le spool et les runs ne sont pas purgés
+  automatiquement).
+- Mesurer la mémoire MLflow sous charge réelle et ajuster le worker unique.
+
+## Preuves
+
+Le reçu de recette contient le SHA, les identifiants de runs, les empreintes et
+les durées. Il est conservé hors dépôt et ne doit pas être publié avec des
+secrets. Les commandes sont dans `docs/MLFLOW.md` §6 et §7.
+
+La CI locale a produit un reçu privé sous `~/arvor-ci-lab/`, `run_id`
+`1322464b-c2e5-4966-839e-193789412fb4`, pour le SHA
+`bf293a12eacd764b0784e6587d70ffcb17793aab` et l'image
+`sha256:dd7076aba086afc2bd9439544fab0d9f48989b3070636323719b11c4cd0c082e`.
+La provenance hôte et l'intégrité des journaux ont été vérifiées. Le reçu est
+informatif : il ne signe rien, ne publie aucun statut et n'autorise ni fusion ni
+déploiement.

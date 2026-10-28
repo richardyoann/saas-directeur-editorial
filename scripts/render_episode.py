@@ -7,6 +7,11 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
+import uuid
+
+from infrastructure.observability import mlflow_tracker
+from infrastructure.process_env import child_environment
 
 ARVOR_VIDEO_DURATION_SECONDS = 75
 
@@ -40,7 +45,8 @@ def local_file(root, name, suffix):
 
 def run(command):
     try:
-        return subprocess.run(command, check=True, capture_output=True, timeout=300).stdout
+        return subprocess.run(command, check=True, capture_output=True, timeout=300,
+                              env=child_environment()).stdout
     except (subprocess.SubprocessError, OSError):
         raise ValueError("media_command_failed") from None
 
@@ -55,6 +61,7 @@ def stamp(seconds):
 
 def render(manifest, destination, *, arvor_75=False):
     manifest, destination = Path(manifest).resolve(), Path(destination).absolute()
+    started = time.monotonic()
     if destination.exists() or destination.is_symlink():
         raise ValueError("destination_exists")
     if manifest.stat().st_size > 128000:
@@ -129,11 +136,25 @@ def render(manifest, destination, *, arvor_75=False):
             if voice:
                 receipt["voice_sha256"] = digest(destination / "voice.wav")
             (destination / "receipt.json").write_text(json.dumps(receipt, indent=2), encoding="utf-8")
-        return receipt
     except BaseException:
         # Only this invocation's newly created directory can be removed.
         shutil.rmtree(destination)
         raise
+    # Telemetry runs after the protected export block: even an unexpected
+    # BaseException from the tracker can never delete a successful export.
+    preproduction = data.get("preproduction") if isinstance(data.get("preproduction"), dict) else {}
+    try:
+        story_id = uuid.UUID(str(preproduction.get("run_id")))
+    except (ValueError, TypeError):
+        story_id = uuid.uuid5(uuid.NAMESPACE_URL, str(manifest))
+    try:
+        mlflow_tracker.record_export_receipt(
+            receipt, tenant=uuid.uuid5(story_id, "offline-export-tenant"),
+            story_id=story_id, encode_seconds=round(time.monotonic() - started, 3),
+        )
+    except BaseException:  # noqa: BLE001 - observability never invalidates an export
+        pass
+    return receipt
 
 
 if __name__ == "__main__":

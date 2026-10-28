@@ -7,6 +7,7 @@
 | Besoin | Document |
 | --- | --- |
 | Migration CI locale OpenCode, attestations par SHA et CR Slack | [OPS-LOCAL-CI](OPS_LOCAL_CI_MIGRATION_20261022.md) |
+| MLflow privé : service, isolation, panne, rejeu et recette | [MLFLOW](../MLFLOW.md) |
 | Attestation PC read-only et smoke vidéo synthétique 75 s | [REL-004](REL_004_CI_RELEASE_PROOF_VIDEO75.md) |
 | Livraison : casse de LOCAL_PC_ENABLED et JSON Python 3.14 | [Incident du 16/10](INCIDENT_2026-10-16_LIVRAISON_JSON.md) |
 | Transfert MinIO incertain et reprise des médias | [MinIO médias](MINIO_MEDIA_RECOVERY.md) |

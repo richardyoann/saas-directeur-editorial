@@ -118,6 +118,22 @@ class ImageApplicationTests(unittest.IsolatedAsyncioTestCase):
         self.renderer.render.assert_awaited_once()
         self.storage.acknowledge.assert_not_called()
 
+    async def test_telemetry_port_receives_only_ready_or_failed_measurements(self):
+        telemetry = Mock()
+        service = GenerateSceneImage(self.repository, self.renderer, self.storage,
+                                     BoundedSemaphore(1), telemetry=telemetry)
+        await service.execute(self.identity, self.request)
+        ready = telemetry.call_args.kwargs
+        self.assertEqual(ready['status'], 'ready')
+        self.assertEqual(ready['byte_count'], len(PNG))
+        self.assertEqual(ready['scene_id'], self.scene)
+        self.renderer.render.side_effect = ImageUnavailable('image_provider_timeout')
+        with self.assertRaisesRegex(MediaOperationError, 'image_provider_timeout'):
+            await service.execute(self.identity, self.request)
+        failed = telemetry.call_args.kwargs
+        self.assertEqual(failed['status'], 'failed')
+        self.assertEqual(failed['error_code'], 'image_provider_timeout')
+
     async def test_unconfigured_engine_never_accesses_repository(self):
         self.renderer.configured.return_value = False
         with self.assertRaisesRegex(MediaOperationError, 'provider_unconfigured'):

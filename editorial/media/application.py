@@ -18,11 +18,17 @@ async def offload(function, *args, **kwargs):
     return await run_sync(partial(function, *args, **kwargs))
 
 
+def _no_telemetry(**_kwargs):
+    return None
+
+
 class GenerateSceneImage:
     def __init__(self, repository: MediaRepository, renderer: ImageRenderer,
-                 storage: MediaStorage, capacity: MediaCapacity):
+                 storage: MediaStorage, capacity: MediaCapacity, telemetry=None):
         self.repository, self.renderer = repository, renderer
         self.storage, self.capacity = storage, capacity
+        # Telemetry is an injected port: the domain never imports the adapter.
+        self.telemetry = telemetry or _no_telemetry
 
     async def execute(self, identity: Identity, request: ImageRequest) -> dict:
         if not self.renderer.configured():
@@ -62,12 +68,14 @@ class GenerateSceneImage:
             png = await self.renderer.render(scene['prompt'])
             width, height = validate_png(png)
             saved = await offload(self.storage.save, identity.tenant, request.run_id, scene_id, png)
+            png_sha256 = hashlib.sha256(png).hexdigest()
+            duration = round(time.monotonic() - started, 6)
             try:
                 result = await offload(
                     self.repository.complete, identity, request, scene_id,
                     width=width, height=height,
-                    duration_seconds=round(time.monotonic() - started, 6),
-                    png_sha256=hashlib.sha256(png).hexdigest(), byte_count=len(png),
+                    duration_seconds=duration,
+                    png_sha256=png_sha256, byte_count=len(png),
                     storage=saved.reference,
                 )
             except (RunConflict, RunMissing, PersistenceUnavailable):
@@ -77,6 +85,13 @@ class GenerateSceneImage:
                 await offload(self.storage.acknowledge, saved)
             except OSError:
                 pass  # A redundant recovery file is safer than a false API failure.
+            self.telemetry(
+                tenant=identity.tenant, story_id=request.run_id, scene_id=scene_id,
+                prompt=scene['prompt'], status='ready', model='sd.cpp-compatible',
+                width=width, height=height, duration_seconds=duration,
+                png_sha256=png_sha256, byte_count=len(png),
+                storage_ref=saved.reference, resolution='512x512', output_format='png',
+            )
             return result
         except ImageUnavailable as error:
             try:
@@ -84,6 +99,12 @@ class GenerateSceneImage:
                               error.code, round(time.monotonic() - started, 6))
             except (RunConflict, RunMissing, PersistenceUnavailable):
                 raise MediaOperationError('failure_uncertain') from None
+            self.telemetry(
+                tenant=identity.tenant, story_id=request.run_id, scene_id=scene_id,
+                prompt=scene['prompt'], status='failed', error_code=error.code,
+                model='sd.cpp-compatible', duration_seconds=round(time.monotonic() - started, 6),
+                resolution='512x512', output_format='png',
+            )
             raise MediaOperationError(error.code) from None
 
 

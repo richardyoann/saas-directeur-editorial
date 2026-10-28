@@ -1,10 +1,12 @@
 """Two sequential calls, no implicit retry, no publication or media generation."""
 import asyncio
 import json
+import time
 from uuid import UUID
 
 from apps.api.llama_provider import ProviderError, generate_text
 from editorial.models import Analysis, Brief, Storyboard
+from infrastructure.observability import mlflow_tracker
 
 PROMPT_VERSION = "1.2.0"
 
@@ -114,6 +116,7 @@ async def run_steps(store, tenant, actor, run, client, base_url):
         prompt = prompt_for(step, brief, run.get("analysis"))
         await asyncio.to_thread(store.begin_step, tenant, actor, run_id, step, prompt)
         response, parsed, error = {}, None, None
+        started = time.monotonic()
         try:
             response = await generate_text(client, base_url, prompt, 2048,
                                            system_prompt=SYSTEM_PROMPT,
@@ -128,6 +131,19 @@ async def run_steps(store, tenant, actor, run, client, base_url):
         except ProviderError as exc:
             error = {503: "provider_configuration", 504: "provider_timeout"}.get(exc.status_code, "provider_unavailable")
         run = await asyncio.to_thread(store.save_step, tenant, actor, run_id, step, prompt, response, parsed, error)
+        # Telemetry is best effort and contains only hashes and counters.
+        mlflow_tracker.record_scenario_step(
+            tenant=tenant, story_id=run_id, step=step, prompt=prompt,
+            response=response.get("response") if isinstance(response, dict) else "",
+            status="success" if not error else "failed", error_code=error,
+            prompt_version=PROMPT_VERSION,
+            model=response.get("model") if isinstance(response, dict) else None,
+            usage=response.get("usage") if isinstance(response, dict) else None,
+            duration_seconds=(response.get("duration_seconds")
+                              if isinstance(response, dict) and response.get("duration_seconds") is not None
+                              else round(time.monotonic() - started, 3)),
+            max_tokens=2048,
+        )
         if error:
             break
     return run
