@@ -12,6 +12,7 @@ from pilotage.audit import mutate
 from editorial.models import Brief, Analysis, Storyboard, ReviewDecision
 from editorial.media.contracts import RunConflict, RunMissing
 from infrastructure.persistence.media_repository import PostgresMediaRepository
+from infrastructure.persistence.production_media_repository import PostgresProductionMediaRepository
 from editorial.worker_guard import WorkerOffline, worker_lock_id
 
 WORKFLOW_VERSION = "editorial-v1.2"
@@ -71,6 +72,10 @@ class PostgresStore:
     def media_repository(self):
         # Historical facade; all media SQL has one owner and the same transaction writer.
         return PostgresMediaRepository(self.connect, self._write, self.get, now, runtime_code_version)
+
+    def production_media_repository(self):
+        return PostgresProductionMediaRepository(self.connect, self._write, self.get,
+                                                 now, runtime_code_version)
 
     def __init__(self, database_url):
         self.database_url = database_url

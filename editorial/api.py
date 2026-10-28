@@ -17,6 +17,7 @@ from editorial.worker_guard import WorkerOffline
 from editorial.runtime_secrets import secret
 from editorial.media.contracts import Identity
 from apps.api.media import create_media_router
+from apps.api.production_media import create_production_media_router
 
 security = HTTPBearer(auto_error=False)
 
@@ -162,6 +163,7 @@ def create_router(get_llm_client):
             raise HTTPException(503, "Persistance éditoriale indisponible.") from None
 
     router.include_router(create_media_router(get_identity, get_store, get_llm_client))
+    router.include_router(create_production_media_router(get_identity, get_store))
 
     return router
 

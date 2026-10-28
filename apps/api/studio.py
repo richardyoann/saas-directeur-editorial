@@ -273,6 +273,59 @@ async def production_history(request: Request, run_id: UUID):
 async def media_catalog(request: Request, run_id: UUID):
     return await relay(request, "GET", f"/editorial/runs/{run_id}/media")
 
+
+@router.get("/api/runs/{run_id}/production-media")
+async def production_media(request: Request, run_id: UUID):
+    return await relay(request, "GET", f"/editorial/runs/{run_id}/production-media")
+
+
+@router.post("/api/runs/{run_id}/voice")
+async def production_voice(request: Request, run_id: UUID):
+    return await relay(request, "POST", f"/editorial/runs/{run_id}/voice")
+
+
+@router.post("/api/runs/{run_id}/video")
+async def production_video(request: Request, run_id: UUID):
+    return await relay(request, "POST", f"/editorial/runs/{run_id}/video")
+
+
+@router.get("/api/runs/{run_id}/media/{media_id}/content")
+async def media_content(request: Request, run_id: UUID, media_id: UUID,
+                        download: bool = Query(False)):
+    # Media bytes never come from a static directory: session-checked relay only.
+    session(request)
+    if not configured():
+        raise HTTPException(503, "Accès privé non configuré.")
+    path = f"/editorial/runs/{run_id}/media/{media_id}/content"
+    auth = {"Authorization": "Bearer " + secret("EDITORIAL_API_TOKEN")}
+    params = {"download": "1"} if download else None
+    try:
+        shared = getattr(request.app.state, "internal_client", None)
+        if shared is not None:
+            result = await shared.get(path, headers=auth, params=params)
+        else:
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=request.app),
+                                         base_url="http://internal", timeout=60,
+                                         trust_env=False) as client:
+                result = await client.get(path, headers=auth, params=params)
+    except (httpx.HTTPError, TimeoutError):
+        raise HTTPException(502, "Média privé indisponible.") from None
+    if result.status_code != 200:
+        raise HTTPException(404, "Média privé introuvable.")
+    if len(result.content) > 128 * 1024 * 1024:
+        raise HTTPException(502, "Média privé trop volumineux.")
+    headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+    if download:
+        kind = {"audio/wav": "voix", "video/mp4": "video-75s",
+                "application/x-subrip": "sous-titres"}.get(
+            result.headers.get("content-type", "").split(";")[0], "media")
+        suffix = {"voix": ".wav", "video-75s": ".mp4", "sous-titres": ".srt",
+                  "media": ".bin"}[kind]
+        headers["Content-Disposition"] = f'attachment; filename="arvor-{kind}-{str(run_id)[:8]}{suffix}"'
+    return no_store(Response(content=result.content,
+                             media_type=result.headers.get("content-type", "application/octet-stream"),
+                             headers=headers))
+
 @router.get("/api/runs/{run_id}/visuals")
 async def visual_plan(request: Request, run_id: UUID):
     return await relay(request, "GET", f"/editorial/runs/{run_id}/visuals")

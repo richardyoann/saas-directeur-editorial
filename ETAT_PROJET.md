@@ -1,5 +1,27 @@
 # État du projet
 
+## PRODUCTION MÉDIA 75 S — 28 octobre 2026
+
+Chaîne voix/vidéo depuis un storyboard approuvé : `POST .../voice` (Piper réel),
+`POST .../video` (FFmpeg, vidéo verticale 720×1280 avec audio et sous-titres),
+lecture et téléchargement privés via l'API et l'onglet Studio « Voix & vidéo ».
+Identifiants déterministes par scénario, réservation transactionnelle avec
+audit/outbox, isolation locataire, intégrité SHA-256, échec sans rejeu
+automatique, sans écrasement d'un média prêt et avec une clé de stockage par
+tentative. 57 tests ajoutés (cas d'usage, PostgreSQL réel, stockage, HTTP,
+navigateur) ; 588 tests réussis dans l'image CI avec PostgreSQL jetable, 19
+parcours Chromium. Qualification CI locale 16/16 sur `b5449849`, provenance hôte
+et intégrité des 16 journaux vérifiées (`run_id
+3f17c797-0f8d-4187-acc9-a4f60cd97090`). Recette réelle 15/15 sur
+PostgreSQL/MinIO jetables : voix Piper 75,000 s, vidéo H.264 720×1280 + AAC
+75,000 s, sous-titres, lecture/téléchargement privés, audit atomique, relance
+sur clé de tentative distincte, aucun secret exposé (images sd.cpp réutilisées,
+moteur non joignable pendant la recette). Une revue indépendante a relevé une
+réservation vocale pouvant rester `generating` et une relance impossible après
+échec de publication ; les deux sont corrigées et couvertes par des tests. PR
+#226 ouverte, **non fusionnée**, **aucun déploiement PC**. Voir
+[PRODUCTION_MEDIA_75S.md](docs/PRODUCTION_MEDIA_75S.md).
+
 ## MLFLOW — observabilité privée qualifiée localement, 27 octobre 2026
 
 Serveur MLflow 3.17.2 privé sur `127.0.0.1:5000` (service utilisateur systemd

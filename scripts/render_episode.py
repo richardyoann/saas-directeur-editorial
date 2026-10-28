@@ -59,7 +59,7 @@ def stamp(seconds):
     return f"{hours:02}:{minutes:02}:{seconds:02},{milliseconds:03}"
 
 
-def render(manifest, destination, *, arvor_75=False):
+def render(manifest, destination, *, arvor_75=False, telemetry=None):
     manifest, destination = Path(manifest).resolve(), Path(destination).absolute()
     started = time.monotonic()
     if destination.exists() or destination.is_symlink():
@@ -148,10 +148,14 @@ def render(manifest, destination, *, arvor_75=False):
     except (ValueError, TypeError):
         story_id = uuid.uuid5(uuid.NAMESPACE_URL, str(manifest))
     try:
-        mlflow_tracker.record_export_receipt(
-            receipt, tenant=uuid.uuid5(story_id, "offline-export-tenant"),
-            story_id=story_id, encode_seconds=round(time.monotonic() - started, 3),
-        )
+        if callable(telemetry):
+            # Caller-injected telemetry keeps the real tenant/story identity.
+            telemetry(receipt)
+        else:
+            mlflow_tracker.record_export_receipt(
+                receipt, tenant=uuid.uuid5(story_id, "offline-export-tenant"),
+                story_id=story_id, encode_seconds=round(time.monotonic() - started, 3),
+            )
     except BaseException:  # noqa: BLE001 - observability never invalidates an export
         pass
     return receipt
