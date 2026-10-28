@@ -8,9 +8,14 @@ lecture et téléchargement privés via l'API et l'onglet Studio « Voix & vidé
 Identifiants déterministes par scénario, réservation transactionnelle avec
 audit/outbox, isolation locataire, intégrité SHA-256, échec sans rejeu
 automatique et sans écrasement d'un média prêt. 45 tests ajoutés (cas d'usage,
-PostgreSQL réel, stockage, HTTP, navigateur) ; 576 tests réussis localement dans
-l'image CI avec PostgreSQL jetable. Aucune recette réelle complète, aucune
-qualification CI, aucun déploiement. Voir
+PostgreSQL réel, stockage, HTTP, navigateur) ; 576 tests réussis dans l'image CI
+avec PostgreSQL jetable, 19 parcours Chromium. Qualification CI locale 16/16 sur
+`11699cb1`, provenance hôte et intégrité des 16 journaux vérifiées
+(`run_id dbfa7631-08c3-43d3-b40b-c22208e8cccf`). Recette réelle 14/14 sur
+PostgreSQL/MinIO jetables : voix Piper 75,000 s, vidéo H.264 720×1280 + AAC
+75,000 s, sous-titres, lecture/téléchargement privés, audit atomique, aucun
+secret exposé (images sd.cpp réutilisées, moteur non joignable pendant la
+recette). PR #226 ouverte, **non fusionnée**, **aucun déploiement PC**. Voir
 [PRODUCTION_MEDIA_75S.md](docs/PRODUCTION_MEDIA_75S.md).
 
 ## MLFLOW — observabilité privée qualifiée localement, 27 octobre 2026

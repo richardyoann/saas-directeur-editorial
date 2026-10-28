@@ -113,7 +113,37 @@ sans détail technique.
 - `browser_checks/test_studio_browser.py` : parcours navigateur réel voix puis
   vidéo, avec API factice isolée (aucune donnée utilisateur).
 
-## 9. Limites connues
+## 9. Recette réelle du 28 octobre 2026
+
+Réalisée sur le code du SHA `11699cb1c6afaad39f6e30cb8f442e4488c078de`
+(les commits de documentation postérieurs ne modifient aucun fichier exécuté),
+avec PostgreSQL 16 et MinIO jetables, un bucket et un utilisateur S3 dédiés,
+TLS vérifié par la CA locale et une seule instance API. Aucune base, aucun
+bucket, aucun volume ni secret métier utilisés.
+
+| Contrôle | Résultat mesuré |
+| --- | --- |
+| préparation jetable | base `acceptance`, bucket `arvor-acceptance`, utilisateur S3 à privilèges limités |
+| run approuvé | 3 scènes, 75 s cumulées, storyboard approuvé |
+| images | 3 PNG stockés dans MinIO, empreinte `5f29c9d43b35b281dc3e70eabef7de9bb89161ab88e02fa6e59e18f4074c6e9f`, 614 251 octets |
+| plan avant voix | approuvé, voix possible, images complètes, vidéo non prête |
+| voix Piper via HTTP | 200, 75,000 s, 24 000 Hz, mono, 3 600 044 octets, SHA-256 `8000128963de67e751cd58eb4082dc175068a143c1f5250e395c054ee67fd8ba` |
+| vidéo FFmpeg via HTTP | 200, H.264 720×1280 + AAC, 75,000 s, 2 579 691 octets, SHA-256 `bc6ce7d1475ac354c5c07d577e3ca4a0625f9b011fbe2daf608640b9aa9fda95` |
+| sous-titres | 3 repères, dernier à 75,0 s, téléchargement `.srt` |
+| refus | 401 sans jeton et avec mauvais jeton, 404 média/run inconnus, 409 voix et vidéo déjà prêtes |
+| fuite | 0 correspondance sur 8 marqueurs (bucket, chemins, outils, jeton, modèle) |
+| PostgreSQL | 3 médias `ready`, audit et outbox présents et atomiques pour chaque actif |
+| MinIO | 6 objets (3 PNG, 1 WAV, 1 MP4, 1 SRT), tailles non nulles |
+| durées | voix 5,5 s, montage 8,4 s |
+
+Limites de cette recette : le moteur sd.cpp n'était pas joignable au moment de
+la recette ; les images utilisées sont de vraies sorties sd.cpp générées le
+27 octobre 2026 sur le PC (même empreinte que la recette MLflow) et injectées
+par le cas d'usage image réel. La génération d'images en direct n'est donc pas
+rejouée ici ; elle a été acceptée séparément. La voix et le montage ont été
+réellement produits pendant la recette. Aucun déploiement PC n'a eu lieu.
+
+## 10. Limites connues
 
 - Le proxy Studio charge le média en mémoire et refuse au-delà de 128 Mio. Un
   montage 75 s reste très en dessous ; une diffusion de gros fichiers exigerait
