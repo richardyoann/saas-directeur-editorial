@@ -55,7 +55,9 @@ PARAM_KEYS = frozenset({
     "adapter", "model", "prompt_version", "workflow_version", "code_version",
     "engine", "voice", "preset", "resolution", "output_format", "codec",
     "max_tokens", "temperature", "stream", "ffmpeg_version", "audio",
-    "scene_count", "fps",
+    "scene_count", "fps", "seed", "sampler", "steps", "cfg_scale",
+    "scheduler", "upscale", "model_version", "ken_burns", "transitions",
+    "video_profile",
 })
 METRIC_KEYS = frozenset({
     "duration_seconds", "generation_seconds", "encode_seconds", "prompt_chars",
@@ -68,7 +70,7 @@ TAG_KEYS = frozenset({
     "arvor_step", "arvor_status", "arvor_error_code", "arvor_tenant_sha256",
     "arvor_prompt_sha256", "arvor_output_sha256", "arvor_png_sha256",
     "arvor_audio_sha256", "arvor_video_sha256", "arvor_storage_ref_sha256",
-    "arvor_code_version", "arvor_trace_id",
+    "arvor_code_version", "arvor_trace_id", "arvor_character_ref_sha256",
 })
 FORBIDDEN_KEYS = frozenset({
     "prompt", "response", "content", "text", "narration", "tenant", "actor",
@@ -80,7 +82,8 @@ TRACE_KEYS = frozenset({
     "prompt_sha256", "prompt_chars", "output_chars", "text_sha256", "text_chars",
     "status", "error_code", "finish", "width", "height", "audio_seconds",
     "real_seconds", "scene_count", "target_seconds", "model",
-    "duration_seconds", "engine", "ffmpeg_version",
+    "duration_seconds", "engine", "ffmpeg_version", "seed", "steps",
+    "cfg_scale", "sampler", "scheduler",
 })
 
 
@@ -327,7 +330,10 @@ def scenario_event(*, tenant, story_id, step, prompt, response, status,
 def image_event(*, tenant, story_id, scene_id, asset_id=None, prompt, status,
                 error_code=None, model=None, width=None, height=None,
                 duration_seconds=None, png_sha256=None, byte_count=None,
-                storage_ref=None, resolution=None, output_format="png"):
+                storage_ref=None, resolution=None, output_format="png",
+                seed=None, sampler=None, steps=None, cfg_scale=None,
+                scheduler=None, upscale=None, character_ref_sha256=None,
+                prompt_version=None):
     prompt = prompt if isinstance(prompt, str) else ""
     prompt_sha = sha256_text(prompt)
     metrics = {}
@@ -342,23 +348,39 @@ def image_event(*, tenant, story_id, scene_id, asset_id=None, prompt, status,
         "arvor_prompt_sha256": prompt_sha,
         "arvor_png_sha256": png_sha256 or "",
         "arvor_storage_ref_sha256": sha256_text(storage_ref) if storage_ref else "",
+        "arvor_character_ref_sha256": character_ref_sha256 or "",
     })
     if asset_id:
         tags["arvor_asset_id"] = str(asset_id)
     tags = {k: v for k, v in tags.items() if v}
+    params = {"adapter": "sdcpp-http", "model": sanitize_model(model),
+              "resolution": resolution or "unknown",
+              "output_format": output_format or "unknown"}
+    if prompt_version:
+        params["prompt_version"] = str(prompt_version)[:64]
+    if seed is not None:
+        params["seed"] = str(int(seed))
+    for key, value in (("sampler", sampler), ("scheduler", scheduler),
+                       ("upscale", upscale)):
+        if value:
+            params[key] = str(value)[:64]
+    for key, value in (("steps", steps), ("cfg_scale", cfg_scale)):
+        if value is not None:
+            params[key] = str(value)
     return {"kind": "image", "experiment": EXPERIMENTS["image"],
             "event_id": event_id("image", f"{story_id}:{scene_id}:{png_sha256 or error_code or status}"),
             "run_name": _run_name("image", f"{scene_id}"),
-            "params": {"adapter": "sdcpp-http", "model": sanitize_model(model),
-                       "resolution": resolution or "unknown",
-                       "output_format": output_format or "unknown"},
+            "params": params,
             "metrics": metrics, "tags": tags,
             "trace": {"name": "arvor.image.generate",
                       "inputs": {"prompt_sha256": prompt_sha, "prompt_chars": len(prompt)},
                       "outputs": {"status": status, "error_code": error_code or "",
                                   "width": width, "height": height},
                       "attributes": {"model": sanitize_model(model),
-                                     "duration_seconds": duration_seconds}}}
+                                     "duration_seconds": duration_seconds,
+                                     "seed": seed, "steps": steps,
+                                     "cfg_scale": cfg_scale, "sampler": sampler,
+                                     "scheduler": scheduler}}}
 
 
 def voice_event(*, tenant, story_id, asset_id=None, engine=None, voice=None,
@@ -395,7 +417,8 @@ def voice_event(*, tenant, story_id, asset_id=None, engine=None, voice=None,
 def video_event(*, tenant, story_id, asset_id=None, scene_count, target_seconds,
                 real_seconds=None, status="exported", error_code=None,
                 video_sha256=None, byte_count=None, encode_seconds=None,
-                ffmpeg_version=None, audio=False, fps=24, resolution="720x1280"):
+                ffmpeg_version=None, audio=False, fps=24, resolution="720x1280",
+                ken_burns=None, transitions=None, video_profile=None):
     metrics = {"scene_count": _number(scene_count)}
     for key, value in (("target_seconds", target_seconds), ("real_seconds", real_seconds),
                        ("byte_count", byte_count), ("encode_seconds", encode_seconds)):
@@ -409,13 +432,20 @@ def video_event(*, tenant, story_id, asset_id=None, scene_count, target_seconds,
         tags["arvor_asset_id"] = str(asset_id)
     tags = {k: v for k, v in tags.items() if v}
     version = (ffmpeg_version or "").splitlines()[0][:120] if ffmpeg_version else "unknown"
+    params = {"preset": "arvor-75" if target_seconds == 75 else "slideshow",
+              "resolution": resolution, "codec": "h264", "fps": str(fps),
+              "audio": "true" if audio else "false",
+              "ffmpeg_version": version}
+    if ken_burns is not None:
+        params["ken_burns"] = "true" if ken_burns else "false"
+    if transitions:
+        params["transitions"] = str(transitions)[:64]
+    if video_profile:
+        params["video_profile"] = str(video_profile)[:64]
     return {"kind": "video", "experiment": EXPERIMENTS["video"],
             "event_id": event_id("video", f"{story_id}:{asset_id}:{video_sha256 or error_code or status}"),
             "run_name": _run_name("video", f"{story_id}"),
-            "params": {"preset": "arvor-75" if target_seconds == 75 else "slideshow",
-                       "resolution": resolution, "codec": "h264", "fps": str(fps),
-                       "audio": "true" if audio else "false",
-                       "ffmpeg_version": version},
+            "params": params,
             "metrics": metrics, "tags": tags,
             "trace": {"name": "arvor.video.export",
                       "inputs": {"scene_count": scene_count, "target_seconds": target_seconds},
@@ -813,6 +843,8 @@ def record_export_receipt(receipt: dict, *, tenant, story_id, asset_id=None,
             ffmpeg_version=receipt.get("ffmpeg_version"),
             audio=bool(receipt.get("audio")), fps=receipt.get("fps", 24),
             resolution=f"{receipt.get('width', 720)}x{receipt.get('height', 1280)}",
+            ken_burns=receipt.get("ken_burns"), transitions=receipt.get("transitions"),
+            video_profile=receipt.get("profile"),
         )
         voice = "disabled"
         if voice_sha:

@@ -78,7 +78,7 @@ class PostgresMediaRepository:
             if run.get("status") != "approved" or run.get("storyboard_stale"):
                 raise RunConflict()
             scene_id = self._visual_scene(run, scene_number)
-            from editorial.media_rules import image_prompt, image_provenance
+            from editorial.media_rules import image_prompt, image_provenance, image_seed
             if ((expected_scene_id is not None and scene_id != expected_scene_id)
                     or prompt != image_prompt(run, scene_number)):
                 raise RunConflict()
@@ -96,7 +96,8 @@ class PostgresMediaRepository:
                          "scene_number": scene_number, "status": "generating",
                          "prompt": prompt, "created_at": self._clock(),
                          "code_version": self._code_version(),
-                         "provenance": image_provenance(run, scene_number, prompt)})
+                         "provenance": image_provenance(run, scene_number, prompt,
+                                                        seed=image_seed(scene_id))})
             return scene_id, asset_id
 
     def finish_image(self, tenant, actor, run_id, scene_id, *, width=None, height=None,

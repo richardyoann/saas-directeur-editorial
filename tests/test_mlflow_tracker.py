@@ -200,6 +200,22 @@ class SanitisationTests(unittest.TestCase):
         self.assertEqual(event["tags"]["arvor_storage_ref_sha256"],
                          tracker.sha256_text("tenant/run/image/id.png"))
 
+    def test_image_event_records_sampling_without_business_text(self):
+        event = tracker.image_event(
+            tenant=uuid4(), story_id=uuid4(), scene_id=uuid4(), prompt="secret",
+            status="ready", width=512, height=512, png_sha256="a" * 64,
+            seed=1234, sampler="euler_a", steps=20, cfg_scale=7.0,
+            scheduler="discrete", upscale="none")
+        self.assertEqual(event["params"]["seed"], "1234")
+        self.assertEqual(event["params"]["sampler"], "euler_a")
+        self.assertEqual(event["params"]["steps"], "20")
+        self.assertEqual(event["params"]["cfg_scale"], "7.0")
+        self.assertEqual(event["params"]["scheduler"], "discrete")
+        self.assertEqual(event["trace"]["attributes"]["seed"], 1234)
+        self.assertNotIn("secret", json.dumps(event))
+        # The event passes the strict validator used before publication.
+        tracker._validate(event)
+
     def test_validation_rejects_content_keys_and_bad_values(self):
         base = tracker.image_event(tenant=uuid4(), story_id=uuid4(),
                                    scene_id=uuid4(), prompt="p", status="ready")

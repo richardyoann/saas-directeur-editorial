@@ -65,9 +65,11 @@ Variables lues par le tracker (aucune valeur par défaut secrète) :
 | `MLFLOW_TRACKING_URI` | doit être un URI loopback explicite, avec port |
 | `MLFLOW_TRACKING_USERNAME` / `MLFLOW_TRACKING_PASSWORD` | authentification du client, lue par MLflow depuis son environnement |
 | `ARVOR_MLFLOW_SPOOL` | fichier de reprise borné (chemin absolu) |
+| `ARVOR_MLFLOW_ENV_FILE` | charge explicitement le fichier client privé au démarrage (sinon télémétrie désactivée) |
 | `ARVOR_CODE_VERSION` | SHA ou version reportée dans chaque run |
 | `MLFLOW_HTTP_REQUEST_TIMEOUT` | délai court (3 s en exploitation locale) |
 | `MLFLOW_HTTP_REQUEST_MAX_RETRIES` | réessais bornés (1 en exploitation locale) |
+| `REQUESTS_CA_BUNDLE` / `AWS_CA_BUNDLE` | autorité TLS privée MinIO réutilisée pour les artefacts ; fichier régulier hors dépôt |
 | `ARVOR_IMAGE_TIMEOUT_SECONDS` | délai sd.cpp, borné 30–600 s, défaut 300 s |
 
 Le provisioning est idempotent :
@@ -90,9 +92,9 @@ et durées.
 | Traitement | Point d'appel | Données envoyées |
 | --- | --- | --- |
 | Qwen (analyse, storyboard) | `editorial/service.py` | histoire, étape, version de prompt, SHA-256 du prompt et de la réponse, longueurs, tokens, modèle assaini, durée, statut, code d'erreur |
-| Image sd.cpp | `editorial/media/application.py` | histoire, scène, modèle, résolution, durée, statut, SHA-256 du PNG, octets, SHA-256 de la référence de stockage |
+| Image sd.cpp | `editorial/media/application.py` | histoire, scène, modèle, version de prompt, seed, sampler, steps, CFG, scheduler, résolution, durée, statut, SHA-256 du PNG, octets, SHA-256 de la référence de stockage |
 | Voix Piper | `production/voice_timeline.py` | histoire, moteur, voix, SHA-256 du WAV, octets, durée audio et cible, durée de génération, statut |
-| Export FFmpeg | `scripts/render_episode.py` | histoire, nombre de scènes, durées cible/réelle, SHA-256 de la vidéo, octets, durée d'encodage, version FFmpeg, audio présent, résolution, FPS |
+| Export FFmpeg | `scripts/render_episode.py` | histoire, nombre de scènes, durées cible/réelle, SHA-256 de la vidéo, octets, durée d'encodage, version FFmpeg, audio présent, résolution, FPS, profil, Ken Burns, transitions, sous-titres |
 | Piste WAV existante | `record_export_receipt` | voix `external-wav`, SHA-256 du WAV, durée réelle |
 
 Chaque événement porte un `arvor_event_id` déterministe (UUIDv5) construit à
@@ -249,6 +251,48 @@ rien et n'autorise ni fusion ni déploiement.
 Les contrôles navigateur, Gitleaks, Node et l'audit précédemment absents du
 poste ont donc été exécutés dans le conteneur isolé, sans installation dans le
 dépôt ni dans le runtime déployé.
+
+### 7.2 Recette épisode Ys et prototype (28 octobre 2026)
+
+Deux histoires réelles ont été générées dans une base PostgreSQL jetable
+(`episode_ys_20261028`) et un stockage fichiers isolé, sans toucher au runtime
+déployé ni aux bases métier :
+
+| Histoire | Rôle | Scènes | Durée | Runs MLflow |
+| --- | --- | --- | --- | --- |
+| `be520301-a010-595e-8b6c-840c340924aa` | épisode final | 5 | 75 s | 2 scénario + 5 images + 1 voix + 2 exports (1 rejeté, 1 accepté) |
+| `875b28c0-38f4-5619-af78-8f7a840832ad` | prototype cohérence | 3 | 45 s | 2 scénario + 3 images + 1 voix + 2 exports (1 rejeté, 1 accepté) |
+
+Paramètres réellement enregistrés : Qwen `qwen2.5-3b-instruct-q4_k_m.gguf`,
+prompt `1.2.0`, `temperature=0.1`, `max_tokens=2048` ; sd.cpp
+`sd-cpp-local`, prompt `2.0.0`, 512×512, `euler_a`, 20 steps, CFG 7.0,
+scheduler `discrete`, seed déterministe par `scene_id` (par exemple
+`1342130966`) ; Piper `fr_FR-siwis-medium.onnx` ; export 1080×1920, 24 fps,
+H.264/AAC, Ken Burns, fond flou, fondus 0,5 s, sous-titres incrustés et SRT
+latéral. Les SHA-256 des médias et les durées de génération sont dans le rapport
+`docs/P0_EPISODE_YS_20261028.md`.
+
+Contrôles P0-A :
+
+- rechargement de `~/.config/arvor-mlflow/client.env` avec certificat MinIO
+  existant : `healthy=true`, `artifact_roundtrip=true`, 8 expériences, 3,58 s ;
+- test de panne réel (URI morte puis rétablie) : premier rejeu
+  `replayed=1`, second `replayed=0`, un seul run créé, aucun prompt/réponse dans
+  le spool ;
+- les runs des deux histoires et les 8 lignes média de l'épisode ont survécu au
+  redémarrage de l'API isolée ;
+- les deux exports rejetés sont conservés avec le tag
+  `arvor_validation_status=superseded` et leur motif ; l'export accepté porte
+  `technical_accepted`, `arvor_validator=open-code-operator` et
+  `arvor_independent_validation=pending`.
+
+Limites de cette recette : l'API déployée sur `127.0.0.1:8000` n'a pas été
+modifiée et n'était pas configurée pour MLflow ; la télémétrie a été prouvée
+dans un processus isolé (`ARVOR_MLFLOW_ENV_FILE`). Les images de l'épisode ont
+été générées avant l'étiquette `sd-cpp-local` et la version de prompt image :
+leurs runs portent encore `sd.cpp-compatible`, sans `prompt_version` image. Le
+prototype, généré après, porte les deux. Aucune revue humaine indépendante ni
+validation métier n'a encore été enregistrée.
 
 ## 8. Revue indépendante et corrections
 

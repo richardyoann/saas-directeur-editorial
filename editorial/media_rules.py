@@ -18,15 +18,36 @@ class ImageUnavailable(Exception):
         super().__init__(code)
 
 IMAGE_PARAMETERS = {"n": 1, "size": "512x512", "output_format": "png"}
+IMAGE_PROMPT_VERSION = "2.0.0"
+# Explicit sampling controls sent through sd.cpp's native extension. They are
+# recorded with every generation so two episodes stay comparable; the engine
+# defaults in this version are unknown to the caller otherwise.
+IMAGE_SAMPLE_PARAMETERS = {
+    "sample_steps": 20,
+    "sample_method": "euler_a",
+    "scheduler": "discrete",
+    "txt_cfg": 7.0,
+}
 
-def image_provenance(run, scene_number, prompt):
+
+def image_seed(scene_id):
+    """Deterministic, positive 31-bit seed derived from the stable scene id."""
+    digest = hashlib.sha256(str(scene_id).encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") & 0x7FFFFFFF
+
+
+def image_provenance(run, scene_number, prompt, seed=None):
     """Snapshot what we actually control, without claiming engine telemetry."""
     references = characters(run.get("storyboard") or {})
     canonical = json.dumps(references, sort_keys=True, ensure_ascii=False,
                            separators=(",", ":"))
     return {"contract_version": "private-image-v2", "provider": "sd.cpp-compatible",
-            "parameters": dict(IMAGE_PARAMETERS), "model": None, "seed": None,
-            "model_seed_reason": "not_reported_by_image_contract",
+            "parameters": dict(IMAGE_PARAMETERS),
+            "sample_parameters": dict(IMAGE_SAMPLE_PARAMETERS),
+            "model": None, "seed": seed,
+            "model_seed_reason": ("seed_and_sampling_controlled_by_request"
+                                  if seed is not None
+                                  else "not_reported_by_image_contract"),
             "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
             "character_reference_sha256": hashlib.sha256(canonical.encode()).hexdigest(),
             "character_references": references, "scene_number": scene_number,

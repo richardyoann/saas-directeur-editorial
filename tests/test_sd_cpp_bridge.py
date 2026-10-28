@@ -135,3 +135,39 @@ class ImageTimeoutConfigurationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NativeSamplingTests(unittest.IsolatedAsyncioTestCase):
+    def test_extension_is_deterministic_and_strips_only_native_fields(self):
+        from editorial.media_rules import IMAGE_SAMPLE_PARAMETERS, image_seed
+        from infrastructure.images.sdcpp import native_extension
+        seed = image_seed("00000000-0000-4000-8000-000000000001")
+        self.assertEqual(seed, image_seed("00000000-0000-4000-8000-000000000001"))
+        self.assertGreaterEqual(seed, 0)
+        block = native_extension(seed, IMAGE_SAMPLE_PARAMETERS)
+        self.assertTrue(block.startswith("<sd_cpp_extra_args>"))
+        self.assertTrue(block.endswith("</sd_cpp_extra_args>"))
+        payload = json.loads(block.removeprefix("<sd_cpp_extra_args>").removesuffix("</sd_cpp_extra_args>"))
+        self.assertEqual(payload["seed"], seed)
+        self.assertEqual(payload["sample_params"]["sample_steps"],
+                         IMAGE_SAMPLE_PARAMETERS["sample_steps"])
+        self.assertEqual(payload["sample_params"]["guidance"]["txt_cfg"],
+                         IMAGE_SAMPLE_PARAMETERS["txt_cfg"])
+        for invalid in (True, -1, 2 ** 31):
+            with self.assertRaises(ImageUnavailable):
+                native_extension(invalid)
+
+    async def test_render_sends_seed_and_sampling(self):
+        received = []
+
+        def handler(request):
+            received.append(json.loads(request.content))
+            return httpx.Response(200, json={"data": [
+                {"b64_json": base64.b64encode(PNG).decode()}]})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            raw = await render_png(client, "http://127.0.0.1:8082", "Une côte", seed=7)
+        self.assertEqual(raw, PNG)
+        self.assertIn("<sd_cpp_extra_args>", received[0]["prompt"])
+        self.assertIn('"seed":7', received[0]["prompt"])
+        self.assertEqual(received[0]["size"], "512x512")

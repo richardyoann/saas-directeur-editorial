@@ -63,8 +63,13 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.env_file:
         try:
-            os.environ.update(load_env_file(args.env_file))
-        except OSError:
+            from infrastructure.observability.mlflow_env import (
+                ClientEnvironmentError, load_client_environment)
+            load_client_environment(args.env_file)
+        except ClientEnvironmentError as error:
+            print(json.dumps({"healthy": False, "error": error.code}))
+            return 2
+        except (OSError, ImportError):
             print(json.dumps({"healthy": False, "error": "env_file_unreadable"}))
             return 2
     uri = os.getenv("MLFLOW_TRACKING_URI", "")
