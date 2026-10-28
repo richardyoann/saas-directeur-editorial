@@ -201,3 +201,38 @@ class ProductionStorageTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PrivateImageStorageReferenceTests(unittest.TestCase):
+    """The filesystem image backend must expose a reference the video stage can read."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.tenant, self.run_id, self.scene_id = uuid4(), uuid4(), uuid4()
+        self.environment = patch.dict(os.environ, {
+            "EDITORIAL_MEDIA_BACKEND": "filesystem",
+            "EDITORIAL_MEDIA_ROOT": str(self.root)})
+        self.environment.start()
+        self.addCleanup(self.environment.stop)
+        from infrastructure.media.images import PrivateMediaStorage
+        self.storage = PrivateMediaStorage()
+
+    def test_save_returns_the_scoped_path_and_load_reads_it_back(self):
+        payload = png_bytes()
+        receipt = self.storage.save(self.tenant, self.run_id, self.scene_id, payload)
+        expected = self.root / str(self.tenant) / str(self.run_id) / f"{self.scene_id}.png"
+        self.assertEqual(receipt.reference, str(expected))
+        self.assertIsNone(receipt.recovery)
+        self.assertTrue(expected.is_file())
+        self.assertEqual(self.storage.load(self.tenant, self.run_id, self.scene_id,
+                                           receipt.reference), payload)
+
+    def test_a_foreign_or_tampered_path_is_refused(self):
+        receipt = self.storage.save(self.tenant, self.run_id, self.scene_id, png_bytes())
+        from editorial.media_rules import ImageUnavailable
+        with self.assertRaises(ImageUnavailable):
+            self.storage.load(self.tenant, self.run_id, self.scene_id,
+                              str(self.root / "elsewhere.png"))
+        self.assertNotEqual(receipt.reference, str(self.root / "elsewhere.png"))

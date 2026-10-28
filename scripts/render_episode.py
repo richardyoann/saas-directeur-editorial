@@ -14,6 +14,14 @@ from infrastructure.observability import mlflow_tracker
 from infrastructure.process_env import child_environment
 
 ARVOR_VIDEO_DURATION_SECONDS = 75
+VIDEO_PROFILES = {
+    # Historical offline preset: fast, no motion, kept reproducible for CI.
+    "standard": {"width": 720, "height": 1280, "fps": 24, "ken_burns": False},
+    # Editorial delivery preset: vertical 1080x1920, blurred fill, slow zoom
+    # and a short fade between scenes. Rendering stays local FFmpeg only.
+    "cinematic": {"width": 1080, "height": 1920, "fps": 24, "ken_burns": True},
+}
+CINEMATIC_FADE_SECONDS = 0.5
 
 
 def validate_duration(total, *, arvor_75=False):
@@ -43,10 +51,10 @@ def local_file(root, name, suffix):
     return path
 
 
-def run(command):
+def run(command, cwd=None):
     try:
         return subprocess.run(command, check=True, capture_output=True, timeout=300,
-                              env=child_environment()).stdout
+                              env=child_environment(), cwd=cwd).stdout
     except (subprocess.SubprocessError, OSError):
         raise ValueError("media_command_failed") from None
 
@@ -59,9 +67,30 @@ def stamp(seconds):
     return f"{hours:02}:{minutes:02}:{seconds:02},{milliseconds:03}"
 
 
-def render(manifest, destination, *, arvor_75=False, telemetry=None):
+def ass_stamp(seconds):
+    centiseconds = round(seconds * 100)
+    hours, centiseconds = divmod(centiseconds, 360000)
+    minutes, centiseconds = divmod(centiseconds, 6000)
+    seconds, centiseconds = divmod(centiseconds, 100)
+    return f"{hours}:{minutes:02}:{seconds:02}.{centiseconds:02}"
+
+
+def ass_text(text):
+    # SRT has no style escapes; ASS would otherwise interpret braces and
+    # backslashes from a narration as override tags.
+    return (text.replace("\\", "\\\\").replace("{", "\\{")
+                .replace("}", "\\}").replace("\n", "\\N"))
+
+
+def render(manifest, destination, *, arvor_75=False, telemetry=None,
+           profile="standard"):
     manifest, destination = Path(manifest).resolve(), Path(destination).absolute()
     started = time.monotonic()
+    if profile not in VIDEO_PROFILES:
+        raise ValueError("video_profile_invalid")
+    preset = VIDEO_PROFILES[profile]
+    width, height, fps = preset["width"], preset["height"], preset["fps"]
+    ken_burns = preset["ken_burns"]
     if destination.exists() or destination.is_symlink():
         raise ValueError("destination_exists")
     if manifest.stat().st_size > 128000:
@@ -98,29 +127,97 @@ def render(manifest, destination, *, arvor_75=False, telemetry=None):
     try:
         with tempfile.TemporaryDirectory(prefix=".render-", dir=destination) as work:
             work = Path(work)
-            subtitles, cursor = [], 0
+            subtitles, dialogues, cursor = [], [], 0
             receipts = []
+            fade = CINEMATIC_FADE_SECONDS
             for index, (scene, image) in enumerate(zip(scenes, assets), 1):
                 copied = work / f"scene-{index}.png"
                 shutil.copyfile(image, copied)
                 receipts.append({"scene": index, "image_sha256": digest(copied), "duration_seconds": scene["duration_seconds"]})
-                run([ffmpeg, "-nostdin", "-v", "error", "-n", "-threads", "1", "-protocol_whitelist", "file,pipe", "-f", "image2", "-c:v", "png", "-loop", "1", "-i", str(copied),
-                     "-t", str(scene["duration_seconds"]), "-vf", "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,setsar=1",
-                     "-r", "24", "-c:v", "libx264", "-threads", "1", "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(work / f"clip-{index}.mp4")])
+                duration = scene["duration_seconds"]
+                if ken_burns:
+                    out_fade = max(0.0, duration - fade)
+                    graph = (
+                        "[0:v]split=2[bgs][fgs];"
+                        f"[bgs]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                        f"crop={width}:{height},gblur=sigma=32,eq=brightness=-0.12[bg];"
+                        f"[fgs]scale={width}:{width}:force_original_aspect_ratio=decrease,"
+                        f"zoompan=z='min(zoom+0.0006,1.10)':x='iw/2-(iw/zoom/2)':"
+                        f"y='ih/2-(ih/zoom/2)':d=1:s={width}x{width}:fps={fps}[fg];"
+                        "[bg][fg]overlay=(W-w)/2:(H-h)/2:shortest=1,"
+                        f"fade=t=in:st=0:d={fade},fade=t=out:st={out_fade}:d={fade},"
+                        "format=yuv420p[v]"
+                    )
+                    clip_command = [ffmpeg, "-nostdin", "-v", "error", "-n", "-threads", "1",
+                                    "-protocol_whitelist", "file,pipe", "-loop", "1",
+                                    "-framerate", str(fps), "-i", str(copied),
+                                    "-t", str(duration), "-filter_complex", graph,
+                                    "-map", "[v]", "-r", str(fps), "-t", str(duration),
+                                    "-c:v", "libx264", "-threads", "1", "-preset", "ultrafast",
+                                    "-pix_fmt", "yuv420p", str(work / f"clip-{index}.mp4")]
+                else:
+                    clip_command = [ffmpeg, "-nostdin", "-v", "error", "-n", "-threads", "1",
+                                    "-protocol_whitelist", "file,pipe", "-f", "image2",
+                                    "-c:v", "png", "-loop", "1", "-i", str(copied),
+                                    "-t", str(duration),
+                                    "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                                           f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1",
+                                    "-r", str(fps), "-c:v", "libx264", "-threads", "1",
+                                    "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                                    str(work / f"clip-{index}.mp4")]
+                run(clip_command)
                 text = " ".join(scene["narration"].split())
-                subtitles.append(f"{index}\n{stamp(cursor)} --> {stamp(cursor + scene['duration_seconds'])}\n{text}\n")
-                cursor += scene["duration_seconds"]
+                subtitles.append(f"{index}\n{stamp(cursor)} --> {stamp(cursor + duration)}\n{text}\n")
+                dialogues.append(f"Dialogue: 0,{ass_stamp(cursor)},{ass_stamp(cursor + duration)},"
+                                 f"Default,,0,0,0,,{ass_text(text)}")
+                cursor += duration
+            subtitle_text = "\n".join(subtitles)
+            (work / "narration.srt").write_text(subtitle_text, encoding="utf-8")
+            if ken_burns:
+                # PlayRes makes FontSize/MarginV real output pixels. Without it
+                # libass scales the SRT default 288-line script, producing huge
+                # captions in the middle of a 1080x1920 video.
+                ass = ("[Script Info]\nScriptType: v4.00+\n"
+                       f"PlayResX: {width}\nPlayResY: {height}\n\n"
+                       "[V4+ Styles]\n"
+                       "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+                       "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, "
+                       "ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
+                       "MarginL, MarginR, MarginV, Encoding\n"
+                       "Style: Default,DejaVu Sans,42,&H00FFFFFF,&H000000FF,&H00000000,"
+                       "&H64000000,0,0,0,0,100,100,0,0,1,2,0,2,60,60,220,1\n\n"
+                       "[Events]\n"
+                       "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
+                       "Effect, Text\n" + "\n".join(dialogues) + "\n")
+                (work / "narration.ass").write_text(ass, encoding="utf-8")
             (work / "clips.txt").write_text("".join(f"file 'clip-{i}.mp4'\n" for i in range(1, len(scenes) + 1)), encoding="utf-8")
             command = [ffmpeg, "-nostdin", "-v", "error", "-n", "-f", "concat", "-safe", "1", "-i", str(work / "clips.txt")]
             if voice:
                 shutil.copyfile(voice, work / "voice.wav")
-                command += ["-protocol_whitelist", "file,pipe", "-f", "wav", "-i", str(work / "voice.wav"), "-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-t", str(total)]
-            command += ["-c:v", "copy", "-movflags", "+faststart", str(destination / "episode.mp4")]
-            run(command)
+                command += ["-protocol_whitelist", "file,pipe", "-f", "wav", "-i", str(work / "voice.wav")]
+            if ken_burns:
+                # Burned captions make the delivered MP4 self-contained; the
+                # sidecar SRT remains the machine-readable source.
+                command += ["-vf", "subtitles=narration.ass", "-map", "0:v:0"]
+                if voice:
+                    command += ["-map", "1:a:0"]
+                command += ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "20",
+                            "-pix_fmt", "yuv420p"]
+                if voice:
+                    command += ["-c:a", "aac"]
+                command += ["-t", str(total), "-movflags", "+faststart",
+                            str(destination / "episode.mp4")]
+                run(command, cwd=work)
+            else:
+                if voice:
+                    command += ["-map", "0:v:0", "-map", "1:a:0", "-c:a", "aac", "-t", str(total)]
+                command += ["-c:v", "copy", "-movflags", "+faststart",
+                            str(destination / "episode.mp4")]
+                run(command)
             probe = json.loads(run([ffprobe, "-v", "error", "-show_format", "-show_streams", "-of", "json", str(destination / "episode.mp4")]))
             if abs(float(probe["format"]["duration"]) - total) > 0.25:
                 raise ValueError("export_duration_mismatch")
-            (destination / "narration.srt").write_text("\n".join(subtitles), encoding="utf-8")
+            (destination / "narration.srt").write_text(subtitle_text, encoding="utf-8")
             # A self-contained production folder preserves inputs for replay.
             for index in range(1, len(scenes) + 1):
                 shutil.copyfile(work / f"scene-{index}.png", destination / f"scene-{index}.png")
@@ -129,8 +226,11 @@ def render(manifest, destination, *, arvor_75=False, telemetry=None):
                 shutil.copyfile(work / "voice.wav", destination / "voice.wav")
                 data["voice"] = "voice.wav"
             (destination / "production.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-            receipt = {"schema_version": 1, "duration_seconds": total, "width": 720, "height": 1280,
-                       "audio": bool(voice), "subtitles": "sidecar", "scenes": receipts,
+            receipt = {"schema_version": 1, "duration_seconds": total, "width": width, "height": height,
+                       "fps": fps, "profile": profile, "ken_burns": ken_burns,
+                       "transitions": "fade" if ken_burns else "cut",
+                       "audio": bool(voice),
+                       "subtitles": "sidecar+burned" if ken_burns else "sidecar", "scenes": receipts,
                        "source_manifest_sha256": digest(manifest), "video_sha256": digest(destination / "episode.mp4"),
                        "ffmpeg_version": run([ffmpeg, "-version"]).decode().splitlines()[0]}
             if voice:

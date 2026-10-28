@@ -52,6 +52,15 @@ with wave.open(str(file), 'wb') as w:
         self.assertEqual(os.stat(self.output).st_mode & 0o777, 0o600)
         self.assertFalse(any(self.root.glob('.tts-*')))
 
+    def test_explicit_expected_duration_supports_a_45s_prototype(self):
+        self.scenes = [{"duration_seconds": 15, "narration": f"Prototype {i}."}
+                       for i in range(3)]
+        result = synthesize_voice(self.scenes, self.model, self.output,
+                                  piper=str(self.stub), expected_seconds=45)
+        self.assertEqual(result["duration_seconds"], 45)
+        with wave.open(str(self.output), "rb") as wav:
+            self.assertEqual(wav.getnframes(), 45 * 24000)
+
     def test_speech_longer_than_scene_refused_without_overwrite(self):
         self.scenes[0]["narration"] = "trop-longue"
         with self.assertRaisesRegex(ValueError, "tts_scene_too_long"):

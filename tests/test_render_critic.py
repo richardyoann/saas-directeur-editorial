@@ -49,6 +49,15 @@ class RenderCriticTests(unittest.TestCase):
         self.assertTrue(report["human_release_required"])
         self.assertNotIn(str(self.root), json.dumps(report))
 
+    def test_cinematic_1080x1920_export_is_accepted(self):
+        self.receipt.update({"width": 1080, "height": 1920})
+        self.write_receipt()
+        report = self.inspect({"format": {"duration": "75.000"},
+            "streams": [{"codec_type": "video", "width": 1080, "height": 1920,
+                         "r_frame_rate": "24/1"},
+                        {"codec_type": "audio"}]})
+        self.assertTrue(report["technical_passed"], report["findings"])
+
     def test_hash_duration_format_audio_and_framerate_are_blocking(self):
         self.receipt["video_sha256"] = "x" * 64
         self.receipt["audio"] = False
