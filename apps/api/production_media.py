@@ -56,8 +56,10 @@ def create_production_media_router(get_identity, get_store):
             return await build_voice_service(store).execute(identity, run_id)
         except ProductionMediaError as error:
             raise media_error(error) from None
-        except (RunMissing, RunConflict):
-            raise HTTPException(409, "Génération vocale déjà en cours ou indisponible.") from None
+        except RunMissing:
+            raise HTTPException(404, "Histoire introuvable.") from None
+        except RunConflict:
+            raise HTTPException(409, "Génération vocale déjà en cours ou média déjà disponible.") from None
         except (PersistenceUnavailable, ProductionStorageError):
             raise HTTPException(503, "Production vocale indisponible.") from None
 
@@ -68,7 +70,9 @@ def create_production_media_router(get_identity, get_store):
             return await build_video_service(store).execute(identity, run_id)
         except ProductionMediaError as error:
             raise media_error(error) from None
-        except (RunMissing, RunConflict):
+        except RunMissing:
+            raise HTTPException(404, "Histoire introuvable.") from None
+        except RunConflict:
             raise HTTPException(409, "Montage déjà en cours ou média déjà disponible.") from None
         except (PersistenceUnavailable, ProductionStorageError):
             raise HTTPException(503, "Montage vidéo indisponible.") from None

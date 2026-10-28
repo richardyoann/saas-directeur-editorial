@@ -31,10 +31,19 @@ n'est dupliqué dans MLflow.
 | échec de synthèse ou de montage | 502, erreur historisée, **aucun rejeu automatique** |
 | panne de stockage ou de base | 503, aucun média partiel publié |
 
-Une relance n'est possible qu'après un échec. Un média prêt est immuable : une
-nouvelle réservation est refusée. Une révision du storyboard produit un nouveau
-`scenario_id`, donc de nouveaux identifiants de médias ; l'ancien reste
-consultable.
+Une relance n'est possible qu'après un échec. Toute la phase post-réservation
+(dossier de travail, synthèse, écriture, publication) ferme la réservation par
+`failed` si elle échoue : aucun média ne reste `generating` indéfiniment. Le
+dossier de travail privé est validé **avant** la réservation. Un média prêt est
+immuable : une nouvelle réservation est refusée. Une révision du storyboard
+produit un nouveau `scenario_id`, donc de nouveaux identifiants de médias ;
+l'ancien reste consultable.
+
+Si la publication échoue après l'écriture du fichier, la relance réutilise
+l'objet au même identifiant **uniquement lorsque les octets sont identiques**
+(même taille, même SHA-256). Des octets différents sont refusés
+(`production_storage_conflict`) et jamais écrasés : un objet orphelin ne peut pas
+devenir un média faux.
 
 ## 3. Contrat HTTP
 
@@ -68,8 +77,10 @@ voix et vidéo : une seule production à la fois, dans le processus.
 
 ## 5. Stockage et intégrité
 
-- Écriture exclusive (`O_CREAT|O_EXCL`, `O_NOFOLLOW` si disponible, mode 0600),
-  jamais d'écrasement.
+- Écriture atomique : fichier temporaire privé dans le même répertoire, puis
+  lien exclusif vers la destination (`O_EXCL`/`O_NOFOLLOW` si disponible, mode
+  0600), jamais d'écrasement ; une relance identique réutilise l'objet, une
+  relance différente est refusée.
 - Lecture après revalidation : type, locataire, run, identifiant, taille,
   empreinte SHA-256, refus des liens symboliques sur le chemin.
 - Les images relues utilisent l'identifiant de scène, pas l'identifiant d'actif,

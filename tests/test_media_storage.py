@@ -35,11 +35,28 @@ class MediaStorageTests(unittest.TestCase):
         self.assertEqual(self.source.read_bytes(), self.payload)
         self.api.head_object.assert_called_once_with(Bucket="private-media", Key=reference["key"], VersionId="version-1")
 
-    def test_timeout_is_not_replayed_and_never_deletes_objects(self):
+    def test_timeout_reuses_only_an_identical_object(self):
         self.api.put_object.side_effect = TimeoutError()
+        reference = storage.put_file(self.source, *self.ids, "voice")
+        self.assertEqual(reference["sha256"],
+                         hashlib.sha256(self.payload).hexdigest())
+        self.assertEqual(self.api.put_object.call_count, 1)
+        self.api.delete_object.assert_not_called()
+
+    def test_timeout_without_a_verified_object_is_uncertain_and_never_deletes(self):
+        self.api.put_object.side_effect = TimeoutError()
+        self.api.head_object.side_effect = Exception("not found")
         with self.assertRaisesRegex(storage.MediaStorageError, "media_upload_uncertain"):
             storage.put_file(self.source, *self.ids, "voice")
         self.assertEqual(self.api.put_object.call_count, 1)
+        self.api.delete_object.assert_not_called()
+
+    def test_timeout_with_different_bytes_is_refused_without_deleting(self):
+        self.api.put_object.side_effect = TimeoutError()
+        self.api.head_object.return_value = {"ContentLength": 3,
+                                             "Metadata": {"sha256": "f" * 64}}
+        with self.assertRaisesRegex(storage.MediaStorageError, "media_upload_conflict"):
+            storage.put_file(self.source, *self.ids, "voice")
         self.api.delete_object.assert_not_called()
 
     def test_s3_client_disables_retries_and_requires_private_endpoint(self):

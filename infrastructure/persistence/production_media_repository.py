@@ -200,7 +200,8 @@ class PostgresProductionMediaRepository:
             version, record = row
             record.update(status="ready", finished_at=self._clock(), storage=storage,
                           sha256=sha256, byte_count=byte_count,
-                          duration_seconds=duration_seconds, error_code=None)
+                          duration_seconds=duration_seconds, error_code=None,
+                          outcome_uncertain=False)
             self._write(conn, tenant, actor, run_id, "result", asset_id, record, version)
             for side_kind, reference in (extra_storage or {}).items():
                 side_id = self.asset_id(scenario_id, side_kind)

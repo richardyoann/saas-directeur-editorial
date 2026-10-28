@@ -12,6 +12,8 @@ from uuid import UUID
 from anyio.to_thread import run_sync
 from functools import partial
 
+from editorial.media.contracts import PersistenceUnavailable, RunConflict
+
 KINDS = {"voice": ".wav", "video": ".mp4", "subtitles": ".srt"}
 
 
@@ -52,6 +54,20 @@ def _private_directory(config):
     return root
 
 
+def _best_effort_fail(repository, identity, run_id, kind, scenario_id, error_code):
+    """Never mask the original failure with a secondary persistence error."""
+    try:
+        repository.fail(identity, run_id, kind, scenario_id=scenario_id,
+                        error_code=error_code)
+    except Exception:  # noqa: BLE001 - the first error is authoritative
+        pass
+
+
+def _voice_error_code(error):
+    code = str(error)
+    return code if code.startswith(("voice_", "tts_", "piper_")) else "voice_generation_failed"
+
+
 class GenerateVoice:
     def __init__(self, repository, storage, synthesize, capacity, config):
         self.repository, self.storage = repository, storage
@@ -66,38 +82,50 @@ class GenerateVoice:
             raise ProductionMediaError("storyboard_duration_invalid")
         if not self.config.voice_configured():
             raise ProductionMediaError("voice_provider_unconfigured")
+        # Validate the private work directory before reserving: a broken
+        # configuration must not leave a reservation stuck in "generating".
+        directory = _private_directory(self.config)
         if not self.capacity.acquire(blocking=False):
             raise ProductionMediaError("media_capacity_busy")
         try:
             reservation = await offload(self.repository.reserve, identity, run_id, "voice",
                                         plan["scenario_id"])
-            return await offload(self._run, identity, run_id, plan, reservation)
+            return await offload(self._run, identity, run_id, plan, reservation, directory)
         finally:
             self.capacity.release()
 
-    def _run(self, identity, run_id, plan, reservation):
-        with tempfile.TemporaryDirectory(prefix="arvor-voice-",
-                                         dir=_private_directory(self.config)) as work:
-            destination = Path(work) / "voice.wav"
-            try:
+    def _run(self, identity, run_id, plan, reservation, directory):
+        try:
+            with tempfile.TemporaryDirectory(prefix="arvor-voice-", dir=directory) as work:
+                destination = Path(work) / "voice.wav"
                 result = self.synthesize(
                     plan["scenes"], self.config.piper_model, destination,
                     piper=self.config.piper_bin, ffmpeg=self.config.ffmpeg_bin,
                     tenant=identity.tenant, story_id=run_id)
                 reference = self.storage.save(destination, identity.tenant, run_id,
                                               reservation["asset_id"], "voice")
-            except ProductionMediaError:
-                raise
-            except Exception as error:  # noqa: BLE001 - fixed codes only
-                code = (str(error) if str(error).startswith(("voice_", "tts_", "piper_"))
-                        else "voice_generation_failed")
-                self.repository.fail(identity, run_id, "voice",
-                                     scenario_id=plan["scenario_id"], error_code=code)
-                raise ProductionMediaError(code) from None
-        return self.repository.complete(
-            identity, run_id, "voice", scenario_id=plan["scenario_id"],
-            storage=reference, sha256=reference.get("sha256"),
-            byte_count=reference.get("size"), duration_seconds=result["duration_seconds"])
+            # Publishing stays inside the guarded block: a conflict or database
+            # outage after synthesis must close the reservation, not leave it
+            # "generating" forever.
+            return self.repository.complete(
+                identity, run_id, "voice", scenario_id=plan["scenario_id"],
+                storage=reference, sha256=reference.get("sha256"),
+                byte_count=reference.get("size"),
+                duration_seconds=result["duration_seconds"])
+        except (RunConflict, PersistenceUnavailable):
+            # Preserve the repository contract codes so the API can answer 409/503.
+            _best_effort_fail(self.repository, identity, run_id, "voice",
+                              plan["scenario_id"], "voice_generation_failed")
+            raise
+        except ProductionMediaError as error:
+            _best_effort_fail(self.repository, identity, run_id, "voice",
+                              plan["scenario_id"], error.code)
+            raise
+        except Exception as error:  # noqa: BLE001 - fixed codes only
+            code = _voice_error_code(error)
+            _best_effort_fail(self.repository, identity, run_id, "voice",
+                              plan["scenario_id"], code)
+            raise ProductionMediaError(code) from None
 
 
 class GenerateVideo:
@@ -166,20 +194,27 @@ class GenerateVideo:
                     sha256=video.get("sha256"), byte_count=video.get("size"),
                     duration_seconds=receipt["duration_seconds"],
                     extra_storage={"subtitles": subtitles})
+        except (RunConflict, PersistenceUnavailable):
+            _best_effort_fail(self.repository, identity, run_id, "video", scenario_id,
+                              "video_render_failed")
+            raise
         except ProductionMediaError:
-            self.repository.fail(identity, run_id, "video", scenario_id=scenario_id,
-                                 error_code="video_render_failed")
+            _best_effort_fail(self.repository, identity, run_id, "video", scenario_id,
+                              "video_render_failed")
             raise
         except Exception:  # noqa: BLE001 - fixed codes only
-            self.repository.fail(identity, run_id, "video", scenario_id=scenario_id,
-                                 error_code="video_render_failed")
+            _best_effort_fail(self.repository, identity, run_id, "video", scenario_id,
+                              "video_render_failed")
             raise ProductionMediaError("video_render_failed") from None
-        self.telemetry(tenant=tenant, story_id=run_id, asset_id=reservation["asset_id"],
-                       scene_count=len(scenes), target_seconds=75,
-                       real_seconds=receipt["duration_seconds"], status="exported",
-                       video_sha256=video.get("sha256"), byte_count=video.get("size"),
-                       encode_seconds=encoded, ffmpeg_version=receipt.get("ffmpeg_version"),
-                       audio=True, resolution="720x1280", fps=24)
+        try:
+            self.telemetry(tenant=tenant, story_id=run_id, asset_id=reservation["asset_id"],
+                           scene_count=len(scenes), target_seconds=75,
+                           real_seconds=receipt["duration_seconds"], status="exported",
+                           video_sha256=video.get("sha256"), byte_count=video.get("size"),
+                           encode_seconds=encoded, ffmpeg_version=receipt.get("ffmpeg_version"),
+                           audio=True, resolution="720x1280", fps=24)
+        except Exception:  # noqa: BLE001 - telemetry never changes a published result
+            pass
         return result
 
 

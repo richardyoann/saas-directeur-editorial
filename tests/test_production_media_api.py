@@ -94,6 +94,10 @@ class ProductionMediaApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 503)
 
     async def test_voice_conflict_and_error_translation(self):
+        self.serve(build_voice_service=FakeService(error=RunMissing()))
+        response = await self.client.post(
+            f"/editorial/runs/{self.run_id}/voice", headers=self.headers)
+        self.assertEqual(response.status_code, 404)
         self.serve(build_voice_service=FakeService(error=RunConflict()))
         response = await self.client.post(
             f"/editorial/runs/{self.run_id}/voice", headers=self.headers)

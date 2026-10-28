@@ -8,6 +8,7 @@ import hashlib
 import os
 from pathlib import Path
 import re
+import tempfile
 from uuid import UUID
 
 SUFFIXES = {"voice": ".wav", "video": ".mp4", "subtitles": ".srt",
@@ -50,7 +51,13 @@ def _validate_input(path, kind):
 
 
 def save(path, tenant, run_id, asset_id, kind):
-    """Copy one local file into private storage and return a validated reference."""
+    """Copy one local file into private storage and return a validated reference.
+
+    The destination key is deterministic, so a retry after a failed publication
+    may find the object written by the previous attempt. Identical bytes are
+    reused (same SHA-256 and size); different bytes are refused, never
+    overwritten.
+    """
     path = Path(path)
     size = _validate_input(path, kind)
     if backend() == "minio":
@@ -65,24 +72,73 @@ def save(path, tenant, run_id, asset_id, kind):
         raise ProductionStorageError("production_storage_unavailable")
     parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     destination = parent / (str(UUID(str(asset_id))) + SUFFIXES[kind])
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        while chunk := source.read(1024 * 1024):
-            digest.update(chunk)
-    digest = digest.hexdigest()
+    if destination.exists() or destination.is_symlink():
+        return _reuse_identical(destination, path, kind)
+    digest, written = hashlib.sha256(), 0
+    temporary = None
     try:
-        fd = os.open(destination, flags, 0o600)
-        with os.fdopen(fd, "wb") as output, path.open("rb") as source:
+        descriptor, temporary = tempfile.mkstemp(dir=parent, prefix=".production-",
+                                                  suffix=".part")
+        with os.fdopen(descriptor, "wb") as output, path.open("rb") as source:
             while chunk := source.read(1024 * 1024):
+                written += len(chunk)
+                if written > MAX_BYTES[kind]:
+                    raise ProductionStorageError("production_media_size_invalid")
+                digest.update(chunk)
                 output.write(chunk)
+            output.flush()
+            os.fsync(output.fileno())
+        if not written:
+            raise ProductionStorageError("production_media_size_invalid")
+        try:
+            os.link(temporary, destination)
+        except FileExistsError:
+            return _reuse_identical(destination, path, kind)
+        except OSError:
+            # Filesystems without hard links: exclusive create, then copy the
+            # already verified temporary file (a crash may leave a partial
+            # destination that a later retry will refuse rather than overwrite).
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            descriptor = os.open(destination, flags, 0o600)
+            with os.fdopen(descriptor, "wb") as output, open(temporary, "rb") as source:
+                while chunk := source.read(1024 * 1024):
+                    output.write(chunk)
+                output.flush()
+                os.fsync(output.fileno())
     except OSError:
-        destination.unlink(missing_ok=True)
         raise ProductionStorageError("production_storage_unavailable") from None
+    finally:
+        if temporary:
+            try:
+                os.unlink(temporary)
+            except OSError:
+                pass
     return {"backend": "filesystem", "key": str(destination), "kind": kind,
-            "sha256": digest, "size": size}
+            "sha256": digest.hexdigest(), "size": written}
+
+
+def _reuse_identical(destination, source, kind):
+    """Reuse an object left by a failed attempt only when bytes are identical."""
+    if destination.is_symlink() or not destination.is_file():
+        raise ProductionStorageError("production_storage_conflict")
+    size = destination.stat().st_size
+    if not 0 < size <= MAX_BYTES[kind] or size != source.stat().st_size:
+        raise ProductionStorageError("production_storage_conflict")
+    source_digest = _digest(source)
+    if _digest(destination) != source_digest:
+        raise ProductionStorageError("production_storage_conflict")
+    return {"backend": "filesystem", "key": str(destination), "kind": kind,
+            "sha256": source_digest, "size": size}
+
+
+def _digest(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _local_path(reference, tenant, run_id, asset_id, kind):

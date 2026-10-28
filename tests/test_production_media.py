@@ -187,6 +187,48 @@ class OptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(repository.failures[0][1]["error_code"], "tts_engine_failed")
         self.assertEqual(repository.completed, [])
 
+    async def test_voice_work_directory_is_validated_before_reserving(self):
+        repository = FakeRepository(plan())
+        service = GenerateVoice(repository, FakeStorage(), lambda *a, **k: None,
+                                ProductionMediaCapacity(),
+                                config(str(Path(self.temp.name) / "missing")))
+        with self.assertRaises(ProductionMediaError) as caught:
+            await service.execute(self.identity, self.run_id)
+        self.assertEqual(caught.exception.code, "production_media_directory_invalid")
+        self.assertEqual(repository.reserved, [])
+        self.assertEqual(repository.failures, [])
+
+    async def test_voice_domain_error_closes_the_reservation(self):
+        repository = FakeRepository(plan())
+
+        def synthesize(*args, **kwargs):
+            raise ProductionMediaError("voice_duration_not_75")
+
+        service = GenerateVoice(repository, FakeStorage(), synthesize,
+                                ProductionMediaCapacity(), config(self.temp.name))
+        with self.assertRaises(ProductionMediaError) as caught:
+            await service.execute(self.identity, self.run_id)
+        self.assertEqual(caught.exception.code, "voice_duration_not_75")
+        self.assertEqual(repository.failures[0][1]["error_code"], "voice_duration_not_75")
+        self.assertEqual(repository.completed, [])
+
+    async def test_voice_publish_failure_closes_the_reservation(self):
+        repository = FakeRepository(plan())
+
+        def synthesize(scenes, model, destination, **kwargs):
+            Path(destination).write_bytes(b"RIFF" + b"\x00" * 8)
+            return {"duration_seconds": 75}
+
+        def complete(*args, **kwargs):
+            raise RunConflict()
+
+        repository.complete = complete
+        service = GenerateVoice(repository, FakeStorage(), synthesize,
+                                ProductionMediaCapacity(), config(self.temp.name))
+        with self.assertRaises(RunConflict):
+            await service.execute(self.identity, self.run_id)
+        self.assertEqual(repository.failures[0][1]["error_code"], "voice_generation_failed")
+
     async def test_video_requires_every_prerequisite(self):
         repository = FakeRepository(plan(ready_for_video=False))
         service = GenerateVideo(repository, FakeStorage(), lambda *a, **k: None,
@@ -257,6 +299,62 @@ class OptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.code, "video_render_failed")
         self.assertEqual(repository.failures[0][1]["error_code"], "video_render_failed")
         self.assertEqual(repository.completed, [])
+
+    async def test_video_publish_failure_closes_the_reservation(self):
+        inputs = {
+            "scenario_id": str(uuid4()),
+            "scenes": [{"scene_id": str(uuid4()), "duration_seconds": 75,
+                        "narration": "Bonjour."}],
+            "images": [{"asset_id": str(uuid4()), "scene_id": str(uuid4()),
+                        "storage": "unused"}],
+            "voice": {"asset_id": str(uuid4()), "storage": "unused"},
+            "total_seconds": 75,
+        }
+        repository = FakeRepository(plan(scenario_id=inputs["scenario_id"]), inputs)
+
+        def render(manifest, destination, *, arvor_75=False, telemetry=None):
+            Path(destination).mkdir(parents=True)
+            (Path(destination) / "episode.mp4").write_bytes(b"mp4")
+            (Path(destination) / "narration.srt").write_bytes(b"1\n")
+            return {"duration_seconds": 75}
+
+        def complete(*args, **kwargs):
+            raise RunConflict()
+
+        repository.complete = complete
+        service = GenerateVideo(repository, FakeStorage(), render,
+                                ProductionMediaCapacity(), config(self.temp.name))
+        with self.assertRaises(RunConflict):
+            await service.execute(self.identity, self.run_id)
+        self.assertEqual(repository.failures[0][1]["error_code"], "video_render_failed")
+
+    async def test_telemetry_failure_never_breaks_a_published_video(self):
+        inputs = {
+            "scenario_id": str(uuid4()),
+            "scenes": [{"scene_id": str(uuid4()), "duration_seconds": 75,
+                        "narration": "Bonjour."}],
+            "images": [{"asset_id": str(uuid4()), "scene_id": str(uuid4()),
+                        "storage": "unused"}],
+            "voice": {"asset_id": str(uuid4()), "storage": "unused"},
+            "total_seconds": 75,
+        }
+        repository = FakeRepository(plan(scenario_id=inputs["scenario_id"]), inputs)
+
+        def render(manifest, destination, *, arvor_75=False, telemetry=None):
+            Path(destination).mkdir(parents=True)
+            (Path(destination) / "episode.mp4").write_bytes(b"mp4")
+            (Path(destination) / "narration.srt").write_bytes(b"1\n")
+            return {"duration_seconds": 75}
+
+        def telemetry(**kwargs):
+            raise RuntimeError("tracker down")
+
+        service = GenerateVideo(repository, FakeStorage(), render,
+                                ProductionMediaCapacity(), config(self.temp.name),
+                                telemetry=telemetry)
+        result = await service.execute(self.identity, self.run_id)
+        self.assertEqual(result["kind"], "video")
+        self.assertEqual(repository.failures, [])
 
     async def test_read_materialises_a_private_temporary_copy(self):
         media_id, reference = uuid4(), {

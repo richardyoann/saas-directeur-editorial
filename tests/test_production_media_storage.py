@@ -51,9 +51,21 @@ class ProductionStorageTests(unittest.TestCase):
         self.assertEqual(reference["sha256"],
                          hashlib.sha256(b"RIFF" + b"\x00" * 8).hexdigest())
         self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
-        with self.assertRaises(production_media.ProductionStorageError):
-            production_media.save(self.source(), self.tenant, self.run_id,
-                                  asset_id, "voice")
+
+    def test_save_reuses_an_identical_retry_and_refuses_other_bytes(self):
+        asset_id = uuid4()
+        reference = production_media.save(self.source(), self.tenant, self.run_id,
+                                          asset_id, "voice")
+        replay = production_media.save(self.source("retry.wav"), self.tenant,
+                                       self.run_id, asset_id, "voice")
+        self.assertEqual(replay, reference)
+        changed = self.source("changed.wav", b"RIFF" + b"\x01" * 8)
+        with self.assertRaises(production_media.ProductionStorageError) as caught:
+            production_media.save(changed, self.tenant, self.run_id, asset_id, "voice")
+        self.assertEqual(str(caught.exception), "production_storage_conflict")
+        destination = Path(reference["key"])
+        self.assertEqual(destination.read_bytes(), b"RIFF" + b"\x00" * 8)
+        self.assertEqual(list(Path(reference["key"]).parent.glob(".production-*")), [])
 
     def test_save_rejects_wrong_kind_empty_and_symlinked_inputs(self):
         for path, kind in ((self.source("a.txt"), "voice"),
