@@ -19,8 +19,9 @@ sur clé de tentative distincte, aucun secret exposé (images sd.cpp réutilisé
 moteur non joignable pendant la recette). Une revue indépendante a relevé une
 réservation vocale pouvant rester `generating` et une relance impossible après
 échec de publication ; les deux sont corrigées et couvertes par des tests. PR
-#226 ouverte, **non fusionnée**, **aucun déploiement PC**. Voir
-[PRODUCTION_MEDIA_75S.md](docs/PRODUCTION_MEDIA_75S.md).
+#226 **fusionnée** le 28 octobre 2026 (`af47ce8e9f8bf41d69a792a30462a4b5dcf4ee8f`),
+**aucun déploiement PC**. Toute livraison exige l'approbation explicite du SHA
+complet. Voir [PRODUCTION_MEDIA_75S.md](docs/PRODUCTION_MEDIA_75S.md).
 
 ## MLFLOW — observabilité privée qualifiée localement, 27 octobre 2026
 
