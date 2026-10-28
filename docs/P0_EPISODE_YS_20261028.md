@@ -194,3 +194,12 @@ Décision : l'épisode et le prototype sont **prêts pour revue humaine**, pas
 pour publication ni livraison. La fusion des PR et toute livraison PC exigent
 une nouvelle validation explicite, et pour le PC l'approbation du SHA complet
 exact.
+
+## 8. PR et traces
+
+- [#228 sécurité](https://github.com/richardyoann/saas-directeur-editorial/pull/228) — base `main` ;
+- [#229 observabilité](https://github.com/richardyoann/saas-directeur-editorial/pull/229) — base `main` ;
+- [#230 média](https://github.com/richardyoann/saas-directeur-editorial/pull/230) — empilée sur `feat/p0-observability`.
+
+Dernier contrôle : healthcheck `healthy=true`, 8 expériences, rejeu du spool
+`replayed=0`, 1,32 s. Les trois PR sont ouvertes, aucune n'est fusionnée.
