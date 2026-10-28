@@ -279,7 +279,8 @@ Contrôles P0-A :
 - test de panne réel (URI morte puis rétablie) : premier rejeu
   `replayed=1`, second `replayed=0`, un seul run créé, aucun prompt/réponse dans
   le spool ;
-- les 8 médias et les 11 runs ont survécu au redémarrage de l'API isolée ;
+- les runs des deux histoires et les 8 lignes média de l'épisode ont survécu au
+  redémarrage de l'API isolée ;
 - les deux exports rejetés sont conservés avec le tag
   `arvor_validation_status=superseded` et leur motif ; l'export accepté porte
   `technical_accepted`, `arvor_validator=open-code-operator` et
