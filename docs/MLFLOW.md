@@ -1,10 +1,11 @@
 # MLflow privé Arvor — intégration, exploitation et preuves
 
-Statut au 27 octobre 2026 : **qualifié localement sur WSL**, non poussé, non
-fusionné et **non déployé sur le PC**. Le serveur MLflow est un service
-utilisateur systemd privé, sur loopback, avec PostgreSQL et MinIO dédiés.
-PostgreSQL Arvor reste la source de vérité métier ; MLflow ne contient que des
-expériences, mesures, traces et références pseudonymisées.
+Statut au 28 octobre 2026 : **qualifié localement sur WSL et en CI locale
+16/16**, branche poussée et PR #225 ouverte, **non fusionné** et **non déployé
+sur le PC**. Le serveur MLflow est un service utilisateur systemd privé, sur
+loopback, avec PostgreSQL et MinIO dédiés. PostgreSQL Arvor reste la source de
+vérité métier ; MLflow ne contient que des expériences, mesures, traces et
+références pseudonymisées.
 
 - Branche : `feat/mlflow-integration-20261027`
 - Base : `origin/main` `079317cd912168ec58ce4df377c49441cfc40186`
@@ -213,6 +214,36 @@ La vidéo de recette contient une piste audio Piper réelle et un WAV de 75 s
 instrumenté comme `external-wav`. Les fichiers de recette restent sous
 `/tmp/opencode/mlflow-acceptance-*` et ne sont pas versionnés.
 
+### 7.1 Qualification CI locale (28 octobre 2026)
+
+Le laboratoire CI isolé a été exécuté sur le SHA de tête
+`bf293a12eacd764b0784e6587d70ffcb17793aab`, base
+`079317cd912168ec58ce4df377c49441cfc40186`, PR #225, contrôleur épinglé sur la
+même base `main`. Image Docker épinglée :
+`sha256:dd7076aba086afc2bd9439544fab0d9f48989b3070636323719b11c4cd0c082e`.
+Reçu privé : `run_id 1322464b-c2e5-4966-839e-193789412fb4` ; provenance hôte et
+intégrité des journaux vérifiées indépendamment. Ce reçu ne signe ni ne publie
+rien et n'autorise ni fusion ni déploiement.
+
+16/16 contrôles réussis :
+
+| Contrôle | Résultat |
+| --- | --- |
+| `db_prepare_312`, `db_prepare_314` | PostgreSQL 16 jetable préparé |
+| `regression_312`, `regression_314` | 531 tests, 0 échec, 0 ignoré par version Python |
+| `sql_benchmark_312`, `sql_benchmark_314` | benchmark éditorial 1 200 runs |
+| `syntax_js`, `syntax_js_reference`, `syntax_js_next`, `syntax_py` | syntaxe valide |
+| `browser` | 18 parcours Chromium, 0 échec, 0 ignoré |
+| `dependencies` | audit hors ligne des dépendances installées |
+| `secrets` | Gitleaks, aucun secret détecté |
+| `supply_chain` | empreintes de dépendances conformes |
+| `risk_review` | revue de risques du diff |
+| `video_75` | smoke vidéo synthétique 75 s |
+
+Les contrôles navigateur, Gitleaks, Node et l'audit précédemment absents du
+poste ont donc été exécutés dans le conteneur isolé, sans installation dans le
+dépôt ni dans le runtime déployé.
+
 ## 8. Revue indépendante et corrections
 
 Une revue `security-reviewer` en lecture seule a été exécutée après la première
@@ -242,13 +273,12 @@ bucket métier est intact.
 
 ## 9. Ce qui reste hors périmètre
 
-- Push, PR, fusion et déploiement PC : non réalisés, à valider séparément sur
-  le SHA complet.
+- Fusion de la PR #225 et déploiement PC : non réalisés, à valider séparément
+  sur le SHA complet.
 - Activation MLflow dans le service API déployé : le runtime
   `~/editorial-runtime/current` n'a pas été modifié.
 - Embarquement de Piper dans l'image applicative.
 - Rétention automatique, purge, tableau de bord ou alerting MLflow.
-- Recette navigateur Playwright : binaires Chromium absents sur ce poste.
 
 Toute activation en production exige une livraison PC approuvée sur un SHA
 complet exact, puis un redémarrage contrôlé du service API avec la configuration

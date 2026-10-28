@@ -9,7 +9,10 @@ piste WAV existante et export FFmpeg avec empreintes, durées, statuts et
 identifiants de corrélation ; aucun prompt, média ou secret dans MLflow.
 Tracker fail-open avec file/spool bornés et rejeu idempotent. Recette réelle
 15/15 sur WSL, dont panne MLflow sans blocage métier et absence de fuite.
-Aucun push, PR, fusion ni déploiement PC ; le runtime API déployé reste inchangé.
+CI locale isolée 16/16 (531 tests par version Python, 18 parcours Chromium,
+Gitleaks, audit de dépendances, supply-chain, revue de risques, vidéo 75 s) sur
+la tête `bf293a1`. Branche poussée, PR #225 ouverte ; aucune fusion ni
+déploiement PC, le runtime API déployé reste inchangé.
 Voir [MLFLOW.md](docs/MLFLOW.md) et [PASSATION_MLFLOW.md](docs/PASSATION_MLFLOW.md).
 
 ## ARVOR-MEDIA-S3-INTEGRATION — 25 octobre 2026
