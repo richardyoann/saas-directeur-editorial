@@ -169,6 +169,16 @@ dans `docs/MLFLOW.md`. Ne jamais activer `ARVOR_MLFLOW_ENABLED` sur le service
 API déployé sans autorisation de livraison du SHA exact ; ne jamais copier
 `client.env` ni les secrets dans un dépôt, un ticket ou un journal.
 
+## Production voix et vidéo 75 s
+
+Le parcours Studio « Voix & vidéo » appelle des routes privées qui exigent un
+storyboard approuvé et des images prêtes pour le montage. Une seule production
+média tourne à la fois ; un échec est historisé et n'est jamais rejoué
+automatiquement. Les médias prêts sont immuables et restent dans le stockage
+privé existant. Variables et contrat : `docs/PRODUCTION_MEDIA_75S.md`.
+Ne pas lancer de recette sur la base métier : utiliser une base et un bucket
+jetables, et ne jamais publier les identifiants de locataire.
+
 ## Autorisations
 
 Demander confirmation avant suppression de données, migration appliquée,

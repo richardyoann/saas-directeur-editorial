@@ -243,6 +243,7 @@ function tab(name){
  s.tab=name;document.querySelectorAll("[data-tab]").forEach(b=>{b.classList.toggle("active",b.dataset.tab===name);b.setAttribute("aria-selected",String(b.dataset.tab===name));b.tabIndex=b.dataset.tab===name?0:-1;});$("panel").setAttribute("aria-labelledby","tab-"+name);
  if(name==="storyboard")storyboard();
  if(name==="visuals")visuals();
+ if(name==="media")productionView();
  if(name==="analysis")analysis();
  if(name==="history")historyView();
  if(name==="reviews")reviews(true);
@@ -280,6 +281,7 @@ function renderComposer(){
   ["shots","Plans & cadrages","◫",scenes.filter(x=>x.shot).length],
   ["emotions","Émotions","♡",scenes.filter(x=>x.emotion).length],
   ["sound","Sons & voix","♫",scenes.filter(x=>x.sound).length],
+  ["media","Voix & vidéo","▶",""],
  ];
  for(const [key,label,icon,count] of nav){
   const b=put(root,"button","composer-link"+(s.composerCategory===key?" active":""));
@@ -306,6 +308,7 @@ function showComposer(key){
  s.composerCategory=key;
  if(key==="history"){tab("history");renderComposer();return;}
  if(key==="crew"){tab("crew");renderComposer();return;}
+ if(key==="media"){tab("media");renderComposer();closeNav();return;}
  tab("storyboard");
  if(key==="characters"||["landscapes","colors","shots","emotions","sound"].includes(key))showCollection(key);
  if(key==="scenes")$("#panel").querySelector(".storyboard-section")?.scrollIntoView({block:"start",behavior:"smooth"});
@@ -568,6 +571,89 @@ async function visuals(){
   }
   if(!data.approved)put(root,"p","warning","Approuvez l'analyse et le storyboard pour autoriser la génération d'images. Rien n'est publié automatiquement.");
  }catch(e){if(s.run?.id===id&&s.tab==="visuals"){empty(message(e));alertUser(message(e),true);}}
+}
+function productionView(){
+ const root=$("panel"),id=s.run.id;
+ root.replaceChildren();
+ detailHeader(root,"PRODUCTION","Voix et vidéo","Retour à l’histoire");
+ const card=put(root,"article","card");
+ put(card,"div","overline","ASSEMBLAGE 75 SECONDES");
+ put(card,"h3","","Voix Piper et montage FFmpeg");
+ put(card,"p","","Les images et la voix restent privées. L’assemblage produit une vidéo verticale de 75 secondes, historisée et téléchargeable.");
+ const status=put(card,"p","tip","Chargement de l’état de production…");
+ const mediaLink=(kind,mediaId,label)=>{
+  const link=document.createElement("a");
+  link.className="btn secondary";link.setAttribute("download","");link.textContent=label;
+  link.href="/studio/api/runs/"+id+"/media/"+mediaId+"/content?download=1";
+  return link;
+ };
+ api("/studio/api/runs/"+id+"/production-media").then(state=>{
+  if(!root.isConnected||s.run?.id!==id||s.tab!=="media")return;
+  status.remove();
+  const list=put(card,"ul","production-checklist");
+  const line=(ok,text)=>{const li=put(list,"li",ok?"production-ok":"production-todo");put(li,"span","",ok?"✓":"•");put(li,"span","",text);};
+  line(Boolean(state.approved),"Scénario approuvé");
+  line(state.duration_seconds===75,"Durée totale de 75 secondes");
+  line(!(state.missing_images||[]).length,"Images disponibles pour toutes les scènes");
+  const voice=(state.media||{}).voice,video=(state.media||{}).video,subs=(state.media||{}).subtitles;
+  line(voice?.status==="ready","Voix de 75 secondes générée");
+  line(video?.status==="ready","Vidéo montée avec audio");
+  const actions=put(card,"div","actions");
+  if(!state.approved){
+   put(card,"p","warning","Approuvez le storyboard pour autoriser la production média.");
+  }else{
+   if(voice?.status!=="ready"){
+    const button=put(actions,"button","btn primary",voice?.status==="failed"?"Relancer la voix":"Générer la voix");
+    button.type="button";
+    button.addEventListener("click",async()=>{
+     button.disabled=true;button.textContent="Synthèse en cours…";
+     try{await api("/studio/api/runs/"+id+"/voice","POST");alertUser("Voix générée et historisée.");}
+     catch(e){alertUser(message(e),true);}
+     finally{if(s.run?.id===id&&s.tab==="media")await productionView();}
+    });
+   }
+   if(voice?.status==="generating")put(card,"p","tip","Synthèse vocale en cours : ne relancez pas.");
+   if((state.missing_images||[]).length)put(card,"p","warning","Générez les images manquantes (scènes "+(state.missing_images||[]).join(", ")+") avant le montage.");
+   if(voice?.status==="ready"&&video?.status!=="ready"){
+    const button=put(actions,"button","btn primary",video?.status==="failed"?"Relancer le montage":"Assembler la vidéo");
+    button.type="button";button.disabled=!state.ready_for_video;
+    if(!state.ready_for_video)button.title="Images et voix requises avant le montage";
+    button.addEventListener("click",async()=>{
+     button.disabled=true;button.textContent="Montage en cours…";
+     try{await api("/studio/api/runs/"+id+"/video","POST");alertUser("Vidéo montée et historisée.");}
+     catch(e){alertUser(message(e),true);}
+     finally{if(s.run?.id===id&&s.tab==="media")await productionView();}
+    });
+   }
+  }
+  if(video?.status==="generating")put(card,"p","tip","Montage vidéo en cours : ne relancez pas.");
+  if(video?.status==="failed")put(card,"p","warning","Le montage a échoué. Le diagnostic est conservé ; une relance explicite reste possible.");
+  if(video?.status==="ready"){
+   const media=put(root,"article","card");
+   put(media,"div","overline","VIDÉO FINALE");
+   put(media,"h3","","75 secondes · format vertical 720 × 1280");
+   const player=document.createElement("video");
+   player.className="production-video";player.controls=true;player.preload="metadata";player.playsInline=true;
+   player.src="/studio/api/runs/"+id+"/media/"+video.id+"/content";
+   media.append(player);
+   put(media,"p","tip","Durée : "+(video.duration_seconds??75)+" s · Taille : "+(video.size_bytes??"—")+" octets · SHA256 : "+(video.sha256||"—"));
+   const links=put(media,"div","actions");
+   links.append(mediaLink("video",video.id,"Télécharger la vidéo (MP4)"));
+   if(subs?.status==="ready")links.append(mediaLink("subtitles",subs.id,"Télécharger les sous-titres (SRT)"));
+  }
+  if(voice?.status==="ready"){
+   const sound=put(root,"article","card");
+   put(sound,"div","overline","VOIX");
+   put(sound,"h3","","Narration de 75 secondes");
+   const audio=document.createElement("audio");
+   audio.className="production-audio";audio.controls=true;audio.preload="metadata";
+   audio.src="/studio/api/runs/"+id+"/media/"+voice.id+"/content";
+   sound.append(audio);
+   put(sound,"p","tip","Taille : "+(voice.size_bytes??"—")+" octets · SHA256 : "+(voice.sha256||"—"));
+   const links=put(sound,"div","actions");
+   links.append(mediaLink("voice",voice.id,"Télécharger la voix (WAV)"));
+  }
+ }).catch(e=>{if(root.isConnected&&s.run?.id===id)status.textContent=message(e);});
 }
 function analysis(){
  const root=$("panel"),a=s.run.analysis;root.replaceChildren();if(!a)return empty("Analyse indisponible.");

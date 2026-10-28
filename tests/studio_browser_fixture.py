@@ -20,6 +20,10 @@ runs = {}
 keys = {}
 events = {}
 image_states = {}
+production_states = {}
+VOICE_BYTES = b"RIFF" + b"\x00" * 44
+VIDEO_BYTES = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 32
+SRT_BYTES = b"1\n00:00:00,000 --> 00:00:01,000\nBonjour.\n"
 IMAGE_BYTES = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")
 call_count = {"review": 0, "generate": 0}
 
@@ -241,6 +245,89 @@ def get_image(run_id: UUID, scene_number: int, authorization: str = Header("")):
     if image_states.get((str(run_id), scene_number)) != "ready":
         raise HTTPException(404)
     return Response(IMAGE_BYTES, media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/editorial/runs/{run_id}/production-media")
+def production_plan(run_id: UUID, authorization: str = Header("")):
+    require_token(authorization)
+    record = get_record(run_id)
+    return production_payload(run_id, record)
+
+
+def production_payload(run_id, record):
+    scenes = (record.get("storyboard") or {}).get("scenes", [])
+    media = production_states.setdefault(str(run_id), {})
+    missing = [n for n in range(1, len(scenes) + 1)
+               if image_states.get((str(run_id), n)) != "ready"]
+    approved = record.get("status") == "approved" and not record.get("storyboard_stale")
+    return {"run_id": str(run_id), "approved": approved,
+            "scenario_id": "fixture-scenario-" + str(run_id)[:8],
+            "scene_count": len(scenes),
+            "duration_seconds": sum(scene["duration_seconds"] for scene in scenes),
+            "scenes": [{"scene_number": n, "title": scene["title"],
+                        "narration": scene["narration"],
+                        "duration_seconds": scene["duration_seconds"],
+                        "image_status": image_states.get((str(run_id), n), "not_generated")}
+                       for n, scene in enumerate(scenes, 1)],
+            "media": media, "ready_for_voice": approved,
+            "ready_for_video": approved and not missing and
+                media.get("voice", {}).get("status") == "ready",
+            "missing_images": missing}
+
+
+def ready_media(kind, size, duration=None):
+    return {"id": str(uuid4()), "status": "ready", "sha256": "a" * 64,
+            "size_bytes": size, "duration_seconds": duration,
+            "created_at": clock(), "finished_at": clock(), "error_code": None}
+
+
+@app.post("/editorial/runs/{run_id}/voice")
+def production_voice(run_id: UUID, authorization: str = Header("")):
+    require_token(authorization)
+    record = get_record(run_id)
+    if record.get("status") != "approved" or record.get("storyboard_stale"):
+        raise HTTPException(409)
+    media = production_states.setdefault(str(run_id), {})
+    if media.get("voice", {}).get("status") in {"ready", "generating"}:
+        raise HTTPException(409)
+    media["voice"] = ready_media("voice", len(VOICE_BYTES), 75)
+    return {"media_id": media["voice"]["id"], "kind": "voice",
+            "sha256": "a" * 64, "size_bytes": len(VOICE_BYTES), "duration_seconds": 75}
+
+
+@app.post("/editorial/runs/{run_id}/video")
+def production_video(run_id: UUID, authorization: str = Header("")):
+    require_token(authorization)
+    record = get_record(run_id)
+    payload = production_payload(run_id, record)
+    if not payload["ready_for_video"]:
+        raise HTTPException(409)
+    media = production_states[str(run_id)]
+    media["video"] = ready_media("video", len(VIDEO_BYTES), 75)
+    media["subtitles"] = ready_media("subtitles", len(SRT_BYTES))
+    return {"media_id": media["video"]["id"], "kind": "video",
+            "sha256": "a" * 64, "size_bytes": len(VIDEO_BYTES), "duration_seconds": 75}
+
+
+@app.get("/editorial/runs/{run_id}/media/{media_id}/content")
+def production_content(run_id: UUID, media_id: UUID, download: bool = Query(False),
+                       authorization: str = Header("")):
+    require_token(authorization)
+    get_record(run_id)
+    media = production_states.get(str(run_id), {})
+    for kind, payload in ((("voice"), VOICE_BYTES), (("video"), VIDEO_BYTES),
+                          (("subtitles"), SRT_BYTES)):
+        entry = media.get(kind)
+        if entry and entry["id"] == str(media_id):
+            headers = {"Cache-Control": "no-store"}
+            if download:
+                suffix = {"voice": ".wav", "video": ".mp4", "subtitles": ".srt"}[kind]
+                headers["Content-Disposition"] = (
+                    f'attachment; filename="arvor-{kind}-{str(run_id)[:8]}{suffix}"')
+            media_types = {"voice": "audio/wav", "video": "video/mp4",
+                           "subtitles": "application/x-subrip"}
+            return Response(payload, media_type=media_types[kind], headers=headers)
+    raise HTTPException(404)
 
 
 @app.get("/editorial/runs/{run_id}/reviews")

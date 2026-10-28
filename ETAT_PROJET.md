@@ -1,5 +1,18 @@
 # État du projet
 
+## PRODUCTION MÉDIA 75 S — 28 octobre 2026
+
+Chaîne voix/vidéo depuis un storyboard approuvé : `POST .../voice` (Piper réel),
+`POST .../video` (FFmpeg, vidéo verticale 720×1280 avec audio et sous-titres),
+lecture et téléchargement privés via l'API et l'onglet Studio « Voix & vidéo ».
+Identifiants déterministes par scénario, réservation transactionnelle avec
+audit/outbox, isolation locataire, intégrité SHA-256, échec sans rejeu
+automatique et sans écrasement d'un média prêt. 45 tests ajoutés (cas d'usage,
+PostgreSQL réel, stockage, HTTP, navigateur) ; 576 tests réussis localement dans
+l'image CI avec PostgreSQL jetable. Aucune recette réelle complète, aucune
+qualification CI, aucun déploiement. Voir
+[PRODUCTION_MEDIA_75S.md](docs/PRODUCTION_MEDIA_75S.md).
+
 ## MLFLOW — observabilité privée qualifiée localement, 27 octobre 2026
 
 Serveur MLflow 3.17.2 privé sur `127.0.0.1:5000` (service utilisateur systemd
