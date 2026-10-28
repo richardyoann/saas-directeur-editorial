@@ -36,6 +36,14 @@ class CIPolicyTests(unittest.TestCase):
         self.assertTrue(any("permissions" in s for s in problems))
         self.assertTrue(any("pull_request_target" in s for s in problems))
 
+    def test_self_hosted_workflow_requires_exact_sha_variable(self):
+        source = workflow("actions/checkout@" + REQUIRED_ACTIONS["actions/checkout"],
+                          "[self-hosted, Linux, editorial-pc]")
+        issues = audit_workflow("delivery.yml", source)
+        self.assertTrue(any("exact-SHA" in item for item in issues))
+        source = source.replace("    steps:", "    if: vars.LOCAL_PC_APPROVED_SHA != ''\n    steps:")
+        self.assertEqual(audit_workflow("delivery.yml", source), [])
+
     def test_repository_discovery_requires_dependabot(self):
         with TemporaryDirectory() as d:
             root = Path(d)

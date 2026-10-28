@@ -142,6 +142,15 @@ class IsolatedPCReleaseTests(unittest.TestCase):
         self.assertLess(workflow.index("name: Enforce exact SHA approval"),
                         workflow.index("name: Prepare test dependencies and disposable DB"))
 
+    def test_branch_creation_approval_also_requires_the_repository_variable(self):
+        workflow = (Path(__file__).resolve().parents[1] /
+                    ".github/workflows/chat-approved-delivery.yml").read_text()
+        # The create event may validate an approval branch, but the self-hosted
+        # job must stay gated by the administrator-controlled exact SHA.
+        self.assertIn("vars.LOCAL_PC_APPROVED_SHA == needs.validate.outputs.sha", workflow)
+        self.assertIn("APPROVED_SHA: ${{ vars.LOCAL_PC_APPROVED_SHA }}", workflow)
+        self.assertNotIn("APPROVED_SHA: ${{ needs.validate.outputs.sha }}", workflow)
+
     def test_deployment_never_calls_real_editorial_generator_on_activated_release(self):
         import inspect
         body = inspect.getsource(d.deploy)
