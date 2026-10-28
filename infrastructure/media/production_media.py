@@ -50,20 +50,27 @@ def _validate_input(path, kind):
     return size
 
 
-def save(path, tenant, run_id, asset_id, kind):
+def _attempt(value):
+    if type(value) is not int or not 1 <= value <= 1000:
+        raise ProductionStorageError("production_storage_unavailable")
+    return value
+
+
+def save(path, tenant, run_id, asset_id, kind, attempt=1):
     """Copy one local file into private storage and return a validated reference.
 
-    The destination key is deterministic, so a retry after a failed publication
-    may find the object written by the previous attempt. Identical bytes are
-    reused (same SHA-256 and size); different bytes are refused, never
-    overwritten.
+    The key is scoped by attempt: attempt 1 keeps the historical name and a
+    retry after a failure gets a new immutable key, so different bytes are
+    never overwritten. Within one attempt, identical bytes may be reused after
+    a lost acknowledgement; different bytes are refused.
     """
     path = Path(path)
     size = _validate_input(path, kind)
+    attempt = _attempt(attempt)
     if backend() == "minio":
         from infrastructure.media.s3 import MediaStorageError, put_file
         try:
-            return put_file(path, tenant, run_id, asset_id, kind)
+            return put_file(path, tenant, run_id, asset_id, kind, attempt)
         except MediaStorageError:
             raise ProductionStorageError("production_storage_unavailable") from None
     root = _root()
@@ -71,9 +78,9 @@ def save(path, tenant, run_id, asset_id, kind):
     if parent.is_symlink() or parent.parent.is_symlink():
         raise ProductionStorageError("production_storage_unavailable")
     parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    destination = parent / (str(UUID(str(asset_id))) + SUFFIXES[kind])
+    destination = parent / (_key_name(asset_id, kind, attempt))
     if destination.exists() or destination.is_symlink():
-        return _reuse_identical(destination, path, kind)
+        return _reuse_identical(destination, path, kind, attempt)
     digest, written = hashlib.sha256(), 0
     temporary = None
     try:
@@ -93,7 +100,7 @@ def save(path, tenant, run_id, asset_id, kind):
         try:
             os.link(temporary, destination)
         except FileExistsError:
-            return _reuse_identical(destination, path, kind)
+            return _reuse_identical(destination, path, kind, attempt)
         except OSError:
             # Filesystems without hard links: exclusive create, then copy the
             # already verified temporary file (a crash may leave a partial
@@ -116,10 +123,10 @@ def save(path, tenant, run_id, asset_id, kind):
             except OSError:
                 pass
     return {"backend": "filesystem", "key": str(destination), "kind": kind,
-            "sha256": digest.hexdigest(), "size": written}
+            "sha256": digest.hexdigest(), "size": written, "attempt": attempt}
 
 
-def _reuse_identical(destination, source, kind):
+def _reuse_identical(destination, source, kind, attempt):
     """Reuse an object left by a failed attempt only when bytes are identical."""
     if destination.is_symlink() or not destination.is_file():
         raise ProductionStorageError("production_storage_conflict")
@@ -130,7 +137,12 @@ def _reuse_identical(destination, source, kind):
     if _digest(destination) != source_digest:
         raise ProductionStorageError("production_storage_conflict")
     return {"backend": "filesystem", "key": str(destination), "kind": kind,
-            "sha256": source_digest, "size": size}
+            "sha256": source_digest, "size": size, "attempt": attempt}
+
+
+def _key_name(asset_id, kind, attempt):
+    suffix = "" if attempt == 1 else f"-a{attempt}"
+    return f"{UUID(str(asset_id))}{suffix}{SUFFIXES[kind]}"
 
 
 def _digest(path):
@@ -143,8 +155,9 @@ def _digest(path):
 
 def _local_path(reference, tenant, run_id, asset_id, kind):
     root = _root()
+    attempt = _attempt(reference.get("attempt", 1))
     expected = (root / str(UUID(str(tenant))) / str(UUID(str(run_id))) / "production"
-                / (str(UUID(str(asset_id))) + SUFFIXES[kind]))
+                / _key_name(asset_id, kind, attempt))
     key = reference.get("key")
     if key != str(expected):
         raise ProductionStorageError("production_reference_invalid")
@@ -199,6 +212,8 @@ def load(reference, destination, tenant, run_id, asset_id, kind, max_bytes=MAX_D
     if kind not in SAVED_KINDS or not isinstance(reference, dict):
         raise ProductionStorageError("production_reference_invalid")
     if (reference.get("kind") != kind
+            or type(reference.get("attempt", 1)) is not int
+            or not 1 <= reference.get("attempt", 1) <= 1000
             or type(reference.get("size")) is not int
             or not 0 < reference["size"] <= min(max_bytes, MAX_BYTES[kind])
             or not re.fullmatch(r"[0-9a-f]{64}", str(reference.get("sha256", "")))):

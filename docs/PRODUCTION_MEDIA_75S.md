@@ -39,11 +39,12 @@ immuable : une nouvelle réservation est refusée. Une révision du storyboard
 produit un nouveau `scenario_id`, donc de nouveaux identifiants de médias ;
 l'ancien reste consultable.
 
-Si la publication échoue après l'écriture du fichier, la relance réutilise
-l'objet au même identifiant **uniquement lorsque les octets sont identiques**
-(même taille, même SHA-256). Des octets différents sont refusés
-(`production_storage_conflict`) et jamais écrasés : un objet orphelin ne peut pas
-devenir un média faux.
+Après un échec, la relance réserve une nouvelle tentative (`attempt` incrémenté)
+et écrit une **clé de stockage distincte et immuable** : l'objet de la tentative
+échouée reste orphelin, ne bloque plus la relance et n'est jamais écrasé. Dans
+une même tentative, un accusé de réception perdu n'est réutilisé que si l'objet
+stocké a la même taille et le même SHA-256 ; sinon l'upload reste incertain et
+rien n'est supprimé ni écrasé.
 
 ## 3. Contrat HTTP
 
@@ -79,8 +80,8 @@ voix et vidéo : une seule production à la fois, dans le processus.
 
 - Écriture atomique : fichier temporaire privé dans le même répertoire, puis
   lien exclusif vers la destination (`O_EXCL`/`O_NOFOLLOW` si disponible, mode
-  0600), jamais d'écrasement ; une relance identique réutilise l'objet, une
-  relance différente est refusée.
+  0600), jamais d'écrasement. La clé contient la tentative (`attempt`) :
+  `attempt=1` garde le nom historique, une relance écrit `-a2`, `-a3`, etc.
 - Lecture après revalidation : type, locataire, run, identifiant, taille,
   empreinte SHA-256, refus des liens symboliques sur le chemin.
 - Les images relues utilisent l'identifiant de scène, pas l'identifiant d'actif,

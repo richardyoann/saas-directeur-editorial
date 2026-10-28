@@ -103,7 +103,8 @@ class GenerateVoice:
                     piper=self.config.piper_bin, ffmpeg=self.config.ffmpeg_bin,
                     tenant=identity.tenant, story_id=run_id)
                 reference = self.storage.save(destination, identity.tenant, run_id,
-                                              reservation["asset_id"], "voice")
+                                              reservation["asset_id"], "voice",
+                                              attempt=reservation["attempt"])
             # Publishing stays inside the guarded block: a conflict or database
             # outage after synthesis must close the reservation, not leave it
             # "generating" forever.
@@ -185,10 +186,11 @@ class GenerateVideo:
                                       telemetry=lambda _receipt: None)
                 encoded = round(time.monotonic() - started, 3)
                 video = self.storage.save(work / "export" / "episode.mp4", tenant, run_id,
-                                          reservation["asset_id"], "video")
+                                          reservation["asset_id"], "video",
+                                          attempt=reservation["attempt"])
                 subtitles = self.storage.save(work / "export" / "narration.srt", tenant,
                                               run_id, reservation["subtitles_id"],
-                                              "subtitles")
+                                              "subtitles", attempt=reservation["attempt"])
                 result = self.repository.complete(
                     identity, run_id, "video", scenario_id=scenario_id, storage=video,
                     sha256=video.get("sha256"), byte_count=video.get("size"),

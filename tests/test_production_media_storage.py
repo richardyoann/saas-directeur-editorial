@@ -52,6 +52,27 @@ class ProductionStorageTests(unittest.TestCase):
                          hashlib.sha256(b"RIFF" + b"\x00" * 8).hexdigest())
         self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
 
+    def test_a_failed_attempt_retry_uses_a_new_immutable_key(self):
+        asset_id = uuid4()
+        first = production_media.save(
+            self.source("first.wav", b"RIFF" + b"\x00" * 8),
+            self.tenant, self.run_id, asset_id, "voice", attempt=1)
+        second = production_media.save(
+            self.source("second.wav", b"RIFF" + b"\x01" * 8),
+            self.tenant, self.run_id, asset_id, "voice", attempt=2)
+        self.assertNotEqual(first["key"], second["key"])
+        self.assertTrue(Path(first["key"]).is_file())
+        self.assertTrue(Path(second["key"]).is_file())
+        self.assertNotEqual(first["sha256"], second["sha256"])
+        destination = self.root / "loaded.wav"
+        production_media.load(second, destination, self.tenant, self.run_id,
+                              asset_id, "voice")
+        self.assertEqual(destination.read_bytes(), b"RIFF" + b"\x01" * 8)
+        tampered = dict(second, attempt=3)
+        with self.assertRaises(production_media.ProductionStorageError):
+            production_media.load(tampered, self.root / "tampered.wav", self.tenant,
+                                  self.run_id, asset_id, "voice")
+
     def test_save_reuses_an_identical_retry_and_refuses_other_bytes(self):
         asset_id = uuid4()
         reference = production_media.save(self.source(), self.tenant, self.run_id,

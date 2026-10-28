@@ -19,10 +19,21 @@ class MediaStorageError(Exception):
     pass
 
 
-def object_key(tenant, run_id, asset_id, kind):
+def _attempt(value):
+    if type(value) is not int or not 1 <= value <= 1000:
+        raise MediaStorageError("media_attempt_invalid")
+    return value
+
+
+def object_key(tenant, run_id, asset_id, kind, attempt=1):
     if kind not in TYPES:
         raise MediaStorageError("media_kind_invalid")
-    return f"{UUID(str(tenant))}/{UUID(str(run_id))}/{kind}/{UUID(str(asset_id))}.{TYPES[kind][0]}"
+    attempt = _attempt(attempt)
+    # Attempt 1 keeps the historical key; a retry after a failed attempt gets a
+    # new immutable key so different bytes are never overwritten.
+    suffix = "" if attempt == 1 else f"-a{attempt}"
+    return (f"{UUID(str(tenant))}/{UUID(str(run_id))}/{kind}/"
+            f"{UUID(str(asset_id))}{suffix}.{TYPES[kind][0]}")
 
 
 def client():
@@ -74,18 +85,19 @@ def preflight():
         raise MediaStorageError("media_storage_unavailable") from None
 
 
-def put_file(path, tenant, run_id, asset_id, kind):
+def put_file(path, tenant, run_id, asset_id, kind, attempt=1):
     """PUT once; a lost acknowledgement is reused only after a matching HEAD.
 
-    A failed PUT is never replayed blindly. The deterministic key is compared
-    with the local SHA-256 and size: identical bytes are reused, different
-    bytes are refused, and an absent object stays uncertain. No DELETE.
+    A failed PUT is never replayed blindly. The attempt key is compared with
+    the local SHA-256 and size: identical bytes are reused, different bytes are
+    refused, and an absent object stays uncertain. No DELETE.
     """
     path = Path(path)
     if path.is_symlink() or not path.is_file():
         raise MediaStorageError("media_file_invalid")
     api, name = preflight()
-    key = object_key(tenant, run_id, asset_id, kind)
+    attempt = _attempt(attempt)
+    key = object_key(tenant, run_id, asset_id, kind, attempt)
     sha, md5, size = hashlib.sha256(), hashlib.md5(), 0
     with path.open("rb") as stream:
         while chunk := stream.read(1024 * 1024):
@@ -98,7 +110,8 @@ def put_file(path, tenant, run_id, asset_id, kind):
             raise MediaStorageError("media_file_empty")
         stream.seek(0)
         reference = {"backend": "minio", "bucket": name, "key": key,
-                     "sha256": sha.hexdigest(), "size": size, "kind": kind}
+                     "sha256": sha.hexdigest(), "size": size, "kind": kind,
+                     "attempt": attempt}
         try:
             result = api.put_object(Bucket=name, Key=key, Body=stream, ContentLength=size,
                                     ContentType=TYPES[kind][1], IfNoneMatch="*",
@@ -127,7 +140,11 @@ def put_file(path, tenant, run_id, asset_id, kind):
 
 
 def get_file(reference, destination, tenant, run_id, asset_id, kind, max_bytes=MAX_FILE_BYTES):
-    expected_key = object_key(tenant, run_id, asset_id, kind)
+    try:
+        attempt = _attempt(reference.get("attempt", 1))
+    except MediaStorageError:
+        raise MediaStorageError("media_reference_invalid") from None
+    expected_key = object_key(tenant, run_id, asset_id, kind, attempt)
     if (reference.get("backend") != "minio" or reference.get("bucket") != bucket()
             or reference.get("key") != expected_key or reference.get("kind") != kind
             or type(reference.get("size")) is not int or not 0 < reference["size"] <= max_bytes

@@ -58,11 +58,12 @@ class FakeStorage:
     def __init__(self):
         self.saved, self.loaded = [], []
 
-    def save(self, path, tenant, run_id, asset_id, kind):
+    def save(self, path, tenant, run_id, asset_id, kind, attempt=1):
         data = Path(path).read_bytes()
-        self.saved.append((kind, asset_id, data))
-        return {"key": f"{kind}/{asset_id}", "kind": kind,
-                "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
+        self.saved.append((kind, asset_id, data, attempt))
+        return {"key": f"{kind}/{asset_id}-{attempt}", "kind": kind,
+                "sha256": hashlib.sha256(data).hexdigest(), "size": len(data),
+                "attempt": attempt}
 
     def load(self, reference, destination, tenant, run_id, asset_id, kind):
         self.loaded.append((kind, asset_id))
@@ -111,6 +112,7 @@ class OptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(repository.completed[0][0], "voice")
         self.assertEqual(repository.completed[0][1]["duration_seconds"], 75)
         self.assertEqual(storage.saved[0][0], "voice")
+        self.assertEqual(storage.saved[0][3], 1)
         self.assertEqual(captured["scenes"][0]["narration"], "Bonjour.")
         self.assertEqual(captured["kwargs"]["tenant"], self.identity.tenant)
         self.assertEqual(captured["kwargs"]["story_id"], self.run_id)
