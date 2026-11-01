@@ -148,6 +148,7 @@ p{line-height:1.7}.muted{color:var(--muted)}.eyebrow{color:var(--gold);font-size
 .quality-item .q-title{display:flex;gap:10px;align-items:center;min-width:0}
 .quality-item .q-title svg{width:16px;height:16px;flex-shrink:0}
 .decision-bar{position:sticky;bottom:0;margin-top:22px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 22px;display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.production-video{width:100%;max-width:320px;border-radius:18px;background:#000;border:1px solid var(--line);aspect-ratio:9/16;display:block;margin:0 auto}
 .agent-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
 .agent-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
 .agent-card h4{margin:0 0 6px;font-size:15px;color:var(--text-strong)}

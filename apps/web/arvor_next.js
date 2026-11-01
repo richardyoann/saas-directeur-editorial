@@ -10,7 +10,7 @@ const escapeHtml=(value)=>String(value??'').replace(/[&<>"']/g, c=>({'&':'&amp;'
 const escapeAttr=escapeHtml;
 const formatDay=iso=>{const d=new Date(iso||0);return iso&&!isNaN(d.getTime())?d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'—';};
 const today=()=>new Date().toISOString().slice(0,10);
-let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null;
+let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null,prodData=null,prodError=null;
 const state={route:'stories',storyId:null,panel:'overview',sceneIndex:0,filter:'Toutes',query:'',journalFilter:'Tout',journalQuery:'',adminTab:'Vue d’ensemble',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarMode:'Mois'};
 let editorAction=null,toastTimer;
 const persist=()=>{};
@@ -100,6 +100,7 @@ function mapRun(run){
  return item;
 }
 async function navigate(route,storyId=null,panel='overview'){
+ if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;}
  state.route=route;state.storyId=storyId;state.panel=panel;state.sceneIndex=0;historyData=null;
  closeMobile();render();window.scrollTo({top:0,behavior:'auto'});
  if(route==='stories'&&storyId){
@@ -112,7 +113,7 @@ async function navigate(route,storyId=null,panel='overview'){
  }
  if(route==='admin')await loadAdmin();
  if(route==='journal')await loadJournal();
- if(route==='production'&&state.storyId)await loadMedia();
+ if(route==='production'&&state.storyId)await loadProduction();
 }
 const btn=(text,icon,cls='',extra='')=>`<button type="button" class="button ${cls}" ${extra}>${icon?ico(icon):''}${escapeHtml(text)}</button>`;
 const statusClass=status=>({'En écriture':'writing','À relire':'review','Validée':'valid','À retravailler':'changes','Échec':'failed'}[status]||'writing');
@@ -178,11 +179,65 @@ function renderConception(){
 function renderProductionEmpty(){
  return `<div class="empty-state"><h3>Aucun contexte de production.</h3><p>Sélectionnez une histoire dans la bibliothèque pour suivre ses images, sa voix et son montage.</p>${btn('Voir mes histoires','book','secondary','data-action="library"')}</div>`;
 }
+async function exportVideo(){
+ const plan=prodData;
+ if(!state.storyId||!plan)return;
+ const video=plan.media?.video;
+ if(!plan.approved||video?.status!=='ready'||!video?.id)return;
+ if(plan.run_id&&plan.run_id!==state.storyId)return;
+ const url='/studio/api/runs/'+encodeURIComponent(state.storyId)+'/media/'+encodeURIComponent(video.id)+'/content';
+ try{
+  const response=await fetch(url,{method:'GET',credentials:'same-origin'});
+  if(!response.ok)throw Error('HTTP '+response.status);
+  const blob=await response.blob();
+  const objectUrl=URL.createObjectURL(blob);
+  const link=document.createElement('a');
+  link.href=objectUrl;link.download='arvor-production-video.mp4';document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
+  showToast('Export vidéo prêt.');
+ }catch(e){showToast('Export vidéo indisponible : '+e.message)}
+}
 function renderProduction(){
  if(!state.storyId)return renderProductionEmpty();
- const st=story(state.storyId);
- if(!st?.run)return renderProductionEmpty();
- return renderMedia(st);
+ const plan=prodData;
+ if(!plan){
+  if(prodError)return `<div class="empty-state"><h3>Lecture de la production impossible.</h3><p>${escapeHtml(prodError)}</p><button type="button" class="button secondary" data-action="library">${ico('left')} Retour</button></div>`;
+  return `<div class="loading-view" role="status">Consultation de la production…</div>`;
+ }
+ const approved=!!plan.approved;
+ const scenes=plan.scenes||[];
+ const media=plan.media||{};
+ const video=media.video||{};
+ const voice=media.voice||{};
+ const subtitles=media.subtitles||{};
+ const missing=plan.missing_images||[];
+ const quality=[
+  ['Présence des médias',['voice','video','subtitles'].every(k=>!!media[k])?'ok':'ko'],
+  ['Validation technique',approved&&plan.duration_seconds===75&&scenes.length>0&&missing.length===0&&voice.status==='ready'?'ok':'warn'],
+  ['Validation artistique (humaine)',approved?'ok':'warn']
+ ];
+ const qualityHtml=quality.map(([label,state])=>`<div class="quality-item"><span class="q-title">${state==='ok'?ico('check'):state==='warn'?ico('shield'):ico('close')}${escapeHtml(label)}</span><span class="pill ${state==='ok'?'valid':state==='warn'?'writing':'failed'}">${state==='ok'?'Prête':state==='warn'?'À traiter':'Manquante'}</span></div>`).join('');
+ const videoSrc=approved&&video.status==='ready'?`/studio/api/runs/${encodeURIComponent(state.storyId)}/media/${encodeURIComponent(video.id)}/content`:'';
+ const canExport=approved&&video.status==='ready';
+ const sceneRowsHtml=scenes.map(sc=>`<div class="mini-row"><b>Scène ${sc.scene_number}</b><span>${escapeHtml(sc.title)} · ${sc.duration_seconds} s · image : ${escapeHtml(sc.image_status)}</span></div>`).join('');
+ const mediaHtml=[
+  ['Voix',voice],['Vidéo',video],['Sous-titres',subtitles]
+ ].map(([label,m])=>`<div class="mini-row"><b>${escapeHtml(label)}</b><span>Statut : ${escapeHtml(m?.status||'absent')}${m?.duration_seconds? ' · '+m.duration_seconds+' s':''}${m?.sha256?' · SHA256 '+m.sha256.slice(0,16):''}</span></div>`).join('');
+ return `<div class="backline"><button type="button" class="button secondary" data-action="library">${ico('left')} Retour</button></div>
+  <section class="panel">
+   <div class="section-head"><div><div class="eyebrow">PRODUCTION</div><h2>Vidéo verticale 1080 × 1920</h2><p>Voix, images et montage — états réels de la production.</p></div>${btn('Exporter','download','primary','data-action="export-video"')}</div>
+   ${videoSrc?<video class="production-video" controls preload="metadata" src="${videoSrc}"></video>:`<div class="empty-state"><h3>Vidéo non générée ou indisponible.</h3><p>La production vidéo n’est pas disponible pour cette histoire.</p></div>`}
+   <div class="quality-check">${qualityHtml}</div>
+   <div class="decision-bar"><div><b>${canExport?'Prête à exporter.':'Condition de sortie non remplie.'}</b><p>L’export ne part vers aucune plateforme sans validation humaine explicite.</p></div><button type="button" class="button primary" data-action="export-video" ${canExport?'':'disabled'}>Exporter le MP4 1080 × 1920</button></div>
+  </section>
+  <div class="dash-grid">
+   <div>
+    <section class="panel"><h3>Scènes et images</h3><div class="action-list">${sceneRowsHtml||'<p class="muted">Aucune scène.</p>'}</div></section>
+   </div>
+   <div>
+    <section class="panel"><h3>Médias de production</h3>${mediaHtml}</section>
+   </div>
+  </div>`;
 }
 function renderLibrary(){
  const sceneCount=editorialStories().reduce((a,s)=>a+(s.sceneCount||s.scenes.length),0),elementCount=editorialStories().filter(s=>s.status==='À relire').length;
@@ -226,6 +281,13 @@ async function loadMedia(){
   const [visuals,media]=await Promise.all([api('/studio/api/runs/'+encodeURIComponent(id)+'/visuals'),api('/studio/api/runs/'+encodeURIComponent(id)+'/media')]);
   if(state.storyId===id){mediaData={visuals,media};if(state.panel==='media')render()}
  }catch(e){showToast('Catalogue indisponible : '+e.message)}
+}
+async function loadProduction(){
+ const id=state.storyId;if(!id)return;
+ try{
+  const plan=await api('/studio/api/runs/'+encodeURIComponent(id)+'/production-media');
+  if(state.storyId===id){prodData=plan;prodError=null;render()}
+ }catch(e){prodError=e.message;showToast('État de production indisponible : '+e.message)}
 }
 function renderHistory(){
  const steps=historyData?.steps||[];
@@ -315,6 +377,7 @@ function bindContent(){
  $$('[data-action="edit-scene"]').forEach(x=>x.addEventListener('click',()=>openEditor('scene')));
  $$('[data-action="add-scene"]').forEach(x=>x.addEventListener('click',()=>openEditor('add-scene')));
  $$('[data-action="export"]').forEach(x=>x.addEventListener('click',exportStory));
+ $$('[data-action="export-video"]').forEach(x=>x.addEventListener('click',exportVideo));
  $$('[data-open]').forEach(x=>x.addEventListener('click',()=>navigate('stories',x.dataset.open)));
  $$('[data-panel]').forEach(x=>x.addEventListener('click',()=>{state.panel=x.dataset.panel;mediaData=null;render();if(state.panel==='media')loadMedia();if(state.panel==='history')loadHistory()}));
  $$('[data-scene]').forEach(x=>x.addEventListener('click',()=>{state.sceneIndex=Number(x.dataset.scene);state.panel='scenes';render()}));
