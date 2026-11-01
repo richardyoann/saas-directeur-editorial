@@ -44,3 +44,31 @@ le shell de navigation et le tableau de bord (écran n°1).
 - Les métriques dashboard sont agrégées sur les histoires chargées (limite pagination 50) — non exhaustif.
 - Le pipeline est dérivé des états réels des runs, sans fabrication d’état.
 - Aucun rendu navigateur réel n’a été exécuté dans ce lot ; recette PC distincte.
+
+## Lots 2–3 — mises à jour de documentation (01 novembre 2026)
+
+### Lot 3 — vue Production — corrections de contrôle (2026-11-01)
+
+- **Export vidéo (LOT3-01)** : le bouton « Exporter le MP4 1080 × 1920 » est désormais rattaché à
+  `exportVideo()`, qui réutilise la route privée de téléchargement média
+  (`GET /studio/api/runs/{run_id}/media/{media_id}/content`), vérifie l’approbation, le statut
+  vidéo `ready`, l’identifiant média et l’appartenance au `run_id` sélectionné, puis déclenche le
+  téléchargement via blob. Le toast de succès n’est émis qu’après une réponse `ok`. Le scénario JSON
+  reste exporté via `exportStory()` (rattachement distinct).
+- **État de navigation (LOT3-02)** : changement d’histoire (`navigate`) réinitialise `prodData`,
+  `mediaData` et `historyData`.
+- **États d’erreur (LOT3-03)** : `prodError` alimente un état « Lecture de la production impossible »
+  distinct du chargement inactif ; rechargement automatique après échec via la navigation.
+- **Contrôle qualité (LOT3-04)** : la qualité distingue désormais présence des médias,
+  validation technique (scénario approuvé, 75 s, scènes et images complètes, voix `ready`) et
+  validation artistique humaine (`approved`). Une liste d’images manquantes vide n’est acceptée que
+  si la liste des scènes est réellement renseignée.
+- **Fidélité visuelle (LOT3-05)** : recette de comparaison avec la maquette cinématographique
+  (lecteur vertical 9:16, scènes, timeline, inspection, voix, sous-titres, qualité, décisions) —
+  éléments encore absents documentés lors de la qualification finale.
+
+### Lots suivants
+
+- Lot 4 : journal et administration (traces réelles, contrats d’historique/décisions/production).
+- Lot 5 : qualification finale (régression, CI locale 16 contrôles, navigateur, résolutions,
+  sécurité, documentation, revue finale).
