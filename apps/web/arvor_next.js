@@ -10,7 +10,7 @@ const escapeHtml=(value)=>String(value??'').replace(/[&<>"']/g, c=>({'&':'&amp;'
 const escapeAttr=escapeHtml;
 const formatDay=iso=>{const d=new Date(iso||0);return iso&&!isNaN(d.getTime())?d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'—';};
 const today=()=>new Date().toISOString().slice(0,10);
-let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null;
+let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null,prodData=null;
 const state={route:'stories',storyId:null,panel:'overview',sceneIndex:0,filter:'Toutes',query:'',journalFilter:'Tout',journalQuery:'',adminTab:'Vue d’ensemble',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarMode:'Mois'};
 let editorAction=null,toastTimer;
 const persist=()=>{};
@@ -112,7 +112,7 @@ async function navigate(route,storyId=null,panel='overview'){
  }
  if(route==='admin')await loadAdmin();
  if(route==='journal')await loadJournal();
- if(route==='production'&&state.storyId)await loadMedia();
+ if(route==='production'&&state.storyId)await loadProduction();
 }
 const btn=(text,icon,cls='',extra='')=>`<button type="button" class="button ${cls}" ${extra}>${icon?ico(icon):''}${escapeHtml(text)}</button>`;
 const statusClass=status=>({'En écriture':'writing','À relire':'review','Validée':'valid','À retravailler':'changes','Échec':'failed'}[status]||'writing');
@@ -180,9 +180,43 @@ function renderProductionEmpty(){
 }
 function renderProduction(){
  if(!state.storyId)return renderProductionEmpty();
- const st=story(state.storyId);
- if(!st?.run)return renderProductionEmpty();
- return renderMedia(st);
+ const plan=prodData;
+ if(!plan)return `<div class="loading-view" role="status">Consultation de la production…</div>`;
+ const approved=!!plan.approved;
+ const scenes=plan.scenes||[];
+ const media=plan.media||{};
+ const video=media.video||{};
+ const voice=media.voice||{};
+ const subtitles=media.subtitles||{};
+ const missing=plan.missing_images||[];
+ const quality=[
+  ['Scénario approuvé',approved?'ok':'warn'],
+  ['Images générées',missing.length===0?'ok':'ko'],
+  ['Voix disponible',voice.status==='ready'?'ok':'ko'],
+  ['Vidéo disponible',video.status==='ready'?'ok':'ko']
+ ];
+ const qualityHtml=quality.map(([label,state])=>`<div class="quality-item"><span class="q-title">${state==='ok'?ico('check'):state==='warn'?ico('shield'):ico('close')}${escapeHtml(label)}</span><span class="pill ${state==='ok'?'valid':state==='warn'?'writing':'failed'}">${state==='ok'?'Prête':state==='warn'?'À traiter':'Manquante'}</span></div>`).join('');
+ const videoSrc=approved&&video.status==='ready'?`/studio/api/runs/${encodeURIComponent(state.storyId)}/media/${encodeURIComponent(video.id)}/content`:'';
+ const canExport=approved&&video.status==='ready';
+ const sceneRowsHtml=scenes.map(sc=>`<div class="mini-row"><b>Scène ${sc.scene_number}</b><span>${escapeHtml(sc.title)} · ${sc.duration_seconds} s · image : ${escapeHtml(sc.image_status)}</span></div>`).join('');
+ const mediaHtml=[
+  ['Voix',voice],['Vidéo',video],['Sous-titres',subtitles]
+ ].map(([label,m])=>`<div class="mini-row"><b>${escapeHtml(label)}</b><span>Statut : ${escapeHtml(m?.status||'absent')}${m?.duration_seconds? ' · '+m.duration_seconds+' s':''}${m?.sha256?' · SHA256 '+m.sha256.slice(0,16):''}</span></div>`).join('');
+ return `<div class="backline"><button type="button" class="button secondary" data-action="library">${ico('left')} Retour</button></div>
+  <section class="panel">
+   <div class="section-head"><div><div class="eyebrow">PRODUCTION</div><h2>Vidéo verticale 1080 × 1920</h2><p>Voix, images et montage — états réels de la production.</p></div>${btn('Exporter','download','primary','data-action="export"')}</div>
+   ${videoSrc?`<video class="production-video" controls preload="metadata" src="${videoSrc}"></video>`:`<div class="empty-state"><h3>Vidéo non générée ou indisponible.</h3><p>La production vidéo n’est pas disponible pour cette histoire.</p></div>`}
+   <div class="quality-check">${qualityHtml}</div>
+   <div class="decision-bar"><div><b>${canExport?'Prête à exporter.':'Condition de sortie non remplie.'}</b><p>L’export ne part vers aucune plateforme sans validation humaine explicite.</p></div><button type="button" class="button primary" data-action="export" ${canExport?'':'disabled'}>Exporter le MP4 1080 × 1920</button></div>
+  </section>
+  <div class="dash-grid">
+   <div>
+    <section class="panel"><h3>Scènes et images</h3><div class="action-list">${sceneRowsHtml||'<p class="muted">Aucune scène.</p>'}</div></section>
+   </div>
+   <div>
+    <section class="panel"><h3>Médias de production</h3>${mediaHtml}</section>
+   </div>
+  </div>`;
 }
 function renderLibrary(){
  const sceneCount=editorialStories().reduce((a,s)=>a+(s.sceneCount||s.scenes.length),0),elementCount=editorialStories().filter(s=>s.status==='À relire').length;
@@ -226,6 +260,13 @@ async function loadMedia(){
   const [visuals,media]=await Promise.all([api('/studio/api/runs/'+encodeURIComponent(id)+'/visuals'),api('/studio/api/runs/'+encodeURIComponent(id)+'/media')]);
   if(state.storyId===id){mediaData={visuals,media};if(state.panel==='media')render()}
  }catch(e){showToast('Catalogue indisponible : '+e.message)}
+}
+async function loadProduction(){
+ const id=state.storyId;if(!id)return;
+ try{
+  const plan=await api('/studio/api/runs/'+encodeURIComponent(id)+'/production-media');
+  if(state.storyId===id){prodData=plan;render()}
+ }catch(e){showToast('État de production indisponible : '+e.message)}
 }
 function renderHistory(){
  const steps=historyData?.steps||[];
