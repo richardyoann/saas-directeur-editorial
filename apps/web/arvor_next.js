@@ -110,18 +110,77 @@ async function navigate(route,storyId=null,panel='overview'){
  }
  if(route==='admin')await loadAdmin();
  if(route==='journal')await loadJournal();
+ if(route==='production'&&state.storyId)await loadMedia();
 }
 const btn=(text,icon,cls='',extra='')=>`<button type="button" class="button ${cls}" ${extra}>${icon?ico(icon):''}${escapeHtml(text)}</button>`;
-const statusClass=status=>({'En écriture':'writing','À relire':'review','Validée':'valid'}[status]||'');
+const statusClass=status=>({'En écriture':'writing','À relire':'review','Validée':'valid','À retravailler':'changes','Échec':'failed'}[status]||'writing');
 const statusPill=status=>`<span class="pill ${statusClass(status)}">${escapeHtml(status)}</span>`;
 const coverMarkup=(s)=>ASSETS[s.cover]?`<img src="${ASSETS[s.cover]}" alt="Paysage de référence de ${escapeAttr(s.place)}">`:'<div style="height:100%;background:linear-gradient(130deg,#1b4035,#aec4ad)"></div>';
 function render(){
  $$('#sidebar .nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.route===state.route));
  $('#nav-count').textContent=editorialStories().length;
- const title=state.route==='stories'?(state.storyId?story(state.storyId)?.title:'Mes histoires'):state.route==='journal'?'Journal de création':'Administration';
+ const title=state.route==='stories'?(state.storyId?story(state.storyId)?.title:'Mes histoires'):state.route==='journal'?'Journal de création':state.route==='overview'?'Tableau de bord':state.route==='conception'?'Conception':state.route==='production'?'Production audiovisuelle':'Administration';
  $('#breadcrumb').textContent=title||'Mes histoires';
- $('#content').innerHTML=(state.route==='stories'?(state.storyId?renderAtelier():renderLibrary()):state.route==='journal'?renderJournal():renderAdmin())+'<div class="footer-note"><span>ARVOR — Un atelier pour les histoires qui comptent.</span><span>Studio privé · Données réelles</span></div>';
+ let body='';
+ if(state.route==='overview')body=renderDashboard();
+ else if(state.route==='stories')body=state.storyId?renderAtelier():renderLibrary();
+ else if(state.route==='conception')body=renderConception();
+ else if(state.route==='production')body=state.storyId?renderProduction():renderProductionEmpty();
+ else if(state.route==='journal')body=renderJournal();
+ else body=renderAdmin();
+ $('#content').innerHTML=body+'<div class="footer-note"><span>ARVOR — Un atelier pour les histoires qui comptent.</span><span>Studio privé · Données réelles</span></div>';
  bindContent();
+}
+const STAGES=[['brief','Brief'],['analyse','Analyse IA'],['storyboard','Storyboard'],['validation','Validation'],['production','Images & voix'],['video','Vidéo']];
+function stageIndexFor(s){
+ const scenes=s.scenes||[];
+ const status=s.rawStatus;
+ if(scenes.length===0)return 0;
+ if(status==='approved')return 4;
+ if(status==='waiting_validation'||status==='changes_requested'||status==='failed')return 3;
+ return 2;
+}
+function renderPipeline(){
+ const counts={};STAGES.forEach(st=>counts[st[0]]=0);
+ editorialStories().forEach(s=>{const k=STAGES[stageIndexFor(s)][0];counts[k]=(counts[k]||0)+1});
+ let current=-1;for(let i=0;i<STAGES.length;i++)if(counts[STAGES[i][0]]>0)current=i;
+ const rows=STAGES.map((st,i)=>{const value=counts[st[0]]||0;const state=value===0?'todo':i===current?'current':'done';
+  return `<div class="stage ${state}"><div class="stage-line"></div><div class="stage-dot"></div><div class="stage-label">${st[1]}</div><div class="stage-value">${value} histoire${value>1?'s':''}</div></div>`;}).join('');
+ return `<section class="panel"><h3>État du pipeline</h3><div class="stage-stepper">${rows}</div><p class="muted" style="margin:16px 0 0;font-size:11px">Agrégé sur les histoires chargées via /studio/api/runs — état réel, non exhaustif sans pagination.</p></section>`;
+}
+function renderDashboard(){
+ const stories=editorialStories();
+ const sceneCount=stories.reduce((a,s)=>a+(s.scenes?.length||s.sceneCount||0),0);
+ const pending=stories.filter(s=>['waiting_validation','changes_requested'].includes(s.rawStatus));
+ const stats=[['book',stories.length,'Histoires enregistrées'],['film',sceneCount,'Scènes imaginées'],['layers',pending.length,'Décisions humaines en attente'],['clock',events.length,'Traces de création']];
+ const statCards=stats.map(([ic,n,t])=>`<div class="metric"><div class="metric-icon">${ico(ic)}</div><div><span class="metric-number">${String(n).padStart(2,'0')}</span><span class="metric-label">${t}</span></div></div>`).join('');
+ const actionCards=pending.length?pending.map(s=>`<article class="action-card"><div style="min-width:0;flex:1"><div class="card-topline"><span class="place">${ico('map')}${escapeHtml(s.place||'Lieu à définir')}</span>${statusPill(s.status)}</div><h3 class="card-title">${escapeHtml(s.title)}</h3><p class="card-summary">${escapeHtml(s.summary||'Synopsis en cours.')}</p><small class="muted">Dernière trace · mise à jour ${formatDay(s.updated)}</small></div><button type="button" class="button primary small" data-open="${escapeAttr(s.id)}">Ouvrir la revue ${ico('arrow')}</button></article>`).join(''):`<article class="action-card"><div><div class="card-topline"><span class="place">${ico('check')}Atelier</span><span class="pill valid"><i></i>Clair</span></div><h3 class="card-title">Aucune décision humaine en attente</h3><p class="card-summary">Les histoires en attente de validation ou de correction apparaîtront ici avec leur contexte réel.</p></div></article>`;
+ const activity=stories.slice(0,6).map(s=>`<article class="timeline-row"><time>${formatDay(s.created)}</time><h3>${escapeHtml(s.title)}</h3><p>${escapeHtml(s.summary||'Histoire enregistrée')} · ${s.scenes?.length||0} scènes</p>${statusPill(s.status)}</article>`).join('');
+ return `<div class="page-heading"><div><div class="eyebrow">ARVOR · ATELIER PRIVÉ</div><h1>La forge des légendes.</h1><p>Images, voix et récits prennent forme ici. Rien n’est validé sans votre décision.</p></div>${btn('Nouvelle histoire','plus','primary','data-action="new"')}</div>
+  <div class="metric-grid">${statCards}</div>
+  <div class="dash-grid">
+   <div>
+    <section class="panel"><h3>Prochaines actions humaines</h3><div class="action-list">${actionCards}</div></section>
+    <section class="panel"><h3>Activité récente</h3><div class="timeline">${activity}</div></section>
+   </div>
+   <div>${renderPipeline()}</div>
+  </div>`;
+}
+function renderConception(){
+ const stories=editorialStories();
+ const cards=stories.map(s=>`<article class="story-card"><div class="story-cover">${coverMarkup(s)}<span class="visual-tag">HISTOIRE EN COURS</span></div><div class="card-body"><div class="card-topline"><span class="place">${ico('map')}${escapeHtml(s.place||'Lieu à définir')}</span>${statusPill(s.status)}</div><h3 class="card-title">${escapeHtml(s.title)}</h3><p class="card-summary">${escapeHtml(s.summary||'')}</p><div class="card-data"><span>${ico('film')}${s.scenes?.length||0} scènes</span><span>${ico('layers')}${s.sceneCount||0} éléments suivis</span></div></div><div class="card-bottom"><span>Atelier</span><button type="button" class="button small" data-open="${escapeAttr(s.id)}">Ouvrir l’atelier ${ico('arrow')}</button></div></article>`).join('');
+ return `<div class="page-heading"><div><div class="eyebrow">ATELIER DE CRÉATION</div><h1>Les histoires prennent forme.</h1><p>Sélectionnez une histoire enregistrée pour entrer dans l’atelier : scénario, scènes, personnages, décors et prompts.</p></div>${btn('Nouvelle histoire','plus','primary','data-action="new"')}</div>
+  <div class="story-grid">${cards||'<div class="empty-state"><h3>Aucune histoire enregistrée.</h3><p>Les histoires créées via le brief Arvor apparaîtront ici.</p></div>'}</div>
+  <section class="panel"><h3>Lancer une nouvelle création</h3><p>Le brief Arvor impose 75 secondes, 1 à 6 scènes et une clé d’idempotence par création.</p>${btn('Créer une histoire','plus','primary','data-action="new"')}</section>`;
+}
+function renderProductionEmpty(){
+ return `<div class="empty-state"><h3>Aucun contexte de production.</h3><p>Sélectionnez une histoire dans la bibliothèque pour suivre ses images, sa voix et son montage.</p>${btn('Voir mes histoires','book','secondary','data-action="library"')}</div>`;
+}
+function renderProduction(){
+ if(!state.storyId)return renderProductionEmpty();
+ const st=story(state.storyId);
+ if(!st?.run)return renderProductionEmpty();
+ return renderMedia(st);
 }
 function renderLibrary(){
  const sceneCount=editorialStories().reduce((a,s)=>a+(s.sceneCount||s.scenes.length),0),elementCount=editorialStories().filter(s=>s.status==='À relire').length;
@@ -163,7 +222,7 @@ async function loadMedia(){
  const id=state.storyId;if(!id)return;
  try{
   const [visuals,media]=await Promise.all([api('/studio/api/runs/'+encodeURIComponent(id)+'/visuals'),api('/studio/api/runs/'+encodeURIComponent(id)+'/media')]);
-  if(state.storyId===id&&state.panel==='media'){mediaData={visuals,media};render()}
+  if(state.storyId===id){mediaData={visuals,media};if(state.panel==='media')render()}
  }catch(e){showToast('Catalogue indisponible : '+e.message)}
 }
 function renderHistory(){
