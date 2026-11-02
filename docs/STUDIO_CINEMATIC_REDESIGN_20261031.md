@@ -104,6 +104,33 @@ le shell de navigation et le tableau de bord (écran n°1).
 
 - Aucune mutation métier, aucun endpoint backend modifié, aucune donnée fictive injectée.
 
+## Lot 5 — Qualification finale (02 novembre 2026)
+
+**Branche :** `refactor/studio-cinematic-lot4-journal-admin-20261031` (au 2026-11-02, lot 4 terminé)
+**SHA de base :** `b886e98260d6874b89efdd241ab421320ff306b4`
+
+### Régression
+
+- `scripts/run_regression.py` sur l’état final des PR empilées (Lot 4) : **605 tests, 0 échec, 0 erreur**.
+- Sauts (58) : uniquement les suites « dedicated PostgreSQL test target not configured » / « PostgreSQL
+  required » — environnement local sans base jetable ; non liés aux changements UI/tests/docs.
+- Plancher CI local : `MIN_REGRESSION_TESTS = 390` — dépassé (605).
+
+### Contrôles restants de qualification (à exécuter / attester)
+
+- `node --check apps/web/arvor_next.js` : **non exécutable dans cet environnement** (Node absent) ;
+  contrôle CI prévu (`syntax_js_next`). Vérifications locales de balance syntaxique croisée effectuées.
+- Parcours Chromium complets : **non exécutable localement** (Playwright absent) ; nouveaux parcours
+  ajoutés (`test_next_studio_journal_and_admin_states`) ; contrôle CI prévu (`browser`).
+- Résolutions 1920×1080, 1366×768, 768×1024, 390×844, 360×800 : **à capturer** (aucune capture disponible
+  à ce stade).
+- Sécurité : diff final frontend/tests/docs uniquement — aucune route backend, aucune authentification
+  nouvelle, aucun secret ajouté.
+
+### Écarts à la maquette
+
+- Captures et comparaison visuelle : **en attente** (voir ci-dessus).
+
 ## Lots suivants
 
 - Lot 5 : qualification finale (régression, CI locale 16 contrôles, navigateur, résolutions,
