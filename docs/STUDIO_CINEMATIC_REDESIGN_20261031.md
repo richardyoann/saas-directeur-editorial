@@ -96,7 +96,7 @@ le shell de navigation et le tableau de bord (écran n°1).
 
 ### Tests exécutés
 
-- `tests/test_studio_cinematic_redesign.py` — **OK (22 tests)**.
+- `tests/test_studio_cinematic_redesign.py` — **OK (23 tests)** (dont 6 tests de non-régression ajoutés en finalisation Lot 5).
 - Suites touchées : `tests.test_studio`, `tests.test_arvor_reference`, `tests.test_studio_conception`,
   `tests.test_qa_lot1` — **OK**.
 
@@ -108,20 +108,35 @@ le shell de navigation et le tableau de bord (écran n°1).
 
 **Branche :** `refactor/studio-cinematic-lot4-journal-admin-20261031` (au 2026-11-02, lot 4 terminé)
 **SHA de base :** `b886e98260d6874b89efdd241ab421320ff306b4`
+**SHA final du lot :** `cd79a8b2e0ce31a430757996dcc7436c07e13b4d` (dernier commit de finalisation Lot 5)
 
 ### Régression
 
-- `scripts/run_regression.py` sur l’état final des PR empilées (Lot 4) : **605 tests, 0 échec, 0 erreur**.
+- `scripts/run_regression.py` sur l’état final des PR empilées (Lot 4) : **611 tests, 0 échec, 0 erreur**, 58 sauts.
 - Sauts (58) : uniquement les suites « dedicated PostgreSQL test target not configured » / « PostgreSQL
   required » — environnement local sans base jetable ; non liés aux changements UI/tests/docs.
-- Plancher CI local : `MIN_REGRESSION_TESTS = 390` — dépassé (605).
+- Plancher CI local : `MIN_REGRESSION_TESTS = 390` — dépassé (611).
+
+### Corrections de finalisation Lot 5 (Étape 1, commit `Lot 5 — corrections revue`)
+
+- Navigation journal : contexte d’histoire conservé (`navigate(b.dataset.route,state.storyId)`).
+- Décision humaine : contrat réel des reviews (`action`, `actionLabel`, `status`, `version`,
+  `provenance`, `agent`, `human`).
+- Traces plein/partiel : gestion des échecs historiques (`failures` → `journalError`).
+- Validation artistique séparée de l’approbation scénario (`pending_human` / `not_started`).
+- Disponibilité sources partielles : `source_truncated` / `sourcePartial`.
+- Syntaxe JS : deux erreurs de syntaxe réelles corrigées lors de la finalisation (ternaire de rendu
+  vidéo `<video` en position d’expression non collé aux template literals ; interpolation du bloc
+  sources dans le rendu admin).
 
 ### Contrôles restants de qualification (à exécuter / attester)
 
-- `node --check apps/web/arvor_next.js` : **non exécutable dans cet environnement** (Node absent) ;
-  contrôle CI prévu (`syntax_js_next`). Vérifications locales de balance syntaxique croisée effectuées.
-- Parcours Chromium complets : **non exécutable localement** (Playwright absent) ; nouveaux parcours
-  ajoutés (`test_next_studio_journal_and_admin_states`) ; contrôle CI prévu (`browser`).
+- `node --check apps/web/arvor_next.js` : **non exécutable dans cet environnement** (Node présent
+  uniquement sous forme de `node.exe` Windows via `/mnt/c/Program Files/nodejs`, non exécutable sous
+  WSL Linux sans Wine) ; contrôle CI prévu (`syntax_js_next`). Vérifications locales équivalentes
+  effectuées : compilation QuickJS OK + parse tree-sitter sans `ERROR`/`MISSING` sur le SHA final.
+- Parcours Chromium complets : **non exécutable localement** (Playwright/Chromium absents) ; nouveaux
+  parcours ajoutés (`test_next_studio_journal_and_admin_states`) ; contrôle CI prévu (`browser`).
 - Résolutions 1920×1080, 1366×768, 768×1024, 390×844, 360×800 : **à capturer** (aucune capture disponible
   à ce stade).
 - Sécurité : diff final frontend/tests/docs uniquement — aucune route backend, aucune authentification
