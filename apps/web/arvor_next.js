@@ -10,7 +10,7 @@ const escapeHtml=(value)=>String(value??'').replace(/[&<>"']/g, c=>({'&':'&amp;'
 const escapeAttr=escapeHtml;
 const formatDay=iso=>{const d=new Date(iso||0);return iso&&!isNaN(d.getTime())?d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'—';};
 const today=()=>new Date().toISOString().slice(0,10);
-let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null,prodData=null,prodError=null;
+let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null,prodData=null,prodError=null,journalData=null,journalError=null,journalPage=1,adminError=null;
 const state={route:'stories',storyId:null,panel:'overview',sceneIndex:0,filter:'Toutes',query:'',journalFilter:'Tout',journalQuery:'',adminTab:'Vue d’ensemble',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarMode:'Mois'};
 let editorAction=null,toastTimer;
 const persist=()=>{};
@@ -63,11 +63,36 @@ async function loginPrivate(e){
 }
 $('#login-form').addEventListener('submit',loginPrivate);
 $('#logout-next').addEventListener('click',async()=>{
- try{await api('/studio/logout','POST');csrf=null;stories=[];adminData=null;
+ try{await api('/studio/logout','POST');csrf=null;stories=[];adminData=null;journalData=null;journalError=null;adminError=null;journalPage=1;
  $('#studio-shell').hidden=true;$('#login-screen').hidden=false;}
  catch(e){showToast('Déconnexion non confirmée : '+e.message)}
 });
-async function loadJournal(){await fetchStories();render()}
+async function loadJournal(){
+ const id=state.storyId;if(!id){journalData=null;journalError=null;journalPage=1;render();return}
+ try{
+  const [history,reviews]=await Promise.allSettled([
+   api('/studio/api/runs/'+encodeURIComponent(id)+'/history'),
+   api('/studio/api/runs/'+encodeURIComponent(id)+'/reviews?limit=50')
+  ]);
+  const rows=[];
+  if(history.status==='fulfilled'){
+   (history.value?.steps||[]).forEach(st=>{
+    const failed=!!st.error_code;
+    rows.push({date:st.finished_at||'',kind:'ia',title:'Traitement IA — '+(st.order===0?'Analyse':'Storyboard'),
+     detail:'Prompt : '+(st.prompt||''),status:failed?'Échec':(st.parsed?'Sortie reçue':'En cours'),
+     version:st.prompt_version||'',provenance:st.response_metadata?.model||'',agent:st.response_metadata?.provider||'',human:false});
+   });
+  }
+  if(reviews.status==='fulfilled'){
+   (reviews.value?.reviews||[]).forEach(r=>{
+    rows.push({date:r.created_at||'',kind:'decision',title:'Décision humaine — '+(r.step==='analysis'?'Analyse':'Storyboard'),
+     detail:r.comment||'',status:r.valid?'Acceptée':'Refusée',version:'Rev. '+(r.revision||''),provenance:r.source_result_id||'',agent:r.actor_id||'',human:true});
+   });
+  }
+  journalData={rows:rows.sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
+  journalError=null;journalPage=1;render();
+ }catch(e){journalError=e.message;journalData=null;render()}
+}
 async function loadAdmin(){
  try{
   const parts=await Promise.allSettled([
@@ -75,12 +100,11 @@ async function loadAdmin(){
    api('/studio/api/conception/commits?limit=70'),
    api('/studio/api/conception/ci?limit=80')
   ]);
-  if(parts[0].status!=='fulfilled')throw parts[0].reason;
-  adminData=parts[0].value;
-  commitsData=parts[1].status==='fulfilled'?parts[1].value:null;
-  ciData=parts[2].status==='fulfilled'?parts[2].value:null;
+  adminError=null;
+  if(parts[0].status==='fulfilled'){adminData=parts[0].value;commitsData=parts[1].status==='fulfilled'?parts[1].value:null;ciData=parts[2].status==='fulfilled'?parts[2].value:null}
+  else{adminError=parts[0].reason.status===503?'Intégration GitHub non configurée.':'Suivi GitHub indisponible.';adminData=null;commitsData=null;ciData=null}
   render();
- }catch(err){adminData=null;$('#content').innerHTML='<div class="api-error">'+escapeHtml(err.message)+' — configuration de lecture GitHub requise.</div>'}
+ }catch(err){adminError=err.message;adminData=null;commitsData=null;ciData=null}
 }
 function closeMobile(){$('#sidebar').classList.remove('open');$('#shade').classList.remove('open')}
 function mapRun(run){
@@ -100,7 +124,7 @@ function mapRun(run){
  return item;
 }
 async function navigate(route,storyId=null,panel='overview'){
- if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;}
+ if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;journalPage=1;}
  state.route=route;state.storyId=storyId;state.panel=panel;state.sceneIndex=0;historyData=null;
  closeMobile();render();window.scrollTo({top:0,behavior:'auto'});
  if(route==='stories'&&storyId){
@@ -315,16 +339,45 @@ function renderAtelierPanel(s){
  if(map[k]){const [ey,title,field]=map[k];return panelHeader(ey,title,'Retrouvez ces éléments dans leur contexte narratif.')+`<div class="item-grid">${s.scenes.map((sc,i)=>`<article class="item-card"><span class="eyebrow">SCÈNE ${String(i+1).padStart(2,'0')}</span><strong>${escapeHtml(sc.title)}</strong><p>${escapeHtml(sc[field]||'À définir')}</p>${btn('Voir la scène','arrow','small','data-scene="'+i+'"')}</article>`).join('')||'<div class="empty-state">Aucun élément.</div>'}</div>`}
  return '';
 }
+function journalVisible(){
+ const rows=journalData?.rows||[];
+ const q=(state.journalQuery||'').toLowerCase();
+ const filtered=rows.filter(r=>(state.journalFilter==='Tout'||r.kind===state.journalFilter)&&(q===''||r.title.toLowerCase().includes(q)||r.detail.toLowerCase().includes(q)));
+ const pageSize=15;
+ const totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));
+ const page=Math.min(Math.max(1,state.journalPage||1),totalPages);
+ const pagerRows=filtered.slice((page-1)*pageSize,page*pageSize);
+ return{pagerRows:pagerRows,page:page,totalPages:totalPages};
+}
 function renderJournal(){
- const rows=events.filter(e=>(state.journalFilter==='Tout'||e.type===state.journalFilter)&&(e.title+' '+e.detail).toLowerCase().includes(state.journalQuery.toLowerCase())).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
- return `<div class="page-heading"><div><div class="eyebrow">RIEN NE SE PERD</div><h1>La mémoire de vos créations.</h1><p>Retrouvez les décisions, les versions et les étapes de chaque récit.</p></div></div><div class="toolbar"><div class="filter-tabs">${[['Tout','Tout'],['Créations','creation'],['Révisions','revision'],['IA & visuels','ia']].map(([name,k])=>`<button class="filter-btn ${state.journalFilter===k?'active':''}" data-journal-filter="${k}">${name}</button>`).join('')}</div><label class="searchbox">${ico('search')}<input id="journal-search" aria-label="Rechercher dans le journal" placeholder="Rechercher une trace…" value="${escapeAttr(state.journalQuery)}"></label></div><section class="panel"><div class="eyebrow">ÉVÉNEMENTS CHARGÉS</div><div id="timeline" class="timeline">${rows.map(e=>`<article class="timeline-row"><time>${formatDay(e.date)}</time><h3>${escapeHtml(e.title)}</h3><p>${escapeHtml(e.detail)}</p>${statusPill(({creation:'Brouillon',revision:'En écriture',ia:'À relire'})[e.type]||'Brouillon')}</article>`).join('')||'<div class="empty-state">Aucune trace correspondante.</div>'}</div></section>`;
+ let body='';
+ if(!state.storyId){
+  body=`<div class="page-heading"><div><div class="eyebrow">RIEN NE SE PERD</div><h1>La mémoire de vos créations.</h1><p>Retrouvez les décisions, les versions et les étapes de chaque récit.</p></div></div><section class="panel"><div class="empty-state"><h3>Aucune histoire sélectionnée.</h3><p>Sélectionnez une histoire dans la bibliothèque pour retrouver ses traces réelles.</p><button type="button" class="button secondary" data-action="library">${ico('book')} Voir mes histoires</button></div></section>`;
+ }else if(journalError){
+  body=`<div class="backline"><button type="button" class="button secondary" data-action="library">${ico('left')} Retour</button></div>
+   <section class="panel"><div class="empty-state"><h3>Journal indisponible.</h3><p>${escapeHtml(journalError)}</p><button type="button" class="button secondary" data-action="library">Retour</button></div></section>`;
+ }else if(!journalData){
+  body=`<div class="backline"><button type="button" class="button secondary" data-action="library">${ico('left')} Retour</button></div>
+   <section class="panel"><div class="loading-view" role="status">Consultation du journal…</div></section>`;
+ }else{
+  const {pagerRows,page,totalPages}=journalVisible();
+  body=`<div class="page-heading"><div><div class="eyebrow">RIEN NE SE PERD</div><h1>La mémoire de vos créations.</h1><p>Retrouvez les décisions, les versions et les étapes de chaque récit.</p></div></div>
+   <div class="toolbar"><div class="filter-tabs">${[['Tout','Tout'],['Décisions humaines','decision'],['Traitements IA','ia']].map(([name,k])=>`<button type="button" class="filter-btn ${state.journalFilter===k?'active':''}" data-journal-filter="${k}" aria-pressed="${state.journalFilter===k}">${name}</button>`).join('')}</div><label class="searchbox">${ico('search')}<input id="journal-search" aria-label="Rechercher dans le journal" placeholder="Rechercher une trace…" value="${escapeAttr(state.journalQuery)}"></label></div>
+   <section class="panel"><div class="eyebrow">TRACES RÉELLES</div><div id="timeline" class="timeline">${pagerRows.map(r=>`<article class="timeline-row"><time>${escapeHtml(r.date?formatDay(r.date):'—')}</time><h3>${escapeHtml(r.title)}</h3><p>${escapeHtml(r.detail)}</p><div class="mini-meta"><span>${escapeHtml(r.status)}</span><span>Version ${escapeHtml(r.version||'—')}</span><span>Agent ${escapeHtml(r.agent||'—')}</span><span>${escapeHtml(r.provenance||'—')}</span></div></article>`).join('')||'<div class="empty-state">Aucune trace correspondante.</div>'}</div>
+   ${totalPages>1?`<div class="decision-bar"><div><b>${page} sur ${totalPages}</b></div><button type="button" class="button secondary" data-journal-page="${page-1}" ${page<=1?'disabled':''}>Page précédente</button><button type="button" class="button secondary" data-journal-page="${page+1}" ${page>=totalPages?'disabled':''}>Page suivante</button></div>`:''}
+   </section>`;
+ }
+ return body;
 }
 function renderAdmin(){
  const tab=state.adminTab;
- return `<div class="page-heading"><div><div class="eyebrow">CONCEPTION · CODE · TRAÇABILITÉ</div><h1>Le projet, en toute clarté.</h1><p>Épics, pull requests, commits et livraisons issus de GitHub.</p></div></div>
+ const sourceStatus=adminError?(adminError.toLowerCase().includes('configur')?'not_configured':'unavailable'):'operational';
+ const sourceLabel=adminError?(sourceStatus==='not_configured'?'Source : GitHub non configuré':'Source : GitHub indisponible'):'Source : GitHub en lecture réelle';
+ let stage=adminError?'<div class="empty-state"><h3>Suivi GitHub indisponible.</h3><p>'+escapeHtml(adminError)+'</p>':adminData?renderAdminTab(tab):'<div class="loading-view">Chargement du suivi GitHub privé…</div>';
+ return `<div class="page-heading"><div><div class="eyebrow">CONCEPTION · CODE · TRAÇABILITÉ</div><h1>Le projet, en toute clarté.</h1><p>Épics, pull requests, commits et livraisons issus de GitHub.</p></div><span class="pill ${sourceStatus==='operational'?'valid':sourceStatus==='not_configured'?'writing':'failed'}">${sourceLabel}</span></div>
  <div class="admin-tabs" role="tablist" aria-label="Sections administration">
  ${['Vue d’ensemble','Epics & stories','Pull requests','Commits','Agenda'].map(t=>`<button type="button" role="tab" aria-selected="${tab===t}" class="admin-tab ${tab===t?'active':''}" data-admin-tab="${escapeAttr(t)}">${t}</button>`).join('')}</div>
- <div id="admin-stage">${adminData?renderAdminTab(tab):'<div class="loading-view">Chargement du suivi GitHub privé…</div>'}</div>`;
+ <div id="admin-stage">${stage}</div>`;
 }
 function renderAdminTab(tab){
  const epics=adminData?.epics||[],issues=adminData?.issues||[],prs=adminData?.pull_requests||[],deliveries=adminData?.deliveries||[];
@@ -383,8 +436,10 @@ function bindContent(){
  $$('[data-scene]').forEach(x=>x.addEventListener('click',()=>{state.sceneIndex=Number(x.dataset.scene);state.panel='scenes';render()}));
  $$('[data-filter]').forEach(x=>x.addEventListener('click',()=>{state.filter=x.dataset.filter;render()}));
  if($('#story-search')){libraryCards();bindLibraryOpen();$('#story-search').addEventListener('input',e=>{state.query=e.target.value;libraryCards();bindLibraryOpen()})}
- if($('#journal-search'))$('#journal-search').addEventListener('input',e=>{state.journalQuery=e.target.value;const active=document.activeElement;const caret=e.target.selectionStart;render();const inp=$('#journal-search');inp.focus();inp.setSelectionRange(caret,caret)});
- $$('[data-journal-filter]').forEach(x=>x.addEventListener('click',()=>{state.journalFilter=x.dataset.journalFilter;render()}));
+ if($('#journal-search'))$('#journal-search').addEventListener('input',e=>{state.journalQuery=e.target.value;state.journalPage=1;const active=document.activeElement;const caret=e.target.selectionStart;render();const inp=$('#journal-search');inp.focus();inp.setSelectionRange(caret,caret)});
+ $$('[data-journal-filter]').forEach(x=>x.addEventListener('click',()=>{state.journalFilter=x.dataset.journalFilter;state.journalPage=1;render()}));
+ $$('[data-journal-page]').forEach(x=>x.addEventListener('click',()=>{state.journalPage=Number(x.dataset.journalPage)||1;render()}));
+ $$('[data-journal-retry]').forEach(x=>x.addEventListener('click',()=>loadJournal()));
  $$('[data-admin-tab]').forEach(x=>x.addEventListener('click',()=>{state.adminTab=x.dataset.adminTab;render()}));
  $$('[data-calendar-mode]').forEach(x=>x.addEventListener('click',()=>{state.calendarMode=x.dataset.calendarMode;render()}));
  $$('[data-cal]').forEach(x=>x.addEventListener('click',()=>{const d=state.month;const delta=x.dataset.cal==='prev'?-1:1;if(state.calendarMode==='Mois')d.setMonth(d.getMonth()+delta);else d.setDate(d.getDate()+delta*(state.calendarMode==='Semaine'?7:1));state.month=new Date(d);render()}));

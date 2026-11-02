@@ -258,6 +258,22 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.get_by_role("button", name="Jour", exact=True).click()
         expect(self.page.locator(".arvor-calendar-cell")).to_have_count(1)
 
+    def test_next_studio_journal_and_admin_states(self):
+        """Lot 4 journeys: real-trace journal states and administration source status."""
+        self.page.goto(self.base + "/studio")
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        self.page.locator("#studio-shell").wait_for(state="visible")
+        self.page.locator("#content").wait_for(state="visible")
+        self.page.locator('[data-route="journal"]').click()
+        expect(self.page.locator("#content")).to_contain_text("La mémoire de vos créations.")
+        expect(self.page.locator("#content")).to_contain_text("Aucune histoire sélectionnée")
+        self.page.route("**/studio/api/conception", lambda route: route.fulfill(
+            status=502, content_type="application/json", body=json.dumps({"detail": "GitHub indisponible."})))
+        self.page.locator('[data-route="admin"]').click()
+        self.page.locator("#admin-stage").wait_for(state="visible")
+        expect(self.page.locator("#admin-stage")).to_contain_text("Suivi GitHub indisponible")
+
     def test_visual_character_to_private_image_after_approval(self):
         self.sign_in()
         run_id = self.create("Le marin d'Ys")
