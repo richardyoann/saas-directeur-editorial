@@ -104,7 +104,7 @@ class CinematicProductionCorrectiveTests(unittest.TestCase):
         self.assertNotIn("data-action=\"export\" && canExport", self.js)
 
     def test_story_switch_resets_production_state(self):
-        self.assertIn("if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;}", self.js)
+        self.assertIn("if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;journalPage=1;}", self.js)
 
     def test_production_error_state_is_rendered(self):
         self.assertIn("if(prodError)", self.js)
@@ -123,6 +123,31 @@ class CinematicProductionCorrectiveTests(unittest.TestCase):
         self.assertIn('data-action="export-video"', self.js)
         self.assertIn("async function exportVideo", self.js)
         self.assertNotIn("data-action=\"export\" ${canExport", self.js)
+
+
+class CinematicLot4JournalAdminTests(unittest.TestCase):
+    """Lot 4 static contracts (2026-11-02): journal built on real traces and
+    administration source states surfaced in apps/web/arvor_next.js."""
+
+    def setUp(self):
+        self.js = (ROOT / "apps/web/arvor_next.js").read_text(encoding="utf-8")
+
+    def test_journal_uses_real_traces_not_fabricated_events(self):
+        self.assertIn("/studio/api/runs/'+encodeURIComponent(id)+'/history", self.js)
+        self.assertIn("/reviews?limit=50", self.js)
+        self.assertNotIn("const rows=events.filter", self.js)
+
+    def test_journal_displays_trace_metadata_and_pagination(self):
+        for token in ("journalVisible", "journalData", "journalError", "journalPage",
+                      "data-journal-page", "data-journal-retry", "TRACES RÉELLES",
+                      "Traitement IA", "Décision humaine", "Version", "Agent"):
+            self.assertIn(token, self.js)
+
+    def test_admin_distinguishes_source_states(self):
+        self.assertIn("adminError", self.js)
+        self.assertIn("not_configured", self.js)
+        self.assertIn("unavailable", self.js)
+        self.assertIn("includes('configur')", self.js)
 
 
 if __name__ == "__main__":

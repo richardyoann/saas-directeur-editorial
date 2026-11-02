@@ -67,8 +67,44 @@ le shell de navigation et le tableau de bord (écran n°1).
   (lecteur vertical 9:16, scènes, timeline, inspection, voix, sous-titres, qualité, décisions) —
   éléments encore absents documentés lors de la qualification finale.
 
-### Lots suivants
+## Lot 4 — Journal et administration (02 novembre 2026)
 
-- Lot 4 : journal et administration (traces réelles, contrats d’historique/décisions/production).
+**Branche :** `refactor/studio-cinematic-lot4-journal-admin-20261031`
+**SHA de base :** `3c6f61a8864062a88c074d42f680972c480358fd` (Lot 3 corrigé, PR #234)
+
+### Fonctionnalités implémentées
+
+- Journal (`journal`) : consommation des traces réelles
+  (`GET /studio/api/runs/{id}/history`, `GET /studio/api/runs/{id}/reviews?limit=50`) pour l’histoire
+  sélectionnée. Les lignes sont construites depuis les snapshots d’étapes IA et les décisions humaines
+  réelles (action, revision, statut, provenance, agent) — plus aucune fabrication à partir des seules
+  dates de création.
+- Filtres (Tout / Décisions humaines / Traitements IA), recherche plein texte, pagination réelle
+  (15 traces par page), état de chargement, état vide (histoire non sélectionnée) et état erreur.
+- Administration (`admin`) : états source distincts (opérationnel / indisponible / non configuré) via
+  `adminError` ; le suivi GitHub est en lecture seule ; les conclusions CI sont affichées telles quelles
+  (aucun `skipped` transformé en succès).
+
+### Fichiers modifiés
+
+- `apps/web/arvor_next.js`, `tests/test_studio_cinematic_redesign.py`, `browser_checks/test_studio_browser.py`,
+  `docs/STUDIO_CINEMATIC_REDESIGN_20261031.md`.
+
+### API utilisées/modifiées
+
+- Seules des routes GET existantes du Studio sont consommées : aucun endpoint backend modifié.
+
+### Tests exécutés
+
+- `tests/test_studio_cinematic_redesign.py` — **OK (22 tests)**.
+- Suites touchées : `tests.test_studio`, `tests.test_arvor_reference`, `tests.test_studio_conception`,
+  `tests.test_qa_lot1` — **OK**.
+
+### Contrôles sécurité
+
+- Aucune mutation métier, aucun endpoint backend modifié, aucune donnée fictive injectée.
+
+## Lots suivants
+
 - Lot 5 : qualification finale (régression, CI locale 16 contrôles, navigateur, résolutions,
   sécurité, documentation, revue finale).
