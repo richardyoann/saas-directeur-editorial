@@ -74,6 +74,10 @@ async function loadJournal(){
    api('/studio/api/runs/'+encodeURIComponent(id)+'/history'),
    api('/studio/api/runs/'+encodeURIComponent(id)+'/reviews?limit=50')
   ]);
+  const failures=[];
+  if(history.status==='rejected')failures.push('Historique des traitements indisponible.');
+  if(reviews.status==='rejected')failures.push('Historique des décisions indisponible.');
+  if(failures.length){journalError=failures.join(' · ');journalData=null;render();return}
   const rows=[];
   if(history.status==='fulfilled'){
    (history.value?.steps||[]).forEach(st=>{
@@ -86,7 +90,7 @@ async function loadJournal(){
   if(reviews.status==='fulfilled'){
    (reviews.value?.reviews||[]).forEach(r=>{
     rows.push({date:r.created_at||'',kind:'decision',title:'Décision humaine — '+(r.step==='analysis'?'Analyse':'Storyboard'),
-     detail:r.comment||'',status:r.valid?'Acceptée':'Refusée',version:'Rev. '+(r.revision||''),provenance:r.source_result_id||'',agent:r.actor_id||'',human:true});
+     detail:r.comment||'',action:r.action,actionLabel:{accept:'Acceptée',reject:'Rejetée',revise:'Révisée'}[r.action]||r.action,status:r.valid?'Décision acceptée':'Décision refusée',version:'Rev. '+(r.revision||''),provenance:r.source_result_id||'',agent:r.actor_id||'',human:true});
    });
   }
   journalData={rows:rows.sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
@@ -238,9 +242,9 @@ function renderProduction(){
  const quality=[
   ['Présence des médias',['voice','video','subtitles'].every(k=>!!media[k])?'ok':'ko'],
   ['Validation technique',approved&&plan.duration_seconds===75&&scenes.length>0&&missing.length===0&&voice.status==='ready'?'ok':'warn'],
-  ['Validation artistique (humaine)',approved?'ok':'warn']
+  ['Validation artistique (humaine)',approved?'pending_human':'not_started']
  ];
- const qualityHtml=quality.map(([label,state])=>`<div class="quality-item"><span class="q-title">${state==='ok'?ico('check'):state==='warn'?ico('shield'):ico('close')}${escapeHtml(label)}</span><span class="pill ${state==='ok'?'valid':state==='warn'?'writing':'failed'}">${state==='ok'?'Prête':state==='warn'?'À traiter':'Manquante'}</span></div>`).join('');
+ const qualityHtml=quality.map(([label,state])=>{const display=state==='pending_human'?'warn':state==='not_started'?'ko':state;return `<div class="quality-item"><span class="q-title">${display==='ok'?ico('check'):display==='warn'?ico('shield'):ico('close')}${escapeHtml(label)}</span><span class="pill ${display==='ok'?'valid':display==='warn'?'writing':'failed'}">${display==='ok'?'Prête':display==='warn'?'À traiter':'Manquante'}</span></div>`}).join('');
  const videoSrc=approved&&video.status==='ready'?`/studio/api/runs/${encodeURIComponent(state.storyId)}/media/${encodeURIComponent(video.id)}/content`:'';
  const canExport=approved&&video.status==='ready';
  const sceneRowsHtml=scenes.map(sc=>`<div class="mini-row"><b>Scène ${sc.scene_number}</b><span>${escapeHtml(sc.title)} · ${sc.duration_seconds} s · image : ${escapeHtml(sc.image_status)}</span></div>`).join('');
@@ -250,7 +254,7 @@ function renderProduction(){
  return `<div class="backline"><button type="button" class="button secondary" data-action="library">${ico('left')} Retour</button></div>
   <section class="panel">
    <div class="section-head"><div><div class="eyebrow">PRODUCTION</div><h2>Vidéo verticale 1080 × 1920</h2><p>Voix, images et montage — états réels de la production.</p></div>${btn('Exporter','download','primary','data-action="export-video"')}</div>
-   ${videoSrc?<video class="production-video" controls preload="metadata" src="${videoSrc}"></video>:`<div class="empty-state"><h3>Vidéo non générée ou indisponible.</h3><p>La production vidéo n’est pas disponible pour cette histoire.</p></div>`}
+   ${videoSrc?`<video class="production-video" controls preload="metadata" src="${videoSrc}"></video>`:`<div class="empty-state"><h3>Vidéo non générée ou indisponible.</h3><p>La production vidéo n’est pas disponible pour cette histoire.</p></div>`}
    <div class="quality-check">${qualityHtml}</div>
    <div class="decision-bar"><div><b>${canExport?'Prête à exporter.':'Condition de sortie non remplie.'}</b><p>L’export ne part vers aucune plateforme sans validation humaine explicite.</p></div><button type="button" class="button primary" data-action="export-video" ${canExport?'':'disabled'}>Exporter le MP4 1080 × 1920</button></div>
   </section>
@@ -363,7 +367,7 @@ function renderJournal(){
   const {pagerRows,page,totalPages}=journalVisible();
   body=`<div class="page-heading"><div><div class="eyebrow">RIEN NE SE PERD</div><h1>La mémoire de vos créations.</h1><p>Retrouvez les décisions, les versions et les étapes de chaque récit.</p></div></div>
    <div class="toolbar"><div class="filter-tabs">${[['Tout','Tout'],['Décisions humaines','decision'],['Traitements IA','ia']].map(([name,k])=>`<button type="button" class="filter-btn ${state.journalFilter===k?'active':''}" data-journal-filter="${k}" aria-pressed="${state.journalFilter===k}">${name}</button>`).join('')}</div><label class="searchbox">${ico('search')}<input id="journal-search" aria-label="Rechercher dans le journal" placeholder="Rechercher une trace…" value="${escapeAttr(state.journalQuery)}"></label></div>
-   <section class="panel"><div class="eyebrow">TRACES RÉELLES</div><div id="timeline" class="timeline">${pagerRows.map(r=>`<article class="timeline-row"><time>${escapeHtml(r.date?formatDay(r.date):'—')}</time><h3>${escapeHtml(r.title)}</h3><p>${escapeHtml(r.detail)}</p><div class="mini-meta"><span>${escapeHtml(r.status)}</span><span>Version ${escapeHtml(r.version||'—')}</span><span>Agent ${escapeHtml(r.agent||'—')}</span><span>${escapeHtml(r.provenance||'—')}</span></div></article>`).join('')||'<div class="empty-state">Aucune trace correspondante.</div>'}</div>
+   <section class="panel"><div class="eyebrow">TRACES RÉELLES</div><div id="timeline" class="timeline">${pagerRows.map(r=>`<article class="timeline-row"><time>${escapeHtml(r.date?formatDay(r.date):'—')}</time><h3>${escapeHtml(r.title)}</h3><p>${escapeHtml(r.detail)}</p><div class="mini-meta"><span>${escapeHtml(r.status)}</span>${r.human?`<span>Décision ${escapeHtml(r.actionLabel||r.action||'—')}</span>`:''}<span>Version ${escapeHtml(r.version||'—')}</span><span>Agent ${escapeHtml(r.agent||'—')}</span><span>${escapeHtml(r.provenance||'—')}</span></div></article>`).join('')||'<div class="empty-state">Aucune trace correspondante.</div>'}</div>
    ${totalPages>1?`<div class="decision-bar"><div><b>${page} sur ${totalPages}</b></div><button type="button" class="button secondary" data-journal-page="${page-1}" ${page<=1?'disabled':''}>Page précédente</button><button type="button" class="button secondary" data-journal-page="${page+1}" ${page>=totalPages?'disabled':''}>Page suivante</button></div>`:''}
    </section>`;
  }
@@ -384,9 +388,15 @@ function renderAdminTab(tab){
  const commits=commitsData?.commits||[];
  if(tab==='Vue d’ensemble'){
   const stats=[['grid',epics.length,'Epics'],['book',issues.length,'Issues chargées'],['file',prs.filter(x=>x.state==='open').length,'PR ouvertes'],['check',deliveries.filter(x=>x.conclusion==='failure').length,'Livraisons en échec']];
-  return `<section class="stats">${stats.map(([ic,n,label])=>`<div class="stat"><span class="stat-icon">${ico(ic)}</span><div><span class="stat-number">${n}</span><span class="stat-label">${label}</span></div></div>`).join('')}</section>
-  <div class="admin-grid"><section class="panel"><div class="eyebrow">AVANCEMENT VÉRIFIABLE</div><h3>Les epics</h3>${epics.slice(0,12).map(e=>`<div class="mini-row"><b>#${e.number} · ${escapeHtml(e.title)}</b><small>${Number.isInteger(e.progress_pct)?e.checklist_done+'/'+e.checklist_total+' critères · '+e.progress_pct+' %':'Aucune checklist mesurable'}</small>${Number.isInteger(e.progress_pct)?`<progress class="progress" value="${e.progress_pct}" max="100"></progress>`:''}</div>`).join('')}</section>
-  <section class="panel"><div class="eyebrow">LES DERNIÈRES TRACES</div><h3>Pull requests</h3>${prs.slice(0,9).map(p=>`<div class="mini-row"><b>PR #${p.number} · ${p.merged_at?'Fusionnée':p.state==='open'?'Ouverte':'Fermée'}</b><span>${escapeHtml(p.title)}</span></div>`).join('')}</section></div>`;
+  const statCards=stats.map(([ic,n,label])=>`<div class="stat"><span class="stat-icon">${ico(ic)}</span><div><span class="stat-number">${n}</span><span class="stat-label">${label}</span></div></div>`).join('');
+  const epicRows=epics.slice(0,12).map(e=>`<div class="mini-row"><b>#${e.number} · ${escapeHtml(e.title)}</b><small>${Number.isInteger(e.progress_pct)?e.checklist_done+'/'+e.checklist_total+' critères · '+e.progress_pct+' %':'Aucune checklist mesurable'}</small>${Number.isInteger(e.progress_pct)?`<progress class="progress" value="${e.progress_pct}" max="100"></progress>`:''}</div>`).join('');
+  const prRows=prs.slice(0,9).map(p=>`<div class="mini-row"><b>PR #${p.number} · ${p.merged_at?'Fusionnée':p.state==='open'?'Ouverte':'Fermée'}</b><span>${escapeHtml(p.title)}</span></div>`).join('');
+  const sourcePartial=Object.keys(adminData?.source_truncated||{}).some(k=>adminData.source_truncated[k]);
+  const sourceNote=sourcePartial?`<section class="panel"><div class="eyebrow">SOURCES</div><h3>Disponibilité des sources</h3><p>Les résultats GitHub peuvent être partiels selon les limites de pagination.</p></section>`:'';
+  return `<section class="stats">${statCards}</section>
+  <div class="admin-grid"><section class="panel"><div class="eyebrow">AVANCEMENT VÉRIFIABLE</div><h3>Les epics</h3>${epicRows}</section>
+  <section class="panel"><div class="eyebrow">LES DERNIÈRES TRACES</div><h3>Pull requests</h3>${prRows}</section>
+  ${sourceNote}</div>`;
  }
  if(tab==='Epics & stories')return adminTable('Épics et tâches GitHub',['Ticket','Titre','État'],issues.map(i=>['#'+i.number,i.title,i.state]));
  if(tab==='Pull requests')return adminTable('Pull requests',['PR','Objet','État'],prs.map(p=>['#'+p.number,p.title,p.merged_at?'Fusionnée':p.draft?'Brouillon':p.state]));
@@ -523,7 +533,7 @@ function exportStory(){
  link.href=url;link.download='arvor-'+st.id+'.json';document.body.append(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Export du storyboard courant préparé.');
 }
-$$('[data-route]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.route)));
+$$('[data-route]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.route,state.storyId)));
 $('#side-create').addEventListener('click',()=>{closeMobile();openEditor('new')});
 $('#mobile-toggle').addEventListener('click',()=>{$('#sidebar').classList.toggle('open');$('#shade').classList.toggle('open')});
 $('#shade').addEventListener('click',closeMobile);
