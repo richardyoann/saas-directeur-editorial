@@ -128,7 +128,7 @@ function mapRun(run){
  return item;
 }
 async function navigate(route,storyId=null,panel='overview'){
- if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;journalPage=1;}
+ if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;journalPage=1;prodError=null;}
  state.route=route;state.storyId=storyId;state.panel=panel;state.sceneIndex=0;historyData=null;
  closeMobile();render();window.scrollTo({top:0,behavior:'auto'});
  if(route==='stories'&&storyId){

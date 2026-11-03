@@ -104,7 +104,7 @@ class CinematicProductionCorrectiveTests(unittest.TestCase):
         self.assertNotIn("data-action=\"export\" && canExport", self.js)
 
     def test_story_switch_resets_production_state(self):
-        self.assertIn("if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;journalPage=1;}", self.js)
+        self.assertIn("if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;journalPage=1;prodError=null;}", self.js)
 
     def test_production_error_state_is_rendered(self):
         self.assertIn("if(prodError)", self.js)
@@ -169,6 +169,11 @@ class CinematicLot5CorrectiveTests(unittest.TestCase):
         self.assertIn("{accept:'Acceptée',reject:'Rejetée',revise:'Révisée'}[r.action]", self.js)
         self.assertIn("status:r.valid?'Décision acceptée':'Décision refusée'", self.js)
         self.assertIn("r.human?", self.js)
+
+    def test_human_decision_status_is_rendered(self):
+        self.assertIn("status:r.valid?'Décision acceptée':'Décision refusée'", self.js)
+        self.assertIn("${r.human?`<span>Décision ${escapeHtml(r.actionLabel||r.action||'—')}</span>`:''}", self.js)
+        self.assertIn("<span>${escapeHtml(r.status)}</span>", self.js)
 
     def test_journal_handles_full_and_partial_trace_failures(self):
         self.assertIn("const failures=[]", self.js)
