@@ -108,7 +108,7 @@ le shell de navigation et le tableau de bord (écran n°1).
 
 **Branche :** `refactor/studio-cinematic-lot4-journal-admin-20261031` (au 2026-11-02, lot 4 terminé)
 **SHA de base :** `b886e98260d6874b89efdd241ab421320ff306b4`
-**SHA final du lot :** `cd79a8b2e0ce31a430757996dcc7436c07e13b4d` (dernier commit de finalisation Lot 5)
+**SHA final du lot :** `8aeb5baf40f7a36952e722f76d72f11f63fdce21` (dernier commit de finalisation Lot 5 : reset prodError navigation, statut decision humaine)
 
 ### Régression
 
@@ -116,6 +116,19 @@ le shell de navigation et le tableau de bord (écran n°1).
 - Sauts (58) : uniquement les suites « dedicated PostgreSQL test target not configured » / « PostgreSQL
   required » — environnement local sans base jetable ; non liés aux changements UI/tests/docs.
 - Plancher CI local : `MIN_REGRESSION_TESTS = 390` — dépassé (611).
+
+### Qualification finale executee via le mecanisme officiel (Lot 5 finalisation)
+
+- `bash scripts/qualify_arvor_ci_wsl.sh 079317cd912168ec58ce4df377c49441cfc40186 239 8aeb5baf40f7a36952e722f76d72f11f63fdce21 3c6f61a8864062a88c074d42f680972c480358fd`
+  → exit **0**, `ARVOR_CI_LOCAL_GATES_AND_LOG_INTEGRITY_PASS`.
+- 16/16 portes hote OK : db_prepare_312, regression_312, sql_benchmark_312, db_prepare_314,
+  regression_314, sql_benchmark_314, syntax_js, syntax_js_reference, syntax_js_next, syntax_py,
+  browser, dependencies, secrets, supply_chain, risk_review, video_75.
+- Receipt : `/home/yoann_admin/arvor-ci-lab/evidence-qualification.DlkivIbI/0539b2d5-7f6e-43a4-956c-6922818226e9.json`
+  → status `success`, `verified_logs: 16`, `independent_execution_provenance_verified: true`,
+  `attestation_signed: false`, `merge_or_deploy_authorized: false`.
+- Preuve d’integrite des logs/recus verifiee (`arvor_ci_evidence_verify`); signature et publication
+  distinctes; merge/deploiement NON.
 
 ### Corrections de finalisation Lot 5 (Étape 1, commit `Lot 5 — corrections revue`)
 
