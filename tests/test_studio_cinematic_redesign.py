@@ -104,7 +104,7 @@ class CinematicProductionCorrectiveTests(unittest.TestCase):
         self.assertNotIn("data-action=\"export\" && canExport", self.js)
 
     def test_story_switch_resets_production_state(self):
-        self.assertIn("if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;journalPage=1;prodError=null;}", self.js)
+        self.assertIn("if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;state.journalPage=1;prodError=null;}", self.js)
 
     def test_production_error_state_is_rendered(self):
         self.assertIn("if(prodError)", self.js)
