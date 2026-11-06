@@ -260,6 +260,15 @@ class StudioBrowserJourneys(unittest.TestCase):
 
     def test_next_studio_journal_and_admin_states(self):
         """Lot 4 journeys: real-trace journal states and administration source status."""
+        with httpx.Client(base_url=self.base, headers=AUTH) as client:
+            response = client.post("/editorial/runs", headers={"Idempotency-Key": str(uuid4())},
+                                   json={"topic": "Journal avec champs partiels"})
+            self.assertEqual(response.status_code, 200, response.text[:300])
+            journal_run_id = response.json()["id"]
+            for revision, step in enumerate(("analysis", "storyboard")):
+                review = client.post(f"/editorial/runs/{journal_run_id}/steps/{step}/review",
+                                     json={"action": "accept", "expected_revision": revision})
+                self.assertEqual(review.status_code, 200, review.text[:300])
         self.page.goto(self.base + "/studio")
         self.page.locator("#login-password").fill(PASSWORD)
         self.page.locator("#login-submit").click()
@@ -268,6 +277,14 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.locator('[data-route="journal"]').click()
         expect(self.page.locator("#content")).to_contain_text("La mémoire de vos créations.")
         expect(self.page.locator("#content")).to_contain_text("Aucune histoire sélectionnée")
+        self.page.locator('[data-route="stories"]').click()
+        self.page.locator(f'.story-card [data-open="{journal_run_id}"]').click()
+        self.page.locator('[data-route="journal"]').click()
+        expect(self.page.locator("#timeline")).to_contain_text("Date inconnue")
+        expect(self.page.locator("#timeline")).to_contain_text("Décision humaine")
+        expect(self.page.locator("#timeline")).to_contain_text("Acteur")
+        expect(self.page.locator("#timeline")).to_contain_text("Résultat")
+        self.assertNotIn("Sortie reçueVersion", self.page.locator("#timeline").inner_text())
         self.page.route("**/studio/api/conception", lambda route: route.fulfill(
             status=502, content_type="application/json", body=json.dumps({"detail": "GitHub indisponible."})))
         self.page.locator('[data-route="admin"]').click()
@@ -558,6 +575,123 @@ class StudioBrowserJourneys(unittest.TestCase):
         self.page.wait_for_timeout(300)
         self.assertIn("Une histoire de vent", self.page.locator(".story-banner").inner_text(),
                       "Révision: " + self.page.locator("#toast").inner_text())
+
+    def test_next_studio_responsive_shell_all_routes_and_navigation_context(self):
+        with httpx.Client(base_url=self.base, headers=AUTH) as client:
+            response = client.post("/editorial/runs", headers={"Idempotency-Key": str(uuid4())},
+                                   json={"topic": "Navigation responsive"})
+            self.assertEqual(response.status_code, 200, response.text[:300])
+        self.page.goto(self.base + "/studio")
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        self.page.locator("#studio-shell").wait_for(state="visible")
+        self.page.locator(".story-card [data-open]").click()
+        self.page.locator(".story-banner").wait_for(state="visible")
+        expected_story = self.page.locator(".story-banner h1").inner_text()
+        routes = ("overview", "stories", "conception", "production", "journal", "admin")
+        for width, height in ((1920, 1080), (1366, 768), (768, 1024), (390, 844), (360, 800)):
+            self.page.set_viewport_size({"width": width, "height": height})
+            self.page.wait_for_timeout(250)
+            for route in routes:
+                if width <= 930:
+                    drawer = self.page.locator("#sidebar").bounding_box()
+                    drawer_state = self.page.locator("#sidebar").evaluate(
+                        "el => ({className: el.className, transform: getComputedStyle(el).transform, position: getComputedStyle(el).position})")
+                    self.assertLessEqual(drawer["x"] + drawer["width"], 1,
+                                         f"Drawer should be closed at {width} on {route}: {drawer_state}")
+                    self.assertTrue(self.page.locator("#sidebar").evaluate("el => el.inert"),
+                                    f"Closed drawer must leave keyboard navigation at {width}")
+                    toggle = self.page.locator("#mobile-toggle")
+                    expect(toggle).to_be_visible()
+                    toggle.click()
+                    expect(toggle).to_have_attribute("aria-expanded", "true")
+                    self.page.locator(f'#sidebar [data-route="{route}"]').click()
+                    expect(toggle).to_have_attribute("aria-expanded", "false")
+                else:
+                    self.page.locator(f'#sidebar [data-route="{route}"]').click()
+                self.page.wait_for_timeout(250)
+                page_width = self.page.evaluate("document.documentElement.scrollWidth")
+                offenders = self.page.evaluate("""() => [...document.querySelectorAll('body *')]
+                  .map(el => ({selector: el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\\s+/).join('.') : ''),
+                               right: Math.round(el.getBoundingClientRect().right), width: Math.round(el.getBoundingClientRect().width)}))
+                  .filter(x => x.right > innerWidth + 1).slice(0, 12)""")
+                self.assertLessEqual(page_width, width + 1,
+                                     f"Horizontal page overflow at {width}x{height} on {route}: width={page_width}, elements={offenders}")
+                expect(self.page.locator("#content")).to_be_visible()
+                heading = self.page.locator("#content h1, #content h2, #content h3").first.bounding_box()
+                self.assertIsNotNone(heading, f"Expected route heading on {route} at {width}x{height}")
+                self.assertLess(heading["y"], height,
+                                f"Route heading is below the first viewport on {route} at {width}x{height}")
+            if width <= 930:
+                self.page.locator("#mobile-toggle").click()
+            self.page.locator('#sidebar [data-route="stories"]').click()
+            expect(self.page.locator(".story-banner h1")).to_have_text(expected_story)
+
+    def test_next_studio_admin_tabs_are_keyboard_reachable_on_mobile(self):
+        self.page.set_viewport_size({"width": 390, "height": 844})
+        self.page.goto(self.base + "/studio")
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        self.page.locator("#studio-shell").wait_for(state="visible")
+        self.page.locator("#mobile-toggle").click()
+        self.page.locator('#sidebar [data-route="admin"]').click()
+        tabs = self.page.locator("[data-admin-tab]")
+        self.page.wait_for_timeout(200)  # Let the administration request commit its final render.
+        tabs.first.focus()
+        self.page.keyboard.press("End")
+        expect(tabs.nth(4)).to_be_focused()
+        expect(tabs.nth(4)).to_have_attribute("aria-selected", "true")
+        expect(tabs.nth(4)).to_be_in_viewport()
+        tabs.nth(4).click()
+        expect(tabs.nth(4)).to_have_attribute("aria-selected", "true")
+
+    def test_next_studio_video_export_requires_approved_ready_media_and_matching_run(self):
+        with httpx.Client(base_url=self.base, headers=AUTH) as client:
+            def create_and_approve(topic, approve):
+                response = client.post("/editorial/runs", headers={"Idempotency-Key": str(uuid4())},
+                                       json={"topic": topic})
+                self.assertEqual(response.status_code, 200, response.text[:300])
+                run_id = response.json()["id"]
+                if approve:
+                    revision = 0
+                    for step in ("analysis", "storyboard"):
+                        review = client.post(f"/editorial/runs/{run_id}/steps/{step}/review",
+                                             json={"action": "accept", "expected_revision": revision})
+                        self.assertEqual(review.status_code, 200, review.text[:300])
+                        revision += 1
+                return run_id
+
+            blocked_id = create_and_approve("Production sans média", False)
+            ready_id = create_and_approve("Production prête", True)
+            for scene_number in (1, 2, 3):
+                self.assertEqual(client.post(f"/editorial/runs/{ready_id}/scenes/{scene_number}/image").status_code, 201)
+            self.assertEqual(client.post(f"/editorial/runs/{ready_id}/voice").status_code, 200)
+            self.assertEqual(client.post(f"/editorial/runs/{ready_id}/video").status_code, 200)
+
+        self.page.goto(self.base + "/studio")
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        self.page.locator("#studio-shell").wait_for(state="visible")
+        self.page.locator(f'.story-card [data-open="{blocked_id}"]').click()
+        self.page.locator('[data-route="production"]').click()
+        blocked_button = self.page.locator('[data-action="export-video"]')
+        expect(blocked_button).to_be_disabled()
+        expect(self.page.locator("#export-video-status")).to_contain_text("approbation")
+        requested_content = []
+        self.page.on("request", lambda request: requested_content.append(request.url)
+                     if "/media/" in request.url and request.url.endswith("/content") else None)
+        blocked_button.evaluate("button => button.click()")
+        self.assertEqual(requested_content, [], "No MP4 request is allowed before approval and media readiness")
+
+        self.page.locator('[data-action="library"]').click()
+        self.page.locator(f'.story-card [data-open="{ready_id}"]').click()
+        self.page.locator('[data-route="production"]').click()
+        ready_button = self.page.locator('[data-action="export-video"]')
+        expect(ready_button).to_be_enabled()
+        with self.page.expect_download() as download:
+            ready_button.click()
+        self.assertTrue(download.value.suggested_filename.endswith(".mp4"))
+        self.assertEqual(len(requested_content), 1)
 
     def test_accessible_tab_navigation_and_small_text_contrast(self):
         self.sign_in()
