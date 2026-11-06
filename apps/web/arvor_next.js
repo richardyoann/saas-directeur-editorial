@@ -10,8 +10,8 @@ const escapeHtml=(value)=>String(value??'').replace(/[&<>"']/g, c=>({'&':'&amp;'
 const escapeAttr=escapeHtml;
 const formatDay=iso=>{const d=new Date(iso||0);return iso&&!isNaN(d.getTime())?d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'—';};
 const today=()=>new Date().toISOString().slice(0,10);
-let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null,prodData=null,prodError=null,journalData=null,journalError=null,journalPage=1,adminError=null;
-const state={route:'stories',storyId:null,panel:'overview',sceneIndex:0,filter:'Toutes',query:'',journalFilter:'Tout',journalQuery:'',adminTab:'Vue d’ensemble',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarMode:'Mois'};
+let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null,prodData=null,prodError=null,journalData=null,journalError=null,adminError=null;
+const state={route:'stories',storyId:null,panel:'overview',sceneIndex:0,filter:'Toutes',query:'',journalFilter:'Tout',journalQuery:'',journalPage:1,adminTab:'Vue d’ensemble',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarMode:'Mois'};
 let editorAction=null,toastTimer;
 const persist=()=>{};
 const story=id=>stories.find(s=>s.id===id);
@@ -63,12 +63,12 @@ async function loginPrivate(e){
 }
 $('#login-form').addEventListener('submit',loginPrivate);
 $('#logout-next').addEventListener('click',async()=>{
- try{await api('/studio/logout','POST');csrf=null;stories=[];adminData=null;journalData=null;journalError=null;adminError=null;journalPage=1;
+ try{await api('/studio/logout','POST');csrf=null;stories=[];adminData=null;journalData=null;journalError=null;adminError=null;state.journalPage=1;
  $('#studio-shell').hidden=true;$('#login-screen').hidden=false;}
  catch(e){showToast('Déconnexion non confirmée : '+e.message)}
 });
 async function loadJournal(){
- const id=state.storyId;if(!id){journalData=null;journalError=null;journalPage=1;render();return}
+ const id=state.storyId;if(!id){journalData=null;journalError=null;state.journalPage=1;render();return}
  try{
   const [history,reviews]=await Promise.allSettled([
    api('/studio/api/runs/'+encodeURIComponent(id)+'/history'),
@@ -94,7 +94,7 @@ async function loadJournal(){
    });
   }
   journalData={rows:rows.sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
-  journalError=null;journalPage=1;render();
+  journalError=null;state.journalPage=1;render();
  }catch(e){journalError=e.message;journalData=null;render()}
 }
 async function loadAdmin(){
@@ -128,7 +128,7 @@ function mapRun(run){
  return item;
 }
 async function navigate(route,storyId=null,panel='overview'){
- if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;journalPage=1;prodError=null;}
+ if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;state.journalPage=1;prodError=null;}
  state.route=route;state.storyId=storyId;state.panel=panel;state.sceneIndex=0;historyData=null;
  closeMobile();render();window.scrollTo({top:0,behavior:'auto'});
  if(route==='stories'&&storyId){
@@ -544,3 +544,4 @@ $('#help').addEventListener('click',()=>showToast('Atelier privé connecté à v
 window.addEventListener('keydown',e=>{if(e.key==='Escape')closeMobile();if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();navigate('stories');$('#story-search')?.focus()}});
 launch();
 })();
+
