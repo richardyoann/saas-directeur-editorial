@@ -163,3 +163,76 @@ le shell de navigation et le tableau de bord (écran n°1).
 
 - Lot 5 : qualification finale (régression, CI locale 16 contrôles, navigateur, résolutions,
   sécurité, documentation, revue finale).
+
+## Lot 5 bis — correctifs UX issus de la revue indépendante (6 novembre 2026)
+
+**État :** correctifs frontend préparés sur `fix/studio-lot5-ux-20261105`. La recette
+Chromium et la qualification visuelle restent bloquées par l'environnement WSL décrit
+ci-dessous ; ce lot n'est pas qualifié GO.
+
+### Corrections
+
+- La navigation devient un tiroir compact à 930 px et moins, au lieu d'une barre verticale
+  pleine largeur sur tablette. Le contrôle de menu expose son état, conserve la route et
+  l'histoire sélectionnée, rend les liens inactifs au clavier quand le tiroir est fermé et
+  rend le focus au contrôle de menu à la fermeture.
+- Le bandeau mobile permet le retour à la ligne et réduit ses colonnes ; les grilles passent
+  à une colonne à 690 px. La page ne masque pas ses débordements en créant un défilement
+  horizontal global.
+- Les onglets d'administration indiquent le défilement sur petit écran, gardent leur
+  barre de défilement visible et supportent les flèches gauche/droite ainsi que Home/End.
+  Les états GitHub `operational`, `unavailable` et `not_configured` restent issus de l'API.
+- Le journal sépare type, action, acteur, version, statut, provenance et résultat dans des
+  champs nommés ; les dates absentes ou invalides apparaissent comme « Date inconnue ».
+  Il continue de lire uniquement les endpoints d'historique et de décisions réels.
+- La Production ne montre qu'une action MP4, inactive tant que l'approbation, le statut prêt,
+  l'identifiant média et l'appartenance exacte au run sélectionné ne sont pas confirmés.
+  La réponse de téléchargement doit aussi avoir le type MIME `video/mp4`. Le JSON storyboard
+  reste un export distinct. Aucun contrat serveur ou contrôle d'accès n'a été retiré.
+
+### Vérifications et limites
+
+- `node --check apps/web/arvor_next.js` : réussi avec Node 26.13.0.
+- `python -m unittest tests.test_studio_cinematic_redesign tests.test_studio tests.test_studio_conception tests.test_arvor_reference -v` : 39 tests réussis.
+- `python -m unittest discover -s browser_checks -p test_studio_browser.py -v` : 23 tests réussis,
+  sans skip, dans le conteneur isolé local d'ID `sha256:67d3e41d12b1064ca484db7b32116e4c8807dd00d8898bc5e4b95de2f4e4c83b`.
+  Ce conteneur a utilisé Chromium Playwright, réseau désactivé et le checkout monté en lecture seule.
+- Les nouveaux parcours contrôlent les six routes aux cinq résolutions, le tiroir clavier/tactile,
+  le contexte d'histoire, les onglets d'administration, les métadonnées de journal et les états
+  MP4 absent/interdit/prêt. Ces parcours utilisent la fixture navigateur jetable décrite dans
+  `tests/studio_browser_fixture.py` ; ce n'est pas une recette sur PostgreSQL/LLM du PC.
+- En conséquence, aucune nouvelle capture des 30 vues ni comparaison de parité n'est
+  attestée par ce travail. Les états Histoires bibliothèque/détail et Conception
+  sélectionné/vide demandent une recette dédiée sur état métier comparable ; le présent
+  patch ne fabrique aucune donnée pour les faire correspondre.
+- Le tableau de bord conserve ses agrégats et activités réellement renvoyés par l'API.
+  Sa composition diffère encore de la référence ; cet écart produit doit être arbitré
+  séparément. Les polices sont des fontes système et les images sont locales, sans appel
+  Google Fonts ou Unsplash dans le Studio.
+- **Verdict Lot 5 bis : NO GO pour fusion** tant que les captures aux cinq résolutions,
+  les 30 comparaisons d'états équivalents et les 16 portes officielles de CI sur le SHA
+  final n'ont pas été obtenues. La réussite des 23 parcours de développement ne vaut pas
+  qualification 16/16. Aucune fusion ni livraison PC n'a été exécutée.
+
+
+## Qualification Lot 5 — passe de contrôle locale (7 novembre 2026, session agent)
+
+**Contexte :** reprise de la mission « correction, mise en conformité et préparation MEP du lot 5 » sur PR #241 (`fix/studio-lot5-ux-20261105`, HEAD `da0aeca61d7df2befbdcbfd951941c6ab50b5af0`, DRAFT). Dossier détaillé : `docs/LOT5_MEP_DOSSIER_20261107.md`.
+
+### Contrôles exécutés (preuves locales, SHA `da0aeca`)
+- `node --check apps/web/arvor_next.js` : **OK** (Node 24, runner externals `/home/yoann_admin/.local/share/editorial-actions-runner/externals.2.338.2/node24/bin/node`).
+- `python -m unittest tests.test_studio_cinematic_redesign -v` : **25/25 OK** (venv `/home/yoann_admin/editorial-runtime/current/.venv`).
+- `python -m unittest tests.test_studio tests.test_arvor_reference -v` : **12/12 OK**.
+- `python -m unittest discover -s tests -p 'test_studio*.py' -v` : **37/37 OK**.
+- Inventaire recette visuelle `/tmp/arvor_visual_review_lot5` : 30 maquettes + 30 captures app + 12 comparaisons initiales ; **18 comparaisons composites ajoutées le 2026-11-07** (1366×768, 768×1024, 360×800 × 6 écrans) depuis originaux existants, `MANIFESTE.json` mis à jour avec `generated_from_existing_captures:true`. **Ce ne sont pas des recaptures applicatives du HEAD.**
+
+### Contrôles non exécutés / bloquants restants
+- Recapture application 30 vues × 5 résolutions sur le SHA final, états métier équivalents (sans fabrication), comparaison/inspection visuelle humaine.
+- 16 portes officielles CI locale sur clone autonome propre du SHA final (mécanisme `arvor_local_ci` / qualification officielle) — historique 16/16 sur `8aeb5ba` ne couvre pas `da0aeca`.
+- Parcours navigateur/Chromium complets en environnement qualifié (conteneur Playwright documenté absent localement).
+- Régression complète + PostgreSQL jetable + audits dépendances/supply chain/gitleaks via mécanisme officiel.
+- Revue indépendante formelle.
+- Arbitrage produit : composition tableau de bord vs maquette.
+
+### Verdict
+**NO-GO fusion / NO-GO validation MEP.** Aucune fusion ni déploiement PC effectué.
