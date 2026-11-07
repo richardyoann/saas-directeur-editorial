@@ -1,5 +1,18 @@
 # État du projet
 
+## LOT 5 STUDIO CINÉMATIQUE — qualification en cours, 7 novembre 2026
+
+PR #241 (DRAFT, `fix/studio-lot5-ux-20261105`, HEAD `da0aeca61d7df2befbdcbfd951941c6ab50b5af0`) :
+correctifs responsive/export/journal/admin déjà présents ; passe de contrôle locale
+2026-11-07 = `node --check` OK, 37 tests studio ciblés OK (25 redesign + 12 studio/référence
++ 2 conception via suites ciblées), inventaire recette visuelle complété (30/30 originaux ;
+12 comparaisons initiales + 18 composites générés depuis originaux existants, non recaptures
+HEAD). **Verdict NO-GO fusion / NO-GO MEP** : recaptures app 5 résolutions sur SHA final en
+états métier équivalents, 16 portes officielles sur clone autonome propre, parcours
+navigateur qualifiés, régression/PG/audits officiels, revue indépendante et arbitrage
+dashboard non démontrés. **Aucune fusion, aucune livraison PC.** Détail :
+`docs/LOT5_MEP_DOSSIER_20261107.md`, `docs/STUDIO_CINEMATIC_REDESIGN_20261031.md`.
+
 ## PRODUCTION MÉDIA 75 S — 28 octobre 2026
 
 Chaîne voix/vidéo depuis un storyboard approuvé : `POST .../voice` (Piper réel),

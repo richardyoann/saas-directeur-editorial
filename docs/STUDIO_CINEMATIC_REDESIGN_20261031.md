@@ -213,3 +213,26 @@ ci-dessous ; ce lot n'est pas qualifié GO.
   les 30 comparaisons d'états équivalents et les 16 portes officielles de CI sur le SHA
   final n'ont pas été obtenues. La réussite des 23 parcours de développement ne vaut pas
   qualification 16/16. Aucune fusion ni livraison PC n'a été exécutée.
+
+
+## Qualification Lot 5 — passe de contrôle locale (7 novembre 2026, session agent)
+
+**Contexte :** reprise de la mission « correction, mise en conformité et préparation MEP du lot 5 » sur PR #241 (`fix/studio-lot5-ux-20261105`, HEAD `da0aeca61d7df2befbdcbfd951941c6ab50b5af0`, DRAFT). Dossier détaillé : `docs/LOT5_MEP_DOSSIER_20261107.md`.
+
+### Contrôles exécutés (preuves locales, SHA `da0aeca`)
+- `node --check apps/web/arvor_next.js` : **OK** (Node 24, runner externals `/home/yoann_admin/.local/share/editorial-actions-runner/externals.2.338.2/node24/bin/node`).
+- `python -m unittest tests.test_studio_cinematic_redesign -v` : **25/25 OK** (venv `/home/yoann_admin/editorial-runtime/current/.venv`).
+- `python -m unittest tests.test_studio tests.test_arvor_reference -v` : **12/12 OK**.
+- `python -m unittest discover -s tests -p 'test_studio*.py' -v` : **37/37 OK**.
+- Inventaire recette visuelle `/tmp/arvor_visual_review_lot5` : 30 maquettes + 30 captures app + 12 comparaisons initiales ; **18 comparaisons composites ajoutées le 2026-11-07** (1366×768, 768×1024, 360×800 × 6 écrans) depuis originaux existants, `MANIFESTE.json` mis à jour avec `generated_from_existing_captures:true`. **Ce ne sont pas des recaptures applicatives du HEAD.**
+
+### Contrôles non exécutés / bloquants restants
+- Recapture application 30 vues × 5 résolutions sur le SHA final, états métier équivalents (sans fabrication), comparaison/inspection visuelle humaine.
+- 16 portes officielles CI locale sur clone autonome propre du SHA final (mécanisme `arvor_local_ci` / qualification officielle) — historique 16/16 sur `8aeb5ba` ne couvre pas `da0aeca`.
+- Parcours navigateur/Chromium complets en environnement qualifié (conteneur Playwright documenté absent localement).
+- Régression complète + PostgreSQL jetable + audits dépendances/supply chain/gitleaks via mécanisme officiel.
+- Revue indépendante formelle.
+- Arbitrage produit : composition tableau de bord vs maquette.
+
+### Verdict
+**NO-GO fusion / NO-GO validation MEP.** Aucune fusion ni déploiement PC effectué.
