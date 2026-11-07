@@ -105,8 +105,8 @@ async function loadAdmin(){
    api('/studio/api/conception/ci?limit=80')
   ]);
   adminError=null;
-  if(parts[0].status==='fulfilled'){adminData=parts[0].value;commitsData=parts[1].status==='fulfilled'?parts[1].value:null;ciData=parts[2].status==='fulfilled'?parts[2].value:null}
-  else{adminError=parts[0].reason.status===503?'Intégration GitHub non configurée.':'Suivi GitHub indisponible.';adminData=null;commitsData=null;ciData=null}
+  if(parts.every(part=>part.status==='fulfilled')){adminData=parts[0].value;commitsData=parts[1].value;ciData=parts[2].value}
+  else{adminError=parts[0].status==='rejected'&&parts[0].reason?.status===503?'Intégration GitHub non configurée.':'Suivi GitHub indisponible.';adminData=null;commitsData=null;ciData=null}
   render();
  }catch(err){adminError=err.message;adminData=null;commitsData=null;ciData=null}
 }
