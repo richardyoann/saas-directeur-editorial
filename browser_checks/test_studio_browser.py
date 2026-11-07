@@ -627,6 +627,51 @@ class StudioBrowserJourneys(unittest.TestCase):
             self.page.locator('#sidebar [data-route="stories"]').click()
             expect(self.page.locator(".story-banner h1")).to_have_text(expected_story)
 
+    def test_next_studio_intermediate_widths_keep_content_inside_columns(self):
+        """931-1279 px must not clip the atelier or dashboard grid content."""
+        with httpx.Client(base_url=self.base, headers=AUTH) as client:
+            response = client.post("/editorial/runs", headers={"Idempotency-Key": str(uuid4())},
+                                   json={"topic": "Largeurs intermédiaires"})
+            self.assertEqual(response.status_code, 200, response.text[:300])
+        self.page.goto(self.base + "/studio")
+        self.page.locator("#login-password").fill(PASSWORD)
+        self.page.locator("#login-submit").click()
+        self.page.locator("#studio-shell").wait_for(state="visible")
+        self.page.locator(".story-card [data-open]").click()
+        self.page.locator(".panel-grid").wait_for(state="visible")
+        for width in (931, 1024, 1279):
+            self.page.set_viewport_size({"width": width, "height": 900})
+            self.page.wait_for_timeout(300)
+            page_width = self.page.evaluate("document.documentElement.scrollWidth")
+            self.assertLessEqual(page_width, width + 1,
+                                 f"Horizontal page overflow at {width}: {page_width}")
+            columns = self.page.locator(".panel-grid").evaluate(
+                "el => getComputedStyle(el).gridTemplateColumns")
+            self.assertNotIn(" ", columns.strip(),
+                             f"The atelier must be single-column at {width}: {columns}")
+            overflow = self.page.locator(".panel-grid").evaluate(
+                "el => el.scrollWidth - el.clientWidth")
+            self.assertLessEqual(overflow, 1,
+                                 f"Atelier content overflows its column at {width}: {overflow}px")
+            self.page.locator('#sidebar [data-route="overview"]').click()
+            self.page.wait_for_timeout(300)
+            columns = self.page.locator(".dash-grid").evaluate(
+                "el => getComputedStyle(el).gridTemplateColumns")
+            self.assertNotIn(" ", columns.strip(),
+                             f"The dashboard must be single-column at {width}: {columns}")
+            overflow = self.page.locator(".dash-grid").evaluate(
+                "el => el.scrollWidth - el.clientWidth")
+            self.assertLessEqual(overflow, 1,
+                                 f"Dashboard content overflows its column at {width}: {overflow}px")
+            self.page.locator('#sidebar [data-route="stories"]').click()
+            self.page.wait_for_timeout(300)
+        self.page.set_viewport_size({"width": 1280, "height": 900})
+        self.page.wait_for_timeout(300)
+        columns = self.page.locator(".panel-grid").evaluate(
+            "el => getComputedStyle(el).gridTemplateColumns")
+        self.assertIn(" ", columns.strip(),
+                      f"1280 px must keep the two-column desktop atelier: {columns}")
+
     def test_next_studio_admin_tabs_are_keyboard_reachable_on_mobile(self):
         self.page.set_viewport_size({"width": 390, "height": 844})
         self.page.goto(self.base + "/studio")

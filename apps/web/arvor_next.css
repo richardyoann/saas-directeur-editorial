@@ -371,6 +371,10 @@ p{line-height:1.7}.muted{color:var(--muted)}.eyebrow{color:var(--gold);font-size
  .production-video{max-height:70vh}
 }
 @media(min-width:691px) and (max-width:930px){.content{padding:28px clamp(20px,4vw,42px) 72px}.page-heading{gap:16px}}
+/* Lot 5: between the mobile drawer and the desktop layout, the two-column
+   atelier/dashboard keep content wider than their track. Stack them so no
+   label or card is clipped before the 1280 px desktop breakpoint. */
+@media(min-width:931px) and (max-width:1279px){.panel-grid,.dash-grid{grid-template-columns:minmax(0,1fr)}}
 
 .journal-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr));gap:10px;margin:16px 0 0}
 .journal-meta>div{min-width:0;padding:10px 12px;background:var(--bg-inset);border:1px solid var(--line-soft);border-radius:8px}
