@@ -10,7 +10,7 @@ const escapeHtml=(value)=>String(value??'').replace(/[&<>"']/g, c=>({'&':'&amp;'
 const escapeAttr=escapeHtml;
 const formatDay=iso=>{const d=new Date(iso||0);return iso&&!isNaN(d.getTime())?d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'—';};
 const today=()=>new Date().toISOString().slice(0,10);
-let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null,prodData=null,prodError=null,journalData=null,journalError=null,journalPage=1,adminError=null;
+let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null,prodData=null,prodError=null,journalData=null,journalError=null,journalPage=1,journalBeforeRevision=null,journalHasMoreReviews=false,journalLoadingOlder=false,adminError=null;
 const state={route:'stories',storyId:null,panel:'overview',sceneIndex:0,filter:'Toutes',query:'',journalFilter:'Tout',journalQuery:'',adminTab:'Vue d’ensemble',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarMode:'Mois'};
 let editorAction=null,toastTimer;
 const persist=()=>{};
@@ -63,12 +63,14 @@ async function loginPrivate(e){
 }
 $('#login-form').addEventListener('submit',loginPrivate);
 $('#logout-next').addEventListener('click',async()=>{
- try{await api('/studio/logout','POST');csrf=null;stories=[];adminData=null;journalData=null;journalError=null;adminError=null;journalPage=1;
+ try{await api('/studio/logout','POST');csrf=null;stories=[];adminData=null;journalData=null;journalError=null;adminError=null;journalPage=1;journalBeforeRevision=null;journalHasMoreReviews=false;journalLoadingOlder=false;
  $('#studio-shell').hidden=true;$('#login-screen').hidden=false;}
  catch(e){showToast('Déconnexion non confirmée : '+e.message)}
 });
 async function loadJournal(){
- const id=state.storyId;if(!id){journalData=null;journalError=null;journalPage=1;render();return}
+ const id=state.storyId;
+ if(!id){journalData=null;journalError=null;journalBeforeRevision=null;journalHasMoreReviews=false;journalLoadingOlder=false;journalPage=1;render();return}
+ journalBeforeRevision=null;journalHasMoreReviews=false;journalLoadingOlder=false;
  try{
   const [history,reviews]=await Promise.allSettled([
    api('/studio/api/runs/'+encodeURIComponent(id)+'/history'),
@@ -87,15 +89,51 @@ async function loadJournal(){
      version:st.prompt_version||'',provenance:st.response_metadata?.model||'',agent:st.response_metadata?.provider||'',human:false});
    });
   }
-  if(reviews.status==='fulfilled'){
-   (reviews.value?.reviews||[]).forEach(r=>{
-    rows.push({date:r.created_at||'',kind:'decision',title:'Décision humaine — '+(r.step==='analysis'?'Analyse':'Storyboard'),
-     detail:r.comment||'',action:r.action,actionLabel:{accept:'Acceptée',reject:'Rejetée',revise:'Révisée'}[r.action]||r.action,status:r.valid?'Décision acceptée':'Décision refusée',version:'Rev. '+(r.revision||''),provenance:r.source_result_id||'',agent:r.actor_id||'',human:true});
-   });
-  }
+  const reviewPage=reviews.status==='fulfilled'?(reviews.value?.reviews||[]):[];
+  rows.push(...journalReviewRows(reviewPage));
+  journalBeforeRevision=journalReviewCursor(reviewPage);
+  journalHasMoreReviews=journalBeforeRevision!==null;
+  if(reviewPage.length>=50&&!journalHasMoreReviews)failures.push('Pagination des décisions antérieures indisponible.');
   journalData={rows:rows.sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
   journalError=failures.length?failures.join(' · '):null;journalPage=1;render();
  }catch(e){journalError=e.message;journalData=null;render()}
+}
+function journalReviewRows(reviews){
+ return (reviews||[]).map(r=>({date:r.created_at||'',kind:'decision',
+  title:'Décision humaine — '+(r.step==='analysis'?'Analyse':'Storyboard'),detail:r.comment||'',
+  action:r.action,actionLabel:{accept:'Acceptée',reject:'Rejetée',revise:'Révisée'}[r.action]||r.action,
+  status:r.valid?'Décision acceptée':'Décision refusée',version:'Rev. '+(r.revision||''),
+  provenance:r.source_result_id||'',agent:r.actor_id||'',human:true,
+  revision:Number.isSafeInteger(Number(r.revision))&&Number(r.revision)>0?Number(r.revision):null}));
+}
+function journalReviewCursor(reviews){
+ if(!Array.isArray(reviews)||reviews.length<50)return null;
+ const revisions=reviews.map(r=>Number(r.revision)).filter(n=>Number.isSafeInteger(n)&&n>0);
+ return revisions.length===reviews.length?Math.min(...revisions):null;
+}
+async function loadOlderJournalReviews(){
+ const id=state.storyId,beforeRevision=journalBeforeRevision;
+ if(!id||!journalData||!journalHasMoreReviews||journalLoadingOlder||!Number.isSafeInteger(beforeRevision)||beforeRevision<1)return;
+ journalLoadingOlder=true;journalError=null;render();
+ try{
+  const result=await api('/studio/api/runs/'+encodeURIComponent(id)+'/reviews?limit=50&before_revision='+beforeRevision);
+  if(state.storyId!==id)return;
+  const page=Array.isArray(result?.reviews)?result.reviews:[];
+  const known=new Set(journalData.rows.filter(row=>row.kind==='decision'&&row.revision!==null).map(row=>row.revision));
+  const olderRows=journalReviewRows(page).filter(row=>row.revision===null||!known.has(row.revision));
+  journalData={rows:journalData.rows.concat(olderRows).sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
+  const nextRevision=journalReviewCursor(page);
+  if(page.length>=50&&(nextRevision===null||nextRevision>=beforeRevision)){
+   journalBeforeRevision=null;journalHasMoreReviews=false;
+   journalError='Pagination des décisions antérieures indisponible.';
+  }else{
+   journalBeforeRevision=nextRevision;journalHasMoreReviews=nextRevision!==null;
+  }
+ }catch(error){
+  if(state.storyId===id)journalError='Historique des décisions antérieures indisponible.';
+ }finally{
+  if(state.storyId===id){journalLoadingOlder=false;render()}
+ }
 }
 async function loadAdmin(){
  try{
@@ -369,6 +407,7 @@ function renderJournal(){
    <div class="toolbar"><div class="filter-tabs">${[['Tout','Tout'],['Décisions humaines','decision'],['Traitements IA','ia']].map(([name,k])=>`<button type="button" class="filter-btn ${state.journalFilter===k?'active':''}" data-journal-filter="${k}" aria-pressed="${state.journalFilter===k}">${name}</button>`).join('')}</div><label class="searchbox">${ico('search')}<input id="journal-search" aria-label="Rechercher dans le journal" placeholder="Rechercher une trace…" value="${escapeAttr(state.journalQuery)}"></label></div>
    <section class="panel"><div class="eyebrow">TRACES RÉELLES</div>${journalError?`<div class="warning" role="status">${escapeHtml(journalError)} Les traces disponibles restent affichées.</div>`:'' }<div id="timeline" class="timeline">${pagerRows.map(r=>`<article class="timeline-row"><time>${escapeHtml(r.date?formatDay(r.date):'—')}</time><h3>${escapeHtml(r.title)}</h3><p>${escapeHtml(r.detail)}</p><div class="mini-meta"><span>${escapeHtml(r.status)}</span>${r.human?`<span>Décision ${escapeHtml(r.actionLabel||r.action||'—')}</span>`:''}<span>Version ${escapeHtml(r.version||'—')}</span><span>Agent ${escapeHtml(r.agent||'—')}</span><span>${escapeHtml(r.provenance||'—')}</span></div></article>`).join('')||'<div class="empty-state">Aucune trace correspondante.</div>'}</div>
    ${totalPages>1?`<div class="decision-bar"><div><b>${page} sur ${totalPages}</b></div><button type="button" class="button secondary" data-journal-page="${page-1}" ${page<=1?'disabled':''}>Page précédente</button><button type="button" class="button secondary" data-journal-page="${page+1}" ${page>=totalPages?'disabled':''}>Page suivante</button></div>`:''}
+   ${journalHasMoreReviews?`<div class="decision-bar"><div><b>Décisions anciennes</b><p>Les décisions suivantes peuvent être chargées.</p></div><button type="button" class="button secondary" data-journal-older ${journalLoadingOlder?'disabled':''}>${journalLoadingOlder?'Chargement…':'Charger les décisions plus anciennes'}</button></div>`:''}
    </section>`;
  }
  return body;
@@ -448,7 +487,8 @@ function bindContent(){
  if($('#story-search')){libraryCards();bindLibraryOpen();$('#story-search').addEventListener('input',e=>{state.query=e.target.value;libraryCards();bindLibraryOpen()})}
  if($('#journal-search'))$('#journal-search').addEventListener('input',e=>{state.journalQuery=e.target.value;state.journalPage=1;const active=document.activeElement;const caret=e.target.selectionStart;render();const inp=$('#journal-search');inp.focus();inp.setSelectionRange(caret,caret)});
  $$('[data-journal-filter]').forEach(x=>x.addEventListener('click',()=>{state.journalFilter=x.dataset.journalFilter;state.journalPage=1;render()}));
- $$('[data-journal-page]').forEach(x=>x.addEventListener('click',()=>{state.journalPage=Number(x.dataset.journalPage)||1;render()}));
+ $('[data-journal-page]').forEach(x=>x.addEventListener('click',()=>{state.journalPage=Number(x.dataset.journalPage)||1;render()}));
+ $('[data-journal-older]').forEach(x=>x.addEventListener('click',()=>loadOlderJournalReviews()));
  $$('[data-journal-retry]').forEach(x=>x.addEventListener('click',()=>loadJournal()));
  $$('[data-admin-tab]').forEach(x=>x.addEventListener('click',()=>{state.adminTab=x.dataset.adminTab;render()}));
  $$('[data-calendar-mode]').forEach(x=>x.addEventListener('click',()=>{state.calendarMode=x.dataset.calendarMode;render()}));
