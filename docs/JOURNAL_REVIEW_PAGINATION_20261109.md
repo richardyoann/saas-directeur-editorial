@@ -17,3 +17,6 @@ Le test simule deux pages (50 puis 10 décisions), vérifie le curseur `before_r
 Pour cette révision, ce scénario a été exécuté avec Node VM sur les fonctions `loadJournal`, `loadOlderJournalReviews` et `renderJournal` extraites de `apps/web/arvor_next.js` à la tête de la PR. Le service privé est simulé ; aucune donnée métier ni base de production n'est utilisée. Cette preuve ciblée ne remplace pas la suite complète, Chromium, les contrats PostgreSQL/isolation tenant, la revue indépendante ni les statuts CI au SHA final.
 
 Aucun changement d'installation, de configuration, de migration ou de déploiement n'est inclus. Retour arrière : rétablir la version précédente de `apps/web/arvor_next.js` et retirer le test et ce document dans un commit de revert ; aucune donnée n'est modifiée.
+
+## Remise à la première page
+Le numéro de page locale appartient désormais à l'état du journal (`state.journalPage`), partagé par le rendu et les événements. Le chargement d'une histoire ou l'absence d'identifiant réinitialise cet état à la page 1, au lieu de laisser le rendu sur la dernière page visitée d'une autre histoire. Le test `node tests/js/journal_page_reset.test.cjs` reproduit le chargement avec une page précédente à 3 et vérifie le retour sur « 1 sur 3 ».
