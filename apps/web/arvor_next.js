@@ -77,7 +77,7 @@ async function loadJournal(){
   const failures=[];
   if(history.status==='rejected')failures.push('Historique des traitements indisponible.');
   if(reviews.status==='rejected')failures.push('Historique des décisions indisponible.');
-  if(failures.length){journalError=failures.join(' · ');journalData=null;render();return}
+  if(failures.length===2){journalError=failures.join(' · ');journalData=null;render();return}
   const rows=[];
   if(history.status==='fulfilled'){
    (history.value?.steps||[]).forEach(st=>{
@@ -94,7 +94,7 @@ async function loadJournal(){
    });
   }
   journalData={rows:rows.sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
-  journalError=null;journalPage=1;render();
+  journalError=failures.length?failures.join(' · '):null;journalPage=1;render();
  }catch(e){journalError=e.message;journalData=null;render()}
 }
 async function loadAdmin(){
@@ -357,7 +357,7 @@ function renderJournal(){
  let body='';
  if(!state.storyId){
   body=`<div class="page-heading"><div><div class="eyebrow">RIEN NE SE PERD</div><h1>La mémoire de vos créations.</h1><p>Retrouvez les décisions, les versions et les étapes de chaque récit.</p></div></div><section class="panel"><div class="empty-state"><h3>Aucune histoire sélectionnée.</h3><p>Sélectionnez une histoire dans la bibliothèque pour retrouver ses traces réelles.</p><button type="button" class="button secondary" data-action="library">${ico('book')} Voir mes histoires</button></div></section>`;
- }else if(journalError){
+ }else if(journalError&&!journalData){
   body=`<div class="backline"><button type="button" class="button secondary" data-action="library">${ico('left')} Retour</button></div>
    <section class="panel"><div class="empty-state"><h3>Journal indisponible.</h3><p>${escapeHtml(journalError)}</p><button type="button" class="button secondary" data-action="library">Retour</button></div></section>`;
  }else if(!journalData){
@@ -367,7 +367,7 @@ function renderJournal(){
   const {pagerRows,page,totalPages}=journalVisible();
   body=`<div class="page-heading"><div><div class="eyebrow">RIEN NE SE PERD</div><h1>La mémoire de vos créations.</h1><p>Retrouvez les décisions, les versions et les étapes de chaque récit.</p></div></div>
    <div class="toolbar"><div class="filter-tabs">${[['Tout','Tout'],['Décisions humaines','decision'],['Traitements IA','ia']].map(([name,k])=>`<button type="button" class="filter-btn ${state.journalFilter===k?'active':''}" data-journal-filter="${k}" aria-pressed="${state.journalFilter===k}">${name}</button>`).join('')}</div><label class="searchbox">${ico('search')}<input id="journal-search" aria-label="Rechercher dans le journal" placeholder="Rechercher une trace…" value="${escapeAttr(state.journalQuery)}"></label></div>
-   <section class="panel"><div class="eyebrow">TRACES RÉELLES</div><div id="timeline" class="timeline">${pagerRows.map(r=>`<article class="timeline-row"><time>${escapeHtml(r.date?formatDay(r.date):'—')}</time><h3>${escapeHtml(r.title)}</h3><p>${escapeHtml(r.detail)}</p><div class="mini-meta"><span>${escapeHtml(r.status)}</span>${r.human?`<span>Décision ${escapeHtml(r.actionLabel||r.action||'—')}</span>`:''}<span>Version ${escapeHtml(r.version||'—')}</span><span>Agent ${escapeHtml(r.agent||'—')}</span><span>${escapeHtml(r.provenance||'—')}</span></div></article>`).join('')||'<div class="empty-state">Aucune trace correspondante.</div>'}</div>
+   <section class="panel"><div class="eyebrow">TRACES RÉELLES</div>${journalError?`<div class="warning" role="status">${escapeHtml(journalError)} Les traces disponibles restent affichées.</div>`:'' }<div id="timeline" class="timeline">${pagerRows.map(r=>`<article class="timeline-row"><time>${escapeHtml(r.date?formatDay(r.date):'—')}</time><h3>${escapeHtml(r.title)}</h3><p>${escapeHtml(r.detail)}</p><div class="mini-meta"><span>${escapeHtml(r.status)}</span>${r.human?`<span>Décision ${escapeHtml(r.actionLabel||r.action||'—')}</span>`:''}<span>Version ${escapeHtml(r.version||'—')}</span><span>Agent ${escapeHtml(r.agent||'—')}</span><span>${escapeHtml(r.provenance||'—')}</span></div></article>`).join('')||'<div class="empty-state">Aucune trace correspondante.</div>'}</div>
    ${totalPages>1?`<div class="decision-bar"><div><b>${page} sur ${totalPages}</b></div><button type="button" class="button secondary" data-journal-page="${page-1}" ${page<=1?'disabled':''}>Page précédente</button><button type="button" class="button secondary" data-journal-page="${page+1}" ${page>=totalPages?'disabled':''}>Page suivante</button></div>`:''}
    </section>`;
  }
