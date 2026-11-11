@@ -45,11 +45,11 @@ def release_info(root, expected):
             pass
     if receipt.is_file():
         try:
-            data = json.loads(receipt.read_text())
-            value = data.get("sha")
+            data = json.loads(receipt.read_text(encoding="utf-8"))
+            value = data.get("sha") if isinstance(data, dict) else None
             if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value):
                 result["receipt_sha"] = value
-        except (OSError, ValueError):
+        except (OSError, ValueError, UnicodeError, RecursionError):
             pass
     if expected:
         result["expected_sha_matches"] = (result["current_sha"] == expected and
