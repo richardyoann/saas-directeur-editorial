@@ -487,8 +487,8 @@ function bindContent(){
  if($('#story-search')){libraryCards();bindLibraryOpen();$('#story-search').addEventListener('input',e=>{state.query=e.target.value;libraryCards();bindLibraryOpen()})}
  if($('#journal-search'))$('#journal-search').addEventListener('input',e=>{state.journalQuery=e.target.value;state.journalPage=1;const active=document.activeElement;const caret=e.target.selectionStart;render();const inp=$('#journal-search');inp.focus();inp.setSelectionRange(caret,caret)});
  $$('[data-journal-filter]').forEach(x=>x.addEventListener('click',()=>{state.journalFilter=x.dataset.journalFilter;state.journalPage=1;render()}));
- $('[data-journal-page]').forEach(x=>x.addEventListener('click',()=>{state.journalPage=Number(x.dataset.journalPage)||1;render()}));
- $('[data-journal-older]').forEach(x=>x.addEventListener('click',()=>loadOlderJournalReviews()));
+ $$('[data-journal-page]').forEach(x=>x.addEventListener('click',()=>{state.journalPage=Number(x.dataset.journalPage)||1;render()}));
+ $$('[data-journal-older]').forEach(x=>x.addEventListener('click',()=>loadOlderJournalReviews()));
  $$('[data-journal-retry]').forEach(x=>x.addEventListener('click',()=>loadJournal()));
  $$('[data-admin-tab]').forEach(x=>x.addEventListener('click',()=>{state.adminTab=x.dataset.adminTab;render()}));
  $$('[data-calendar-mode]').forEach(x=>x.addEventListener('click',()=>{state.calendarMode=x.dataset.calendarMode;render()}));
