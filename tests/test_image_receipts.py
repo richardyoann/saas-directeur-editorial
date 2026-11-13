@@ -4,7 +4,6 @@ import hashlib
 import struct
 import zlib
 import unittest
-from unittest.mock import patch
 
 import httpx
 

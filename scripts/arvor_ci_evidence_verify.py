@@ -128,7 +128,7 @@ def _verify_host_observation(observation, receipt, *, checkout, trusted,
     if (not isinstance(executions, list) or len(executions) != len(GATES)
             or len(gates) != len(GATES)):
         raise ValueError("Missing host-observed gates")
-    for expected_name, host_gate, gate in zip(GATES, executions, gates):
+    for expected_name, host_gate, gate in zip(GATES, executions, gates, strict=True):
         expected_argv = [
             "docker", "exec", "--user=999:999", "--workdir=/workspace",
             observation.get("container_id"), "/opt/arvor/py314/bin/python",
@@ -222,7 +222,7 @@ def verify_receipt(receipt_file, evidence_dir, checkout, expected_sha, base_sha,
         raise ValueError("Receipt is future-dated, reversed, or expired")
 
     checked = []
-    for expected_name, gate in zip(GATES, receipt["gates"]):
+    for expected_name, gate in zip(GATES, receipt["gates"], strict=True):
         if (gate.get("name") != expected_name or gate.get("passed") is not True
                 or gate.get("returncode") != 0):
             raise ValueError("Gate absent, reordered, skipped, or failed")

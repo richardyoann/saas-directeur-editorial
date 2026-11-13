@@ -22,11 +22,11 @@ from uuid import uuid4
 
 from scripts.arvor_local_ci import (
     GATES, MIN_BROWSER_TESTS, MIN_REGRESSION_TESTS,
-    audit_diagnostic, browser_counts, regression_counts,
+    audit_diagnostic, regression_counts,
 )
 from scripts.arvor_ci_evidence_verify import video_proof
 from scripts.arvor_ci_trust import (
-    POLICY_FILES, POLICY_VERSION, SANDBOX_POLICY_FILES, canonical_json, policy_digest, policy_snapshot,
+    POLICY_VERSION, SANDBOX_POLICY_FILES, canonical_json, policy_digest, policy_snapshot,
     validate_docker_inspection,
 )
 

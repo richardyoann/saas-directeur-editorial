@@ -9,7 +9,7 @@ from uuid import uuid4
 import httpx
 
 from apps.api.main import app
-from editorial.api import get_identity, get_store
+from editorial.api import get_store
 from editorial.media.contracts import PersistenceUnavailable, RunConflict, RunMissing
 from production.media_pipeline import ProductionMediaError
 

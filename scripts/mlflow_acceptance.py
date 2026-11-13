@@ -485,7 +485,6 @@ def check_failure_isolation():
 
 
 def check_redaction():
-    import psycopg
     secrets_values = []
     state = Path.home() / ".local/state/arvor-mlflow/secrets"
     for name in ("postgres_password", "minio_secret_key", "basic_auth_password",

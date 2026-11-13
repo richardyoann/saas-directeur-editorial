@@ -163,7 +163,7 @@ class GenerateVideo:
                                              dir=_private_directory(self.config)) as work:
                 work = Path(work)
                 scenes = []
-                for index, (scene, image) in enumerate(zip(inputs["scenes"], inputs["images"]), 1):
+                for index, (scene, image) in enumerate(zip(inputs["scenes"], inputs["images"], strict=True), 1):
                     if not image or not image.get("storage"):
                         raise ProductionMediaError("media_incomplete")
                     name = f"scene-{index}.png"

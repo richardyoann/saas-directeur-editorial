@@ -101,7 +101,7 @@ def select_skills(source, files):
             pattern = selector["glob"].split("/")
             matches = [item for item in skill_files if len(item.split("/")) == len(pattern)
                        and all(fnmatch.fnmatchcase(part, wanted)
-                               for part, wanted in zip(item.split("/"), pattern))]
+                               for part, wanted in zip(item.split("/"), pattern, strict=True))]
         else:
             matches = [item for item in skill_files if PurePosixPath(item).parent.name == selector["name"]]
         if not matches or ("glob" not in selector and len(matches) != 1):

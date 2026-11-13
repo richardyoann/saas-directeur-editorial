@@ -100,7 +100,7 @@ def render(manifest, destination, *, arvor_75=False, telemetry=None):
             work = Path(work)
             subtitles, cursor = [], 0
             receipts = []
-            for index, (scene, image) in enumerate(zip(scenes, assets), 1):
+            for index, (scene, image) in enumerate(zip(scenes, assets, strict=True), 1):
                 copied = work / f"scene-{index}.png"
                 shutil.copyfile(image, copied)
                 receipts.append({"scene": index, "image_sha256": digest(copied), "duration_seconds": scene["duration_seconds"]})

@@ -65,7 +65,7 @@ def prepare_manifest(bundle, *, human_review_confirmed=False):
             or not isinstance(media.get("voice"), str) or not media["voice"].strip()):
         raise ValueError("production_media_incomplete")
     manifest_scenes = []
-    for index, (scene, binding) in enumerate(zip(scenes, images), 1):
+    for index, (scene, binding) in enumerate(zip(scenes, images, strict=True), 1):
         if (not isinstance(binding, dict) or set(binding) != {"scene_index", "image"}
                 or type(binding["scene_index"]) is not int or binding["scene_index"] != index
                 or not isinstance(binding["image"], str) or not binding["image"].strip()):

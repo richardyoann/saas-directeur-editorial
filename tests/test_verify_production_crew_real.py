@@ -1,12 +1,10 @@
 """Offline tests of real-Qwen diagnostic: no actual network or PostgreSQL."""
-import asyncio
 import json
 import unittest
-from unittest.mock import patch
 
 import httpx
 
-from scripts.verify_production_crew_real import private_url, synthetic_source, verify
+from scripts.verify_production_crew_real import private_url, verify
 
 
 class CrewLiveVerificationUnitTests(unittest.IsolatedAsyncioTestCase):
