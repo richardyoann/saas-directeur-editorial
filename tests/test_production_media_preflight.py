@@ -4,6 +4,7 @@ Covers the independent part of the B0 decision: without a Piper binary, a
 local Piper model or an FFmpeg converter, voice and video production must
 answer an explicit stable error before any reservation is taken.
 """
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +16,14 @@ from editorial.media.contracts import Identity
 from production.media_pipeline import (
     GenerateVoice, GenerateVideo, ProductionMediaCapacity, ProductionMediaError,
 )
+
+
+def _fake_executable(directory, name):
+    """Real executable file, so shutil.which() succeeds whatever the host PATH holds."""
+    path = Path(directory) / name
+    path.write_text("#!/bin/sh\nexit 0\n")
+    path.chmod(path.stat().st_mode | stat.S_IXUSR)
+    return str(path)
 
 
 class _StubRepository:
@@ -48,56 +57,58 @@ class ProductionMediaPreflightTests(unittest.IsolatedAsyncioTestCase):
         self.run_id = uuid4()
         self.model = Path(self.temp.name) / "fr_FR-siwis-medium.onnx"
         self.model.write_bytes(b"onnx-bytes")
+        self.piper = _fake_executable(self.temp.name, "piper")
+        self.ffmpeg = _fake_executable(self.temp.name, "ffmpeg")
+        self.missing = str(Path(self.temp.name) / "absent")
 
-    def config(self, *, piper_bin="piper", piper_model=None, ffmpeg_bin="ffmpeg"):
-        return ProductionMediaConfig(
-            piper_bin=piper_bin,
-            piper_model=str(piper_model if piper_model is not None else self.model),
-            ffmpeg_bin=ffmpeg_bin,
-            media_directory=self.temp.name)
+    def config(self, **overrides):
+        values = {"piper_bin": self.piper, "piper_model": str(self.model),
+                  "ffmpeg_bin": self.ffmpeg, "media_directory": self.temp.name}
+        values.update(overrides)
+        return ProductionMediaConfig(**values)
+
+    async def assertVoiceRefused(self, config):
+        repository = _StubRepository()
+        service = GenerateVoice(repository, None, lambda *a, **k: None,
+                                ProductionMediaCapacity(), config)
+        with self.assertRaises(ProductionMediaError) as caught:
+            await service.execute(self.identity, self.run_id)
+        self.assertEqual(caught.exception.code, "voice_provider_unconfigured")
+        self.assertEqual(repository.reserved, [])
+
+    async def test_voice_is_accepted_when_every_prerequisite_is_present(self):
+        self.assertTrue(self.config().voice_configured())
 
     async def test_voice_unconfigured_when_piper_binary_is_missing(self):
-        repository = _StubRepository()
-        service = GenerateVoice(repository, None, lambda *a, **k: None,
-                                ProductionMediaCapacity(),
-                                self.config(piper_bin=str(Path(self.temp.name) / "missing-piper")))
-        with self.assertRaises(ProductionMediaError) as caught:
-            await service.execute(self.identity, self.run_id)
-        self.assertEqual(caught.exception.code, "voice_provider_unconfigured")
-        self.assertEqual(repository.reserved, [])
+        await self.assertVoiceRefused(self.config(piper_bin=self.missing))
 
-    async def test_voice_unconfigured_when_model_is_missing_or_empty(self):
+    async def test_voice_unconfigured_when_model_is_missing(self):
+        await self.assertVoiceRefused(
+            self.config(piper_model=str(Path(self.temp.name) / "absent.onnx")))
+
+    async def test_voice_unconfigured_when_model_is_empty(self):
         self.model.write_bytes(b"")
-        for model in (None, self.model):
-            with self.subTest(model=model is not None):
-                repository = _StubRepository()
-                service = GenerateVoice(repository, None, lambda *a, **k: None,
-                                       ProductionMediaCapacity(),
-                                       self.config(piper_model=model))
-                with self.assertRaises(ProductionMediaError) as caught:
-                    await service.execute(self.identity, self.run_id)
-                self.assertEqual(caught.exception.code, "voice_provider_unconfigured")
-                self.assertEqual(repository.reserved, [])
+        await self.assertVoiceRefused(self.config())
 
     async def test_voice_unconfigured_when_ffmpeg_converter_is_missing(self):
-        repository = _StubRepository()
-        service = GenerateVoice(repository, None, lambda *a, **k: None,
-                                ProductionMediaCapacity(),
-                                self.config(ffmpeg_bin=str(Path(self.temp.name) / "missing-ffmpeg")))
-        with self.assertRaises(ProductionMediaError) as caught:
-            await service.execute(self.identity, self.run_id)
-        self.assertEqual(caught.exception.code, "voice_provider_unconfigured")
-        self.assertEqual(repository.reserved, [])
+        await self.assertVoiceRefused(self.config(ffmpeg_bin=self.missing))
 
-    async def test_video_unconfigured_when_ffmpeg_converter_is_missing(self):
+    async def assertVideoRefused(self, missing_tool):
         repository = _StubRepository()
         service = GenerateVideo(repository, None, lambda *a, **k: None,
                                 ProductionMediaCapacity(), self.config())
-        with patch("apps.api.dependencies.shutil.which", return_value=None):
+        found = lambda name: None if name == missing_tool else "/usr/bin/" + name
+        with patch("apps.api.dependencies.shutil.which", side_effect=found):
             with self.assertRaises(ProductionMediaError) as caught:
                 await service.execute(self.identity, self.run_id)
         self.assertEqual(caught.exception.code, "video_provider_unconfigured")
         self.assertEqual(repository.reserved, [])
+
+    async def test_video_unconfigured_when_ffmpeg_is_missing(self):
+        await self.assertVideoRefused("ffmpeg")
+
+    async def test_video_unconfigured_when_ffprobe_is_missing(self):
+        await self.assertVideoRefused("ffprobe")
 
 
 if __name__ == "__main__":
