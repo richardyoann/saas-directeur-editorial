@@ -66,6 +66,8 @@ def registry(root):
 
 
 def fetch_json(url):
+    if not url.startswith("https://api.github.com/"):
+        raise ValueError("GitHub API URL required")
     request = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "editorial-skills-installer"})
     with urlopen(request, timeout=20) as response:
         return json.load(response)
@@ -101,7 +103,7 @@ def select_skills(source, files):
             pattern = selector["glob"].split("/")
             matches = [item for item in skill_files if len(item.split("/")) == len(pattern)
                        and all(fnmatch.fnmatchcase(part, wanted)
-                               for part, wanted in zip(item.split("/"), pattern))]
+                               for part, wanted in zip(item.split("/"), pattern, strict=True))]
         else:
             matches = [item for item in skill_files if PurePosixPath(item).parent.name == selector["name"]]
         if not matches or ("glob" not in selector and len(matches) != 1):

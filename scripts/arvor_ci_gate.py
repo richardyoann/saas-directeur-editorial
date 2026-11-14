@@ -5,7 +5,6 @@ the host's captured exit status. Run ONLY from the /trusted readonly mount.
 import argparse
 import os
 from pathlib import Path
-import sys
 if __package__:
     from .arvor_local_ci import GATES, commands, validate_db
 else:

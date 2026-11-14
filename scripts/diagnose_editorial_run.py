@@ -62,4 +62,4 @@ if __name__ == "__main__":
         print(json.dumps(report, sort_keys=True))
     except Exception:
         print('{"diagnostic":"unavailable"}', file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from None

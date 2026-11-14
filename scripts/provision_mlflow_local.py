@@ -13,7 +13,6 @@ import argparse
 import json
 import os
 import secrets
-import shutil
 import string
 import subprocess
 import sys

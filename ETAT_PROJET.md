@@ -1,5 +1,75 @@
 # État du projet
 
+## ÉTAT COURANT — 14 novembre 2026
+
+Synthèse établie à partir du dépôt (`main` au merge de la PR #227, 28 octobre 2026)
+et d'une régression complète rejouée le 14 novembre. L'état des PR et des issues
+GitHub n'a pas pu être consulté, sauf la PR #225 (fusionnée, constatée par `gh`
+le 14 novembre) : à confirmer avant toute décision. Le journal
+chronologique ci-dessous est conservé comme historique.
+
+### Où en est le MVP
+
+- **Fonctionnel :** brief → analyse → storyboard → revue humaine → images sd.cpp →
+  voix Piper → vidéo FFmpeg verticale 720×1280 de 75 s, stockage MinIO privé,
+  audit/outbox, Studio privé mono-identité.
+- **Qualité mesurée :** 592 tests, 0 échec, 0 ignoré avec PostgreSQL jetable
+  (rejoués le 14 novembre) ; `pip-audit` sans vulnérabilité ; qualification CI
+  locale 16/16 et recette réelle 15/15 déclarées pour la PR #226 (28 octobre).
+- **Livraison :** PR #226 (voix et vidéo) fusionnée, **aucun déploiement PC** ; le
+  runtime `~/editorial-runtime/current` est inchangé. Toute livraison exige
+  l'approbation explicite du SHA complet.
+
+### Reste à faire, par priorité
+
+| # | Chantier | Critère de sortie |
+|---|---|---|
+| 1 | Livrer la voix et la vidéo (PR #226) sur le PC | SHA complet approuvé, déploiement, recette voix + vidéo réelles sur le poste |
+| 2 | Piper et FFmpeg hors de l'image API | Les embarquer dans l'image, ou déclarer l'hôte PC comme prérequis (variables dans `.env.example`) |
+| 3 | File asynchrone (PR #78) | Worker supervisé par systemd, tests de reprise après crash, recette Qwen réelle, puis seulement `EDITORIAL_ASYNC_ENABLED=true` |
+| 4 | MLflow (PR #225, déjà fusionnée) | Activation dans le service déployé par une livraison distincte sur SHA approuvé ; rétention/purge et mémoire sous charge à définir |
+| 5 | Dépendances | Fusionner ensemble fastapi 0.162.0, pydantic 2.14.3, psycopg 3.3.8, boto3 1.43.125 (588/588 le 14 novembre) ; qualifier `python:3.15-slim` en CI (non testé) ; relire `setup-python 7.1.0` |
+| 6 | Sauvegarde et restauration | Restauration démontrée, politique de rétention, chiffrement des prompts |
+| 7 | Capacité | Quotas par identité/tenant, limitation de débit média, nettoyage des objets orphelins, relais en flux si gros fichiers |
+| 8 | Observabilité du worker | Backlog, âge du plus ancien job, jobs bloqués, latences base, sans secrets ni prompts dans les logs |
+| 9 | SaaS | IAM/RBAC, argon2, MFA, sessions persistantes, RLS PostgreSQL, tests IDOR entre tenants, extraction de `po_entity` |
+
+Ordre détaillé, barrières d'approbation et critères par chantier :
+[docs/plans/ORDRE_CHANTIERS_2026-11-14.md](docs/plans/ORDRE_CHANTIERS_2026-11-14.md).
+
+Le point 9 est un prérequis à tout second utilisateur ou à toute commercialisation :
+le code actuel est un atelier privé mono-identité, pas un SaaS.
+
+### Limites assumées du MVP
+
+- Sessions Studio en mémoire, un seul worker Uvicorn.
+- Verrouillage du login par adresse IP vue par l'application : avec le `Dockerfile`
+  par défaut (`--no-proxy-headers`), derrière un proxy tous les clients partageraient
+  l'IP du proxy et cinq échecs bloqueraient aussi le propriétaire quinze minutes.
+  L'accès mobile documenté (`--proxy-headers --forwarded-allow-ips 127.0.0.1`) sépare
+  les compteurs par appareil ; à confirmer sur le vrai proxy.
+- Une seule production média par processus, sans limitation de débit.
+- Réservation média orpheline reprise seulement après une heure.
+- Proxy Studio : média chargé en mémoire, refus au-delà de 128 Mio.
+
+### Corrections du 14 novembre 2026
+
+- `.env.example` complété (chaîne image/voix/vidéo, MLflow) et README corrigé
+  (dossier `media_pipeline/` inexistant).
+- Nettoyage lint, `zip(..., strict=True)` là où les longueurs sont garanties.
+- `_scenes()` lève `RunConflict` si le storyboard et `scene_ids` diffèrent, au lieu
+  de tronquer silencieusement.
+- Gardes d'URL : le jeton GitHub ne part que vers `https://api.github.com/` ; les
+  clients MLflow des scripts refusent tout schéma autre que http(s) ; requête SQL
+  de verrouillage sans concaténation. Tests dans `tests/test_security_guards.py`.
+
+### Documents à consolider
+
+Les sections « Architecture progressive — prévue, non développée », « Historisation
+PostgreSQL — prévue, non développée » et « OPS-REPOSITORY — création GitHub demandée,
+bloquée » sont datées ; `docs/BLOCKERS.md` date du 9 octobre. À relire et à archiver
+si elles sont dépassées.
+
 ## PRODUCTION MÉDIA 75 S — 28 octobre 2026
 
 Chaîne voix/vidéo depuis un storyboard approuvé : `POST .../voice` (Piper réel),

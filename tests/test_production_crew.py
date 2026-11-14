@@ -1,5 +1,4 @@
 """Production-crew contract and API tests, no real model or user data."""
-import asyncio
 import json
 import os
 import unittest
@@ -8,8 +7,7 @@ from uuid import uuid4
 
 import httpx
 
-from apps.api.main import app, get_llm_client
-from editorial.api import get_identity, Identity
+from apps.api.main import app
 from editorial.models import Brief
 from production.crew import (ROLES, MAX_SCORES, CriticOutput, source_snapshot,
                              quality_gate, execute_role, role_prompt)

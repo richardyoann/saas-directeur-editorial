@@ -27,6 +27,8 @@ CONTEXT = "arvor/local-ci-attested"
 
 
 def http_json(method, url, token=None, payload=None):
+    if not url.startswith("https://api.github.com/"):
+        raise ValueError("GitHub API URL required")
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "arvor-local-ci-publisher/1", "Content-Type": "application/json"}
     if token:
         headers["Authorization"] = "Bearer " + token

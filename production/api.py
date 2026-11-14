@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from apps.api.llama_provider import ProviderError, generation_gate
 from editorial.api import get_identity, get_store, Identity
 from editorial.store import PostgresStore, RunConflict, RunMissing
-from production.crew import ROLES, SPECIALISTS, execute_role
+from production.crew import SPECIALISTS, execute_role
 from production.store import ProductionStore
 
 

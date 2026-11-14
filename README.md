@@ -10,7 +10,8 @@ Studio éditorial privé pour structurer des histoires et leurs scènes, valider
 - `apps/web/` : interface HTML/CSS/JavaScript native, sans compilation.
 - `editorial/` : workflows, validation humaine, PostgreSQL `po_*`, audit/outbox.
 - `workers/` : worker PostgreSQL optionnel (aucun rejeu automatique ambigu).
-- `media_pipeline/` et `scripts/` : médias privés et diagnostics/livraison.
+- `infrastructure/` et `production/` : stockage média privé (disque/MinIO), images sd.cpp, voix Piper, export FFmpeg.
+- `scripts/` : diagnostics, recettes et livraison.
 - `compose.yml` : PostgreSQL, MinIO épinglé, Redis optionnel et non utilisé par la file éditoriale.
 
 ## Installation privée
@@ -18,7 +19,7 @@ Studio éditorial privé pour structurer des histoires et leurs scènes, valider
 Prérequis : Python 3.12 ou 3.14, PostgreSQL 16, accès à un LLM llama.cpp local, et WSL Ubuntu 26.04 sur PC.
 
 1. `python -m venv .venv && .venv/bin/python -m pip install -r requirements.txt`.
-2. `cp .env.example .env` puis configurer sans exposer les secrets : `PO_DATABASE_URL`, `LLM_BASE_URL`, `EDITORIAL_API_TOKEN`, `EDITORIAL_WEB_PASSWORD`, `EDITORIAL_TENANT_ID`, `EDITORIAL_ACTOR_ID`.
+2. `cp .env.example .env` puis configurer sans exposer les secrets : `PO_DATABASE_URL`, `LLM_BASE_URL`, `EDITORIAL_API_TOKEN`, `EDITORIAL_WEB_PASSWORD`, `EDITORIAL_TENANT_ID`, `EDITORIAL_ACTOR_ID`. Pour la chaîne image/voix/vidéo : `IMAGE_BASE_URL`, `ARVOR_PIPER_MODEL` (et `ARVOR_PIPER_BIN`, `ARVOR_FFMPEG_BIN` si hors `PATH`), voir `.env.example`.
 3. `docker compose up -d postgres minio`. Redis n'est pas requis ; pour l'activer explicitement : `docker compose --profile optional-redis up -d redis`.
 4. Utiliser une base déjà migrée, ou le runbook de migration isolée en environnement de test ; **ne pas migrer la base métier automatiquement**.
 5. `.venv/bin/python -m uvicorn apps.api.main:app --host 127.0.0.1 --port 8000 --workers 1`.

@@ -390,4 +390,4 @@ if __name__ == "__main__":
         deploy(Path.cwd(), args.root, args.config, args.sha, args.port)
     except Exception as error:
         print(json.dumps({"delivery": "blocked", "error_type": type(error).__name__}), file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from None

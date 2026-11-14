@@ -42,9 +42,14 @@ class PostgresProductionMediaRepository:
     @staticmethod
     def _approved_run(conn, tenant, run_id, *, lock):
         # Same lock order as image reservation and review: run first.
-        query = ("SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
-                 "AND entity_id=%s AND NOT deleted" + (" FOR UPDATE" if lock else ""))
-        row = conn.execute(query, (tenant, run_id)).fetchone()
+        if lock:
+            row = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
+                "AND entity_id=%s AND NOT deleted FOR UPDATE", (tenant, run_id)).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
+                "AND entity_id=%s AND NOT deleted", (tenant, run_id)).fetchone()
         if not row or row[0].get("type") != "editorial_run":
             raise RunMissing()
         return row[0]
@@ -53,10 +58,11 @@ class PostgresProductionMediaRepository:
     def _scenes(run):
         board = run.get("storyboard")
         scene_ids = run.get("scene_ids")
-        if not board or not isinstance(board.get("scenes"), list) or not isinstance(scene_ids, list):
+        if (not board or not isinstance(board.get("scenes"), list) or not isinstance(scene_ids, list)
+                or len(board["scenes"]) != len(scene_ids)):
             raise RunConflict()
         scenes = []
-        for number, (scene, scene_id) in enumerate(zip(board["scenes"], scene_ids), 1):
+        for number, (scene, scene_id) in enumerate(zip(board["scenes"], scene_ids, strict=True), 1):
             scenes.append({"scene_number": number, "scene_id": str(scene_id),
                            "title": scene.get("title"), "narration": scene.get("narration"),
                            "duration_seconds": scene.get("duration_seconds")})
@@ -120,14 +126,14 @@ class PostgresProductionMediaRepository:
                     {**{key: scene[key] for key in ("scene_number", "title", "narration",
                                                     "duration_seconds")},
                      "image_status": image["status"]}
-                    for scene, image in zip(scenes, images)
+                    for scene, image in zip(scenes, images, strict=True)
                 ],
                 "media": media,
                 "ready_for_voice": approved and total == 75 and len(scenes) >= 1,
                 "ready_for_video": (approved and total == 75 and voice_ready
                                     and not any(missing)),
                 "missing_images": [scene["scene_number"] for scene, absent
-                                   in zip(scenes, missing) if absent]}
+                                   in zip(scenes, missing, strict=True) if absent]}
 
     @staticmethod
     def _timestamp(value):
@@ -256,7 +262,7 @@ class PostgresProductionMediaRepository:
 
     def fail(self, tenant, actor, run_id, kind, *, scenario_id, error_code, duration_seconds=None):
         with self.connect() as conn:
-            run = self._approved_run(conn, tenant, run_id, lock=True)
+            self._approved_run(conn, tenant, run_id, lock=True)  # verrou FOR UPDATE
             asset_id = self.asset_id(scenario_id, kind)
             row = self._asset(conn, tenant, asset_id)
             if not row or row[1].get("status") != "generating":

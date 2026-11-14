@@ -4,7 +4,6 @@ One-process volatile sessions; require HTTPS for remote use.
 import asyncio
 import hashlib
 import hmac
-import json
 import os
 import re
 import secrets
