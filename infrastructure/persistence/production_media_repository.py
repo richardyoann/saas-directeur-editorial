@@ -42,9 +42,14 @@ class PostgresProductionMediaRepository:
     @staticmethod
     def _approved_run(conn, tenant, run_id, *, lock):
         # Same lock order as image reservation and review: run first.
-        query = ("SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
-                 "AND entity_id=%s AND NOT deleted" + (" FOR UPDATE" if lock else ""))
-        row = conn.execute(query, (tenant, run_id)).fetchone()
+        if lock:
+            row = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
+                "AND entity_id=%s AND NOT deleted FOR UPDATE", (tenant, run_id)).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT content FROM po_entity WHERE tenant_id=%s AND kind='treatment' "
+                "AND entity_id=%s AND NOT deleted", (tenant, run_id)).fetchone()
         if not row or row[0].get("type") != "editorial_run":
             raise RunMissing()
         return row[0]

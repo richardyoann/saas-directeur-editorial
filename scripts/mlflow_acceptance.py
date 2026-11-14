@@ -74,6 +74,8 @@ def find_event(client, name, event_id):
 
 
 def write_basic_request(uri, path, payload, credentials=None):
+    if not uri.startswith(("http://", "https://")):
+        raise ValueError("http(s) MLflow URI required")
     request = urllib.request.Request(uri + path, method="POST",
                                      data=json.dumps(payload).encode("utf-8"),
                                      headers={"Content-Type": "application/json"})

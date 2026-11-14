@@ -12,8 +12,8 @@ chronologique ci-dessous est conservé comme historique.
 - **Fonctionnel :** brief → analyse → storyboard → revue humaine → images sd.cpp →
   voix Piper → vidéo FFmpeg verticale 720×1280 de 75 s, stockage MinIO privé,
   audit/outbox, Studio privé mono-identité.
-- **Qualité mesurée :** 588 tests, 0 échec, 0 ignoré avec PostgreSQL jetable
-  (rejoué le 14 novembre) ; `pip-audit` sans vulnérabilité ; qualification CI
+- **Qualité mesurée :** 592 tests, 0 échec, 0 ignoré avec PostgreSQL jetable
+  (rejoués le 14 novembre) ; `pip-audit` sans vulnérabilité ; qualification CI
   locale 16/16 et recette réelle 15/15 déclarées pour la PR #226 (28 octobre).
 - **Livraison :** PR #226 (voix et vidéo) fusionnée, **aucun déploiement PC** ; le
   runtime `~/editorial-runtime/current` est inchangé. Toute livraison exige
@@ -39,8 +39,11 @@ le code actuel est un atelier privé mono-identité, pas un SaaS.
 ### Limites assumées du MVP
 
 - Sessions Studio en mémoire, un seul worker Uvicorn.
-- Verrouillage du login par adresse IP : derrière le proxy mobile, tous les clients
-  partagent la même IP, donc cinq échecs bloquent aussi le propriétaire quinze minutes.
+- Verrouillage du login par adresse IP vue par l'application : avec le `Dockerfile`
+  par défaut (`--no-proxy-headers`), derrière un proxy tous les clients partageraient
+  l'IP du proxy et cinq échecs bloqueraient aussi le propriétaire quinze minutes.
+  L'accès mobile documenté (`--proxy-headers --forwarded-allow-ips 127.0.0.1`) sépare
+  les compteurs par appareil ; à confirmer sur le vrai proxy.
 - Une seule production média par processus, sans limitation de débit.
 - Réservation média orpheline reprise seulement après une heure.
 - Proxy Studio : média chargé en mémoire, refus au-delà de 128 Mio.
@@ -52,6 +55,9 @@ le code actuel est un atelier privé mono-identité, pas un SaaS.
 - Nettoyage lint, `zip(..., strict=True)` là où les longueurs sont garanties.
 - `_scenes()` lève `RunConflict` si le storyboard et `scene_ids` diffèrent, au lieu
   de tronquer silencieusement.
+- Gardes d'URL : le jeton GitHub ne part que vers `https://api.github.com/` ; les
+  clients MLflow des scripts refusent tout schéma autre que http(s) ; requête SQL
+  de verrouillage sans concaténation. Tests dans `tests/test_security_guards.py`.
 
 ### Documents à consolider
 

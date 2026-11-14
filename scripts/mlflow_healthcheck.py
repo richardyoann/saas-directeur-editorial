@@ -33,6 +33,8 @@ def load_env_file(path):
 
 
 def health(uri, timeout):
+    if not uri.startswith(("http://", "https://")):
+        raise ValueError("http(s) MLflow URI required")
     request = urllib.request.Request(uri + "/health", method="GET")
     with urllib.request.urlopen(request, timeout=timeout) as response:
         body = response.read(64)
