@@ -104,7 +104,7 @@ class CinematicProductionCorrectiveTests(unittest.TestCase):
         self.assertNotIn("data-action=\"export\" && canExport", self.js)
 
     def test_story_switch_resets_production_state(self):
-        self.assertIn("if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;}", self.js)
+        self.assertIn("if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;state.journalPage=1;prodError=null;}", self.js)
 
     def test_production_error_state_is_rendered(self):
         self.assertIn("if(prodError)", self.js)
@@ -125,5 +125,72 @@ class CinematicProductionCorrectiveTests(unittest.TestCase):
         self.assertNotIn("data-action=\"export\" ${canExport", self.js)
 
 
+class CinematicLot4JournalAdminTests(unittest.TestCase):
+    """Lot 4 static contracts (2026-11-02): journal built on real traces and
+    administration source states surfaced in apps/web/arvor_next.js."""
+
+    def setUp(self):
+        self.js = (ROOT / "apps/web/arvor_next.js").read_text(encoding="utf-8")
+
+    def test_journal_uses_real_traces_not_fabricated_events(self):
+        self.assertIn("/studio/api/runs/'+encodeURIComponent(id)+'/history", self.js)
+        self.assertIn("/reviews?limit=50", self.js)
+        self.assertNotIn("const rows=events.filter", self.js)
+
+    def test_journal_displays_trace_metadata_and_pagination(self):
+        for token in ("journalVisible", "journalData", "journalError", "journalPage",
+                      "data-journal-page", "data-journal-retry", "TRACES RÉELLES",
+                      "Traitement IA", "Décision humaine", "Version", "Agent"):
+            self.assertIn(token, self.js)
+
+    def test_admin_distinguishes_source_states(self):
+        self.assertIn("adminError", self.js)
+        self.assertIn("not_configured", self.js)
+        self.assertIn("unavailable", self.js)
+        self.assertIn("includes('configur')", self.js)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class CinematicLot5CorrectiveTests(unittest.TestCase):
+    """Lot 5 corrective contracts (2026-11-02): fixes of anomalies revealed by
+    the Lot 4/5 review before final qualification."""
+
+    def setUp(self):
+        self.js = (ROOT / "apps/web/arvor_next.js").read_text(encoding="utf-8")
+
+    def test_journal_navigation_keeps_story_context(self):
+        self.assertIn("navigate(b.dataset.route,state.storyId)", self.js)
+
+    def test_human_decision_uses_real_review_action_contract(self):
+        self.assertIn("action:r.action", self.js)
+        self.assertIn("{accept:'Acceptée',reject:'Rejetée',revise:'Révisée'}[r.action]", self.js)
+        self.assertIn("status:r.valid?'Décision acceptée':'Décision refusée'", self.js)
+        self.assertIn("r.human?", self.js)
+
+    def test_human_decision_status_is_rendered(self):
+        self.assertIn("status:r.valid?'Décision acceptée':'Décision refusée'", self.js)
+        self.assertIn("${r.human?`<span>Décision ${escapeHtml(r.actionLabel||r.action||'—')}</span>`:''}", self.js)
+        self.assertIn("<span>${escapeHtml(r.status)}</span>", self.js)
+
+    def test_journal_handles_full_and_partial_trace_failures(self):
+        self.assertIn("const failures=[]", self.js)
+        self.assertIn("failures.push", self.js)
+        self.assertIn("failures.join(' · ')", self.js)
+        self.assertIn("journalError=failures.join(' · ')", self.js)
+
+    def test_artistic_validation_is_separate_from_scenario_approval(self):
+        self.assertIn("['Validation artistique (humaine)',approved?'pending_human':'not_started']", self.js)
+        self.assertIn("state==='pending_human'", self.js)
+
+    def test_admin_partial_source_availability_is_rendered(self):
+        self.assertIn("source_truncated", self.js)
+        self.assertIn("sourcePartial", self.js)
+        self.assertIn("adminData?.source_truncated||{}", self.js)
+
+    def test_frontend_script_is_valid_javascript(self):
+        self.assertNotIn("${videoSrc?<video", self.js)
+        self.assertIn("videoSrc?`<video", self.js)
+        self.assertIn("</video>`:`", self.js)

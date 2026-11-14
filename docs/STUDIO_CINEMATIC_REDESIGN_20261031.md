@@ -67,8 +67,99 @@ le shell de navigation et le tableau de bord (écran n°1).
   (lecteur vertical 9:16, scènes, timeline, inspection, voix, sous-titres, qualité, décisions) —
   éléments encore absents documentés lors de la qualification finale.
 
-### Lots suivants
+## Lot 4 — Journal et administration (02 novembre 2026)
 
-- Lot 4 : journal et administration (traces réelles, contrats d’historique/décisions/production).
+**Branche :** `refactor/studio-cinematic-lot4-journal-admin-20261031`
+**SHA de base :** `3c6f61a8864062a88c074d42f680972c480358fd` (Lot 3 corrigé, PR #234)
+
+### Fonctionnalités implémentées
+
+- Journal (`journal`) : consommation des traces réelles
+  (`GET /studio/api/runs/{id}/history`, `GET /studio/api/runs/{id}/reviews?limit=50`) pour l’histoire
+  sélectionnée. Les lignes sont construites depuis les snapshots d’étapes IA et les décisions humaines
+  réelles (action, revision, statut, provenance, agent) — plus aucune fabrication à partir des seules
+  dates de création.
+- Filtres (Tout / Décisions humaines / Traitements IA), recherche plein texte, pagination réelle
+  (15 traces par page), état de chargement, état vide (histoire non sélectionnée) et état erreur.
+- Administration (`admin`) : états source distincts (opérationnel / indisponible / non configuré) via
+  `adminError` ; le suivi GitHub est en lecture seule ; les conclusions CI sont affichées telles quelles
+  (aucun `skipped` transformé en succès).
+
+### Fichiers modifiés
+
+- `apps/web/arvor_next.js`, `tests/test_studio_cinematic_redesign.py`, `browser_checks/test_studio_browser.py`,
+  `docs/STUDIO_CINEMATIC_REDESIGN_20261031.md`.
+
+### API utilisées/modifiées
+
+- Seules des routes GET existantes du Studio sont consommées : aucun endpoint backend modifié.
+
+### Tests exécutés
+
+- `tests/test_studio_cinematic_redesign.py` — **OK (23 tests)** (dont 6 tests de non-régression ajoutés en finalisation Lot 5).
+- Suites touchées : `tests.test_studio`, `tests.test_arvor_reference`, `tests.test_studio_conception`,
+  `tests.test_qa_lot1` — **OK**.
+
+### Contrôles sécurité
+
+- Aucune mutation métier, aucun endpoint backend modifié, aucune donnée fictive injectée.
+
+## Lot 5 — Qualification finale (02 novembre 2026)
+
+**Branche :** `refactor/studio-cinematic-lot4-journal-admin-20261031` (au 2026-11-02, lot 4 terminé)
+**SHA de base :** `b886e98260d6874b89efdd241ab421320ff306b4`
+**SHA final du lot :** `8aeb5baf40f7a36952e722f76d72f11f63fdce21` (dernier commit de finalisation Lot 5 : reset prodError navigation, statut decision humaine)
+
+### Régression
+
+- `scripts/run_regression.py` sur l’état final des PR empilées (Lot 4) : **611 tests, 0 échec, 0 erreur**, 58 sauts.
+- Sauts (58) : uniquement les suites « dedicated PostgreSQL test target not configured » / « PostgreSQL
+  required » — environnement local sans base jetable ; non liés aux changements UI/tests/docs.
+- Plancher CI local : `MIN_REGRESSION_TESTS = 390` — dépassé (611).
+
+### Qualification finale executee via le mecanisme officiel (Lot 5 finalisation)
+
+- `bash scripts/qualify_arvor_ci_wsl.sh 079317cd912168ec58ce4df377c49441cfc40186 239 8aeb5baf40f7a36952e722f76d72f11f63fdce21 3c6f61a8864062a88c074d42f680972c480358fd`
+  → exit **0**, `ARVOR_CI_LOCAL_GATES_AND_LOG_INTEGRITY_PASS`.
+- 16/16 portes hote OK : db_prepare_312, regression_312, sql_benchmark_312, db_prepare_314,
+  regression_314, sql_benchmark_314, syntax_js, syntax_js_reference, syntax_js_next, syntax_py,
+  browser, dependencies, secrets, supply_chain, risk_review, video_75.
+- Receipt : `/home/yoann_admin/arvor-ci-lab/evidence-qualification.DlkivIbI/0539b2d5-7f6e-43a4-956c-6922818226e9.json`
+  → status `success`, `verified_logs: 16`, `independent_execution_provenance_verified: true`,
+  `attestation_signed: false`, `merge_or_deploy_authorized: false`.
+- Preuve d’integrite des logs/recus verifiee (`arvor_ci_evidence_verify`); signature et publication
+  distinctes; merge/deploiement NON.
+
+### Corrections de finalisation Lot 5 (Étape 1, commit `Lot 5 — corrections revue`)
+
+- Navigation journal : contexte d’histoire conservé (`navigate(b.dataset.route,state.storyId)`).
+- Décision humaine : contrat réel des reviews (`action`, `actionLabel`, `status`, `version`,
+  `provenance`, `agent`, `human`).
+- Traces plein/partiel : gestion des échecs historiques (`failures` → `journalError`).
+- Validation artistique séparée de l’approbation scénario (`pending_human` / `not_started`).
+- Disponibilité sources partielles : `source_truncated` / `sourcePartial`.
+- Syntaxe JS : deux erreurs de syntaxe réelles corrigées lors de la finalisation (ternaire de rendu
+  vidéo `<video` en position d’expression non collé aux template literals ; interpolation du bloc
+  sources dans le rendu admin).
+
+### Contrôles restants de qualification (à exécuter / attester)
+
+- `node --check apps/web/arvor_next.js` : **non exécutable dans cet environnement** (Node présent
+  uniquement sous forme de `node.exe` Windows via `/mnt/c/Program Files/nodejs`, non exécutable sous
+  WSL Linux sans Wine) ; contrôle CI prévu (`syntax_js_next`). Vérifications locales équivalentes
+  effectuées : compilation QuickJS OK + parse tree-sitter sans `ERROR`/`MISSING` sur le SHA final.
+- Parcours Chromium complets : **non exécutable localement** (Playwright/Chromium absents) ; nouveaux
+  parcours ajoutés (`test_next_studio_journal_and_admin_states`) ; contrôle CI prévu (`browser`).
+- Résolutions 1920×1080, 1366×768, 768×1024, 390×844, 360×800 : **à capturer** (aucune capture disponible
+  à ce stade).
+- Sécurité : diff final frontend/tests/docs uniquement — aucune route backend, aucune authentification
+  nouvelle, aucun secret ajouté.
+
+### Écarts à la maquette
+
+- Captures et comparaison visuelle : **en attente** (voir ci-dessus).
+
+## Lots suivants
+
 - Lot 5 : qualification finale (régression, CI locale 16 contrôles, navigateur, résolutions,
   sécurité, documentation, revue finale).

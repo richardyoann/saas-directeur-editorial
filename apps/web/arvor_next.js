@@ -10,8 +10,8 @@ const escapeHtml=(value)=>String(value??'').replace(/[&<>"']/g, c=>({'&':'&amp;'
 const escapeAttr=escapeHtml;
 const formatDay=iso=>{const d=new Date(iso||0);return iso&&!isNaN(d.getTime())?d.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'}):'—';};
 const today=()=>new Date().toISOString().slice(0,10);
-let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null,prodData=null,prodError=null;
-const state={route:'stories',storyId:null,panel:'overview',sceneIndex:0,filter:'Toutes',query:'',journalFilter:'Tout',journalQuery:'',adminTab:'Vue d’ensemble',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarMode:'Mois'};
+let stories=[],events=[],adminData=null,commitsData=null,ciData=null,csrf=null,nextCursor=null,pendingCreation=null,historyData=null,mediaData=null,prodData=null,prodError=null,journalData=null,journalError=null,journalBeforeRevision=null,journalHasMoreReviews=false,journalLoadingOlder=false,adminError=null;
+const state={route:'stories',storyId:null,panel:'overview',sceneIndex:0,filter:'Toutes',query:'',journalFilter:'Tout',journalQuery:'',journalPage:1,adminTab:'Vue d’ensemble',month:new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarMode:'Mois'};
 let editorAction=null,toastTimer;
 const persist=()=>{};
 const story=id=>stories.find(s=>s.id===id);
@@ -63,11 +63,78 @@ async function loginPrivate(e){
 }
 $('#login-form').addEventListener('submit',loginPrivate);
 $('#logout-next').addEventListener('click',async()=>{
- try{await api('/studio/logout','POST');csrf=null;stories=[];adminData=null;
+ try{await api('/studio/logout','POST');csrf=null;stories=[];adminData=null;journalData=null;journalError=null;adminError=null;state.journalPage=1;journalBeforeRevision=null;journalHasMoreReviews=false;journalLoadingOlder=false;
  $('#studio-shell').hidden=true;$('#login-screen').hidden=false;}
  catch(e){showToast('Déconnexion non confirmée : '+e.message)}
 });
-async function loadJournal(){await fetchStories();render()}
+async function loadJournal(){
+ const id=state.storyId;
+ if(!id){journalData=null;journalError=null;journalBeforeRevision=null;journalHasMoreReviews=false;journalLoadingOlder=false;state.journalPage=1;render();return}
+ journalBeforeRevision=null;journalHasMoreReviews=false;journalLoadingOlder=false;
+ try{
+  const [history,reviews]=await Promise.allSettled([
+   api('/studio/api/runs/'+encodeURIComponent(id)+'/history'),
+   api('/studio/api/runs/'+encodeURIComponent(id)+'/reviews?limit=50')
+  ]);
+  const failures=[];
+  if(history.status==='rejected')failures.push('Historique des traitements indisponible.');
+  if(reviews.status==='rejected')failures.push('Historique des décisions indisponible.');
+  if(failures.length===2){journalError=failures.join(' · ');journalData=null;render();return}
+  const rows=[];
+  if(history.status==='fulfilled'){
+   (history.value?.steps||[]).forEach(st=>{
+    const failed=!!st.error_code;
+    rows.push({date:st.finished_at||'',kind:'ia',title:'Traitement IA — '+(st.order===0?'Analyse':'Storyboard'),
+     detail:'Prompt : '+(st.prompt||''),status:failed?'Échec':(st.parsed?'Sortie reçue':'En cours'),
+     version:st.prompt_version||'',provenance:st.response_metadata?.model||'',agent:st.response_metadata?.provider||'',human:false});
+   });
+  }
+  const reviewPage=reviews.status==='fulfilled'?(reviews.value?.reviews||[]):[];
+  rows.push(...journalReviewRows(reviewPage));
+  journalBeforeRevision=journalReviewCursor(reviewPage);
+  journalHasMoreReviews=journalBeforeRevision!==null;
+  if(reviewPage.length>=50&&!journalHasMoreReviews)failures.push('Pagination des décisions antérieures indisponible.');
+  journalData={rows:rows.sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
+  journalError=failures.length?failures.join(' · '):null;state.journalPage=1;render();
+ }catch(e){journalError=e.message;journalData=null;render()}
+}
+function journalReviewRows(reviews){
+ return (reviews||[]).map(r=>({date:r.created_at||'',kind:'decision',
+  title:'Décision humaine — '+(r.step==='analysis'?'Analyse':'Storyboard'),detail:r.comment||'',
+  action:r.action,actionLabel:{accept:'Acceptée',reject:'Rejetée',revise:'Révisée'}[r.action]||r.action,
+  status:r.valid?'Décision acceptée':'Décision refusée',version:'Rev. '+(r.revision||''),
+  provenance:r.source_result_id||'',agent:r.actor_id||'',human:true,
+  revision:Number.isSafeInteger(Number(r.revision))&&Number(r.revision)>0?Number(r.revision):null}));
+}
+function journalReviewCursor(reviews){
+ if(!Array.isArray(reviews)||reviews.length<50)return null;
+ const revisions=reviews.map(r=>Number(r.revision)).filter(n=>Number.isSafeInteger(n)&&n>0);
+ return revisions.length===reviews.length?Math.min(...revisions):null;
+}
+async function loadOlderJournalReviews(){
+ const id=state.storyId,beforeRevision=journalBeforeRevision;
+ if(!id||!journalData||!journalHasMoreReviews||journalLoadingOlder||!Number.isSafeInteger(beforeRevision)||beforeRevision<1)return;
+ journalLoadingOlder=true;journalError=null;render();
+ try{
+  const result=await api('/studio/api/runs/'+encodeURIComponent(id)+'/reviews?limit=50&before_revision='+beforeRevision);
+  if(state.storyId!==id)return;
+  const page=Array.isArray(result?.reviews)?result.reviews:[];
+  const known=new Set(journalData.rows.filter(row=>row.kind==='decision'&&row.revision!==null).map(row=>row.revision));
+  const olderRows=journalReviewRows(page).filter(row=>row.revision===null||!known.has(row.revision));
+  journalData={rows:journalData.rows.concat(olderRows).sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
+  const nextRevision=journalReviewCursor(page);
+  if(page.length>=50&&(nextRevision===null||nextRevision>=beforeRevision)){
+   journalBeforeRevision=null;journalHasMoreReviews=false;
+   journalError='Pagination des décisions antérieures indisponible.';
+  }else{
+   journalBeforeRevision=nextRevision;journalHasMoreReviews=nextRevision!==null;
+  }
+ }catch(error){
+  if(state.storyId===id)journalError='Historique des décisions antérieures indisponible.';
+ }finally{
+  if(state.storyId===id){journalLoadingOlder=false;render()}
+ }
+}
 async function loadAdmin(){
  try{
   const parts=await Promise.allSettled([
@@ -75,12 +142,11 @@ async function loadAdmin(){
    api('/studio/api/conception/commits?limit=70'),
    api('/studio/api/conception/ci?limit=80')
   ]);
-  if(parts[0].status!=='fulfilled')throw parts[0].reason;
-  adminData=parts[0].value;
-  commitsData=parts[1].status==='fulfilled'?parts[1].value:null;
-  ciData=parts[2].status==='fulfilled'?parts[2].value:null;
+  adminError=null;
+  if(parts.every(part=>part.status==='fulfilled')){adminData=parts[0].value;commitsData=parts[1].value;ciData=parts[2].value}
+  else{adminError=parts[0].status==='rejected'&&parts[0].reason?.status===503?'Intégration GitHub non configurée.':'Suivi GitHub indisponible.';adminData=null;commitsData=null;ciData=null}
   render();
- }catch(err){adminData=null;$('#content').innerHTML='<div class="api-error">'+escapeHtml(err.message)+' — configuration de lecture GitHub requise.</div>'}
+ }catch(err){adminError=err.message;adminData=null;commitsData=null;ciData=null}
 }
 function closeMobile(){$('#sidebar').classList.remove('open');$('#shade').classList.remove('open')}
 function mapRun(run){
@@ -100,7 +166,7 @@ function mapRun(run){
  return item;
 }
 async function navigate(route,storyId=null,panel='overview'){
- if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;}
+ if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;journalData=null;journalError=null;state.journalPage=1;prodError=null;}
  state.route=route;state.storyId=storyId;state.panel=panel;state.sceneIndex=0;historyData=null;
  closeMobile();render();window.scrollTo({top:0,behavior:'auto'});
  if(route==='stories'&&storyId){
@@ -214,9 +280,9 @@ function renderProduction(){
  const quality=[
   ['Présence des médias',['voice','video','subtitles'].every(k=>!!media[k])?'ok':'ko'],
   ['Validation technique',approved&&plan.duration_seconds===75&&scenes.length>0&&missing.length===0&&voice.status==='ready'?'ok':'warn'],
-  ['Validation artistique (humaine)',approved?'ok':'warn']
+  ['Validation artistique (humaine)',approved?'pending_human':'not_started']
  ];
- const qualityHtml=quality.map(([label,state])=>`<div class="quality-item"><span class="q-title">${state==='ok'?ico('check'):state==='warn'?ico('shield'):ico('close')}${escapeHtml(label)}</span><span class="pill ${state==='ok'?'valid':state==='warn'?'writing':'failed'}">${state==='ok'?'Prête':state==='warn'?'À traiter':'Manquante'}</span></div>`).join('');
+ const qualityHtml=quality.map(([label,state])=>{const display=state==='pending_human'?'warn':state==='not_started'?'ko':state;return `<div class="quality-item"><span class="q-title">${display==='ok'?ico('check'):display==='warn'?ico('shield'):ico('close')}${escapeHtml(label)}</span><span class="pill ${display==='ok'?'valid':display==='warn'?'writing':'failed'}">${display==='ok'?'Prête':display==='warn'?'À traiter':'Manquante'}</span></div>`}).join('');
  const videoSrc=approved&&video.status==='ready'?`/studio/api/runs/${encodeURIComponent(state.storyId)}/media/${encodeURIComponent(video.id)}/content`:'';
  const canExport=approved&&video.status==='ready';
  const sceneRowsHtml=scenes.map(sc=>`<div class="mini-row"><b>Scène ${sc.scene_number}</b><span>${escapeHtml(sc.title)} · ${sc.duration_seconds} s · image : ${escapeHtml(sc.image_status)}</span></div>`).join('');
@@ -226,7 +292,7 @@ function renderProduction(){
  return `<div class="backline"><button type="button" class="button secondary" data-action="library">${ico('left')} Retour</button></div>
   <section class="panel">
    <div class="section-head"><div><div class="eyebrow">PRODUCTION</div><h2>Vidéo verticale 1080 × 1920</h2><p>Voix, images et montage — états réels de la production.</p></div>${btn('Exporter','download','primary','data-action="export-video"')}</div>
-   ${videoSrc?<video class="production-video" controls preload="metadata" src="${videoSrc}"></video>:`<div class="empty-state"><h3>Vidéo non générée ou indisponible.</h3><p>La production vidéo n’est pas disponible pour cette histoire.</p></div>`}
+   ${videoSrc?`<video class="production-video" controls preload="metadata" src="${videoSrc}"></video>`:`<div class="empty-state"><h3>Vidéo non générée ou indisponible.</h3><p>La production vidéo n’est pas disponible pour cette histoire.</p></div>`}
    <div class="quality-check">${qualityHtml}</div>
    <div class="decision-bar"><div><b>${canExport?'Prête à exporter.':'Condition de sortie non remplie.'}</b><p>L’export ne part vers aucune plateforme sans validation humaine explicite.</p></div><button type="button" class="button primary" data-action="export-video" ${canExport?'':'disabled'}>Exporter le MP4 1080 × 1920</button></div>
   </section>
@@ -315,25 +381,61 @@ function renderAtelierPanel(s){
  if(map[k]){const [ey,title,field]=map[k];return panelHeader(ey,title,'Retrouvez ces éléments dans leur contexte narratif.')+`<div class="item-grid">${s.scenes.map((sc,i)=>`<article class="item-card"><span class="eyebrow">SCÈNE ${String(i+1).padStart(2,'0')}</span><strong>${escapeHtml(sc.title)}</strong><p>${escapeHtml(sc[field]||'À définir')}</p>${btn('Voir la scène','arrow','small','data-scene="'+i+'"')}</article>`).join('')||'<div class="empty-state">Aucun élément.</div>'}</div>`}
  return '';
 }
+function journalVisible(){
+ const rows=journalData?.rows||[];
+ const q=(state.journalQuery||'').toLowerCase();
+ const filtered=rows.filter(r=>(state.journalFilter==='Tout'||r.kind===state.journalFilter)&&(q===''||r.title.toLowerCase().includes(q)||r.detail.toLowerCase().includes(q)));
+ const pageSize=15;
+ const totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));
+ const page=Math.min(Math.max(1,state.journalPage||1),totalPages);
+ const pagerRows=filtered.slice((page-1)*pageSize,page*pageSize);
+ return{pagerRows:pagerRows,page:page,totalPages:totalPages};
+}
 function renderJournal(){
- const rows=events.filter(e=>(state.journalFilter==='Tout'||e.type===state.journalFilter)&&(e.title+' '+e.detail).toLowerCase().includes(state.journalQuery.toLowerCase())).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
- return `<div class="page-heading"><div><div class="eyebrow">RIEN NE SE PERD</div><h1>La mémoire de vos créations.</h1><p>Retrouvez les décisions, les versions et les étapes de chaque récit.</p></div></div><div class="toolbar"><div class="filter-tabs">${[['Tout','Tout'],['Créations','creation'],['Révisions','revision'],['IA & visuels','ia']].map(([name,k])=>`<button class="filter-btn ${state.journalFilter===k?'active':''}" data-journal-filter="${k}">${name}</button>`).join('')}</div><label class="searchbox">${ico('search')}<input id="journal-search" aria-label="Rechercher dans le journal" placeholder="Rechercher une trace…" value="${escapeAttr(state.journalQuery)}"></label></div><section class="panel"><div class="eyebrow">ÉVÉNEMENTS CHARGÉS</div><div id="timeline" class="timeline">${rows.map(e=>`<article class="timeline-row"><time>${formatDay(e.date)}</time><h3>${escapeHtml(e.title)}</h3><p>${escapeHtml(e.detail)}</p>${statusPill(({creation:'Brouillon',revision:'En écriture',ia:'À relire'})[e.type]||'Brouillon')}</article>`).join('')||'<div class="empty-state">Aucune trace correspondante.</div>'}</div></section>`;
+ let body='';
+ if(!state.storyId){
+  body=`<div class="page-heading"><div><div class="eyebrow">RIEN NE SE PERD</div><h1>La mémoire de vos créations.</h1><p>Retrouvez les décisions, les versions et les étapes de chaque récit.</p></div></div><section class="panel"><div class="empty-state"><h3>Aucune histoire sélectionnée.</h3><p>Sélectionnez une histoire dans la bibliothèque pour retrouver ses traces réelles.</p><button type="button" class="button secondary" data-action="library">${ico('book')} Voir mes histoires</button></div></section>`;
+ }else if(journalError&&!journalData){
+  body=`<div class="backline"><button type="button" class="button secondary" data-action="library">${ico('left')} Retour</button></div>
+   <section class="panel"><div class="empty-state"><h3>Journal indisponible.</h3><p>${escapeHtml(journalError)}</p><button type="button" class="button secondary" data-action="library">Retour</button></div></section>`;
+ }else if(!journalData){
+  body=`<div class="backline"><button type="button" class="button secondary" data-action="library">${ico('left')} Retour</button></div>
+   <section class="panel"><div class="loading-view" role="status">Consultation du journal…</div></section>`;
+ }else{
+  const {pagerRows,page,totalPages}=journalVisible();
+  body=`<div class="page-heading"><div><div class="eyebrow">RIEN NE SE PERD</div><h1>La mémoire de vos créations.</h1><p>Retrouvez les décisions, les versions et les étapes de chaque récit.</p></div></div>
+   <div class="toolbar"><div class="filter-tabs">${[['Tout','Tout'],['Décisions humaines','decision'],['Traitements IA','ia']].map(([name,k])=>`<button type="button" class="filter-btn ${state.journalFilter===k?'active':''}" data-journal-filter="${k}" aria-pressed="${state.journalFilter===k}">${name}</button>`).join('')}</div><label class="searchbox">${ico('search')}<input id="journal-search" aria-label="Rechercher dans le journal" placeholder="Rechercher une trace…" value="${escapeAttr(state.journalQuery)}"></label></div>
+   <section class="panel"><div class="eyebrow">TRACES RÉELLES</div>${journalError?`<div class="warning" role="status">${escapeHtml(journalError)} Les traces disponibles restent affichées.</div>`:'' }<div id="timeline" class="timeline">${pagerRows.map(r=>`<article class="timeline-row"><time>${escapeHtml(r.date?formatDay(r.date):'—')}</time><h3>${escapeHtml(r.title)}</h3><p>${escapeHtml(r.detail)}</p><div class="mini-meta"><span>${escapeHtml(r.status)}</span>${r.human?`<span>Décision ${escapeHtml(r.actionLabel||r.action||'—')}</span>`:''}<span>Version ${escapeHtml(r.version||'—')}</span><span>Agent ${escapeHtml(r.agent||'—')}</span><span>${escapeHtml(r.provenance||'—')}</span></div></article>`).join('')||'<div class="empty-state">Aucune trace correspondante.</div>'}</div>
+   ${totalPages>1?`<div class="decision-bar"><div><b>${page} sur ${totalPages}</b></div><button type="button" class="button secondary" data-journal-page="${page-1}" ${page<=1?'disabled':''}>Page précédente</button><button type="button" class="button secondary" data-journal-page="${page+1}" ${page>=totalPages?'disabled':''}>Page suivante</button></div>`:''}
+   ${journalHasMoreReviews?`<div class="decision-bar"><div><b>Décisions anciennes</b><p>Les décisions suivantes peuvent être chargées.</p></div><button type="button" class="button secondary" data-journal-older ${journalLoadingOlder?'disabled':''}>${journalLoadingOlder?'Chargement…':'Charger les décisions plus anciennes'}</button></div>`:''}
+   </section>`;
+ }
+ return body;
 }
 function renderAdmin(){
  const tab=state.adminTab;
- return `<div class="page-heading"><div><div class="eyebrow">CONCEPTION · CODE · TRAÇABILITÉ</div><h1>Le projet, en toute clarté.</h1><p>Épics, pull requests, commits et livraisons issus de GitHub.</p></div></div>
+ const sourceStatus=adminError?(adminError.toLowerCase().includes('configur')?'not_configured':'unavailable'):'operational';
+ const sourceLabel=adminError?(sourceStatus==='not_configured'?'Source : GitHub non configuré':'Source : GitHub indisponible'):'Source : GitHub en lecture réelle';
+ let stage=adminError?'<div class="empty-state"><h3>Suivi GitHub indisponible.</h3><p>'+escapeHtml(adminError)+'</p>':adminData?renderAdminTab(tab):'<div class="loading-view">Chargement du suivi GitHub privé…</div>';
+ return `<div class="page-heading"><div><div class="eyebrow">CONCEPTION · CODE · TRAÇABILITÉ</div><h1>Le projet, en toute clarté.</h1><p>Épics, pull requests, commits et livraisons issus de GitHub.</p></div><span class="pill ${sourceStatus==='operational'?'valid':sourceStatus==='not_configured'?'writing':'failed'}">${sourceLabel}</span></div>
  <div class="admin-tabs" role="tablist" aria-label="Sections administration">
  ${['Vue d’ensemble','Epics & stories','Pull requests','Commits','Agenda'].map(t=>`<button type="button" role="tab" aria-selected="${tab===t}" class="admin-tab ${tab===t?'active':''}" data-admin-tab="${escapeAttr(t)}">${t}</button>`).join('')}</div>
- <div id="admin-stage">${adminData?renderAdminTab(tab):'<div class="loading-view">Chargement du suivi GitHub privé…</div>'}</div>`;
+ <div id="admin-stage">${stage}</div>`;
 }
 function renderAdminTab(tab){
  const epics=adminData?.epics||[],issues=adminData?.issues||[],prs=adminData?.pull_requests||[],deliveries=adminData?.deliveries||[];
  const commits=commitsData?.commits||[];
  if(tab==='Vue d’ensemble'){
   const stats=[['grid',epics.length,'Epics'],['book',issues.length,'Issues chargées'],['file',prs.filter(x=>x.state==='open').length,'PR ouvertes'],['check',deliveries.filter(x=>x.conclusion==='failure').length,'Livraisons en échec']];
-  return `<section class="stats">${stats.map(([ic,n,label])=>`<div class="stat"><span class="stat-icon">${ico(ic)}</span><div><span class="stat-number">${n}</span><span class="stat-label">${label}</span></div></div>`).join('')}</section>
-  <div class="admin-grid"><section class="panel"><div class="eyebrow">AVANCEMENT VÉRIFIABLE</div><h3>Les epics</h3>${epics.slice(0,12).map(e=>`<div class="mini-row"><b>#${e.number} · ${escapeHtml(e.title)}</b><small>${Number.isInteger(e.progress_pct)?e.checklist_done+'/'+e.checklist_total+' critères · '+e.progress_pct+' %':'Aucune checklist mesurable'}</small>${Number.isInteger(e.progress_pct)?`<progress class="progress" value="${e.progress_pct}" max="100"></progress>`:''}</div>`).join('')}</section>
-  <section class="panel"><div class="eyebrow">LES DERNIÈRES TRACES</div><h3>Pull requests</h3>${prs.slice(0,9).map(p=>`<div class="mini-row"><b>PR #${p.number} · ${p.merged_at?'Fusionnée':p.state==='open'?'Ouverte':'Fermée'}</b><span>${escapeHtml(p.title)}</span></div>`).join('')}</section></div>`;
+  const statCards=stats.map(([ic,n,label])=>`<div class="stat"><span class="stat-icon">${ico(ic)}</span><div><span class="stat-number">${n}</span><span class="stat-label">${label}</span></div></div>`).join('');
+  const epicRows=epics.slice(0,12).map(e=>`<div class="mini-row"><b>#${e.number} · ${escapeHtml(e.title)}</b><small>${Number.isInteger(e.progress_pct)?e.checklist_done+'/'+e.checklist_total+' critères · '+e.progress_pct+' %':'Aucune checklist mesurable'}</small>${Number.isInteger(e.progress_pct)?`<progress class="progress" value="${e.progress_pct}" max="100"></progress>`:''}</div>`).join('');
+  const prRows=prs.slice(0,9).map(p=>`<div class="mini-row"><b>PR #${p.number} · ${p.merged_at?'Fusionnée':p.state==='open'?'Ouverte':'Fermée'}</b><span>${escapeHtml(p.title)}</span></div>`).join('');
+  const sourcePartial=Object.keys(adminData?.source_truncated||{}).some(k=>adminData.source_truncated[k]);
+  const sourceNote=sourcePartial?`<section class="panel"><div class="eyebrow">SOURCES</div><h3>Disponibilité des sources</h3><p>Les résultats GitHub peuvent être partiels selon les limites de pagination.</p></section>`:'';
+  return `<section class="stats">${statCards}</section>
+  <div class="admin-grid"><section class="panel"><div class="eyebrow">AVANCEMENT VÉRIFIABLE</div><h3>Les epics</h3>${epicRows}</section>
+  <section class="panel"><div class="eyebrow">LES DERNIÈRES TRACES</div><h3>Pull requests</h3>${prRows}</section>
+  ${sourceNote}</div>`;
  }
  if(tab==='Epics & stories')return adminTable('Épics et tâches GitHub',['Ticket','Titre','État'],issues.map(i=>['#'+i.number,i.title,i.state]));
  if(tab==='Pull requests')return adminTable('Pull requests',['PR','Objet','État'],prs.map(p=>['#'+p.number,p.title,p.merged_at?'Fusionnée':p.draft?'Brouillon':p.state]));
@@ -383,8 +485,11 @@ function bindContent(){
  $$('[data-scene]').forEach(x=>x.addEventListener('click',()=>{state.sceneIndex=Number(x.dataset.scene);state.panel='scenes';render()}));
  $$('[data-filter]').forEach(x=>x.addEventListener('click',()=>{state.filter=x.dataset.filter;render()}));
  if($('#story-search')){libraryCards();bindLibraryOpen();$('#story-search').addEventListener('input',e=>{state.query=e.target.value;libraryCards();bindLibraryOpen()})}
- if($('#journal-search'))$('#journal-search').addEventListener('input',e=>{state.journalQuery=e.target.value;const active=document.activeElement;const caret=e.target.selectionStart;render();const inp=$('#journal-search');inp.focus();inp.setSelectionRange(caret,caret)});
- $$('[data-journal-filter]').forEach(x=>x.addEventListener('click',()=>{state.journalFilter=x.dataset.journalFilter;render()}));
+ if($('#journal-search'))$('#journal-search').addEventListener('input',e=>{state.journalQuery=e.target.value;state.journalPage=1;const active=document.activeElement;const caret=e.target.selectionStart;render();const inp=$('#journal-search');inp.focus();inp.setSelectionRange(caret,caret)});
+ $$('[data-journal-filter]').forEach(x=>x.addEventListener('click',()=>{state.journalFilter=x.dataset.journalFilter;state.journalPage=1;render()}));
+ $('[data-journal-page]').forEach(x=>x.addEventListener('click',()=>{state.journalPage=Number(x.dataset.journalPage)||1;render()}));
+ $('[data-journal-older]').forEach(x=>x.addEventListener('click',()=>loadOlderJournalReviews()));
+ $$('[data-journal-retry]').forEach(x=>x.addEventListener('click',()=>loadJournal()));
  $$('[data-admin-tab]').forEach(x=>x.addEventListener('click',()=>{state.adminTab=x.dataset.adminTab;render()}));
  $$('[data-calendar-mode]').forEach(x=>x.addEventListener('click',()=>{state.calendarMode=x.dataset.calendarMode;render()}));
  $$('[data-cal]').forEach(x=>x.addEventListener('click',()=>{const d=state.month;const delta=x.dataset.cal==='prev'?-1:1;if(state.calendarMode==='Mois')d.setMonth(d.getMonth()+delta);else d.setDate(d.getDate()+delta*(state.calendarMode==='Semaine'?7:1));state.month=new Date(d);render()}));
@@ -468,7 +573,7 @@ function exportStory(){
  link.href=url;link.download='arvor-'+st.id+'.json';document.body.append(link);link.click();link.remove();
  setTimeout(()=>URL.revokeObjectURL(url),1000);showToast('Export du storyboard courant préparé.');
 }
-$$('[data-route]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.route)));
+$$('[data-route]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.route,state.storyId)));
 $('#side-create').addEventListener('click',()=>{closeMobile();openEditor('new')});
 $('#mobile-toggle').addEventListener('click',()=>{$('#sidebar').classList.toggle('open');$('#shade').classList.toggle('open')});
 $('#shade').addEventListener('click',closeMobile);
