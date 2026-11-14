@@ -4,7 +4,8 @@
 
 Synthèse établie à partir du dépôt (`main` au merge de la PR #227, 28 octobre 2026)
 et d'une régression complète rejouée le 14 novembre. L'état des PR et des issues
-GitHub n'a pas pu être consulté : à confirmer avant toute décision. Le journal
+GitHub n'a pas pu être consulté, sauf la PR #225 (fusionnée, constatée par `gh`
+le 14 novembre) : à confirmer avant toute décision. Le journal
 chronologique ci-dessous est conservé comme historique.
 
 ### Où en est le MVP
@@ -26,7 +27,7 @@ chronologique ci-dessous est conservé comme historique.
 | 1 | Livrer la voix et la vidéo (PR #226) sur le PC | SHA complet approuvé, déploiement, recette voix + vidéo réelles sur le poste |
 | 2 | Piper et FFmpeg hors de l'image API | Les embarquer dans l'image, ou déclarer l'hôte PC comme prérequis (variables dans `.env.example`) |
 | 3 | File asynchrone (PR #78) | Worker supervisé par systemd, tests de reprise après crash, recette Qwen réelle, puis seulement `EDITORIAL_ASYNC_ENABLED=true` |
-| 4 | MLflow (PR #225) | Statut à confirmer ; fusion et activation validées séparément ; rétention/purge et mémoire sous charge à définir |
+| 4 | MLflow (PR #225, déjà fusionnée) | Activation dans le service déployé par une livraison distincte sur SHA approuvé ; rétention/purge et mémoire sous charge à définir |
 | 5 | Dépendances | Fusionner ensemble fastapi 0.162.0, pydantic 2.14.3, psycopg 3.3.8, boto3 1.43.125 (588/588 le 14 novembre) ; qualifier `python:3.15-slim` en CI (non testé) ; relire `setup-python 7.1.0` |
 | 6 | Sauvegarde et restauration | Restauration démontrée, politique de rétention, chiffrement des prompts |
 | 7 | Capacité | Quotas par identité/tenant, limitation de débit média, nettoyage des objets orphelins, relais en flux si gros fichiers |

@@ -31,7 +31,7 @@ adopter. Les tailles (S/M/L) sont des estimations d'effort relatives, pas des d�
 | 0 | OPS-002 | Fusion groupée des 4 mises à jour pip | S | PREP-001 | — |
 | 1 | MEDIA-005 | Décision et mise en œuvre Piper/FFmpeg (image ou hôte) | M | PREP-001 | B0 |
 | 1 | REL-005 | Livraison PC voix + vidéo (PR #226) | M | PREP-001, OPS-002, MEDIA-005 | ⛔ B1 |
-| 1 | OPS-003 | MLflow (PR #225) : fusion et activation | M | PREP-002, REL-005 | ⛔ B1 bis |
+| 1 | OPS-003 | MLflow : activation dans le service déployé (PR #225 déjà fusionnée) | M | PREP-002, REL-005 | ⛔ B1 bis |
 | 2 | DEV-006 | File asynchrone : worker supervisé et recette | L | REL-005 | ⛔ B2 |
 | 2 | OPS-004 | Sauvegarde, restauration, rétention | L | REL-005 | ⛔ B2 bis |
 | 2 | OPS-005 | Observabilité du worker | M | DEV-006 | — |
@@ -68,8 +68,8 @@ parallèle) ; puis la vague 3 ; la vague 4 seulement après décision B3.
 `zip(strict=True)`, gardes d'URL, état courant, cet ordre). Critères : CI verte 3.12 et 3.14,
 592 tests, relecture du diff. Hors périmètre : toute livraison PC.
 
-**PREP-002 — Confirmer l'état GitHub.** Lire en lecture seule : statut de la PR #225,
-PR Dependabot ouvertes, branches `feat/*` déjà fusionnées. Sortie : mise à jour du
+**PREP-002 — Confirmer l'état GitHub.** Lire en lecture seule : PR Dependabot ouvertes (la PR #225 est
+constatée fusionnée le 14 novembre), branches `feat/*` déjà fusionnées. Sortie : mise à jour du
 point 4 du tableau « Reste à faire » de `ETAT_PROJET.md`. Aucun changement de code.
 
 **OPS-002 — Fusion groupée des mises à jour pip.** fastapi 0.162.0, pydantic 2.14.3,
@@ -96,9 +96,8 @@ relance après échec sur clé de tentative distincte. Preuves : reçu de recett
 durées, empreintes ; aucun secret exposé. Retour arrière : release précédente conservée,
 aucun rollback destructeur.
 
-**OPS-003 — MLflow (PR #225).** ⛔ B1 bis. Après PREP-002 : fusionner si le contrôle est
-vert, puis activer dans le service déployé par une livraison distincte sur SHA approuvé
-(`client.env`, redémarrage contrôlé). Critères : panne MLflow sans blocage métier,
+**OPS-003 — MLflow (PR #225 déjà fusionnée).** ⛔ B1 bis. Activer dans le service
+déployé par une livraison distincte sur SHA approuvé (`client.env`, redémarrage contrôlé). Critères : panne MLflow sans blocage métier,
 aucune fuite de prompt ou média, spool borné. À définir en même temps : rétention et
 purge, mesure de la mémoire sous charge.
 
