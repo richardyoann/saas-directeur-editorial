@@ -33,6 +33,9 @@ chronologique ci-dessous est conservé comme historique.
 | 8 | Observabilité du worker | Backlog, âge du plus ancien job, jobs bloqués, latences base, sans secrets ni prompts dans les logs |
 | 9 | SaaS | IAM/RBAC, argon2, MFA, sessions persistantes, RLS PostgreSQL, tests IDOR entre tenants, extraction de `po_entity` |
 
+Ordre détaillé, barrières d'approbation et critères par chantier :
+[docs/plans/ORDRE_CHANTIERS_2026-11-14.md](docs/plans/ORDRE_CHANTIERS_2026-11-14.md).
+
 Le point 9 est un prérequis à tout second utilisateur ou à toute commercialisation :
 le code actuel est un atelier privé mono-identité, pas un SaaS.
 
