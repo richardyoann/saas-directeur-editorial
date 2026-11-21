@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from editorial.media_storage import MediaStorageError, put_file
+from editorial.media_storage import put_file
 from editorial.store import PostgresStore, RunConflict
 
 

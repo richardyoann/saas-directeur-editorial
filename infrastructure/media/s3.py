@@ -98,7 +98,7 @@ def put_file(path, tenant, run_id, asset_id, kind, attempt=1):
     api, name = preflight()
     attempt = _attempt(attempt)
     key = object_key(tenant, run_id, asset_id, kind, attempt)
-    sha, md5, size = hashlib.sha256(), hashlib.md5(), 0
+    sha, md5, size = hashlib.sha256(), hashlib.md5(usedforsecurity=False), 0
     with path.open("rb") as stream:
         while chunk := stream.read(1024 * 1024):
             size += len(chunk)

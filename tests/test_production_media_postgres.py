@@ -74,7 +74,7 @@ class ProductionMediaPostgresTests(unittest.TestCase):
         return run_id, content["scenario_id"], content["scene_ids"]
 
     def ready_voice(self, run_id, scenario_id):
-        reservation = self.repository.reserve(self.tenant, self.actor, run_id, "voice",
+        self.repository.reserve(self.tenant, self.actor, run_id, "voice",
                                               scenario_id=scenario_id)
         return self.repository.complete(
             self.tenant, self.actor, run_id, "voice", scenario_id=scenario_id,

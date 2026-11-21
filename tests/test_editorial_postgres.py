@@ -33,7 +33,7 @@ class EditorialPostgresTests(unittest.TestCase):
 
     def test_full_workflow_persists_exact_snapshots_and_audit_outbox(self):
         run_id = self.run_start()
-        for name, parsed in zip(("analysis", "storyboard"), outputs()):
+        for name, parsed in zip(("analysis", "storyboard"), outputs(), strict=True):
             prompt = "exact prompt " + name
             response = {"response": json.dumps(parsed), "model": "Qwen-test", "provider": "llama.cpp", "finish_reason": "stop", "usage": {"total_tokens": 50}, "duration_seconds": 0.1}
             self.store.begin_step(self.tenant, self.actor, run_id, name, prompt)

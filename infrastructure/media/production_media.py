@@ -65,7 +65,7 @@ def save(path, tenant, run_id, asset_id, kind, attempt=1):
     a lost acknowledgement; different bytes are refused.
     """
     path = Path(path)
-    size = _validate_input(path, kind)
+    _validate_input(path, kind)
     attempt = _attempt(attempt)
     if backend() == "minio":
         from infrastructure.media.s3 import MediaStorageError, put_file

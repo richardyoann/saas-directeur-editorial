@@ -104,5 +104,5 @@ if __name__ == "__main__":
         print(json.dumps(check(sys.argv[1]), sort_keys=True))
     except Exception:
         print('{"live_api": "failed"}', file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 

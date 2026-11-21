@@ -60,4 +60,4 @@ if __name__ == '__main__':
         print(json.dumps(smoke(), sort_keys=True))
     except (OSError, RuntimeError, ValueError, KeyError, subprocess.SubprocessError):
         print(json.dumps({'verified': False, 'reason': 'offline_video_smoke_failed'}))
-        raise SystemExit(1)
+        raise SystemExit(1) from None

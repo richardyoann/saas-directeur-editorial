@@ -153,7 +153,7 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.auth = {"Authorization": "Bearer " + "t" * 48}
         run, _ = self.store.start(self.tenant, self.actor, self.key, Brief(topic="Ys").model_dump())
         self.run_id = UUID(run["id"])
-        for step, parsed in zip(("analysis", "storyboard"), outputs()):
+        for step, parsed in zip(("analysis", "storyboard"), outputs(), strict=True):
             self.store.begin_step(self.tenant, self.actor, self.run_id, step, "prompt")
             self.store.save_step(self.tenant, self.actor, self.run_id, step, "prompt",
                                  {"response": "fixture", "finish_reason": "stop"}, parsed)
