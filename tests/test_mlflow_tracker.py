@@ -8,7 +8,7 @@ import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from uuid import UUID, uuid4, uuid5
+from uuid import UUID, uuid4
 
 from infrastructure.observability import mlflow_tracker as tracker
 

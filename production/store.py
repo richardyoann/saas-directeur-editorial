@@ -6,7 +6,7 @@ timeout is NEVER replayed automatically: operators inspect a blocked stage.
 import hashlib
 import json
 from datetime import datetime, timezone
-from uuid import UUID, uuid5
+from uuid import uuid5
 
 from editorial.store import RunConflict, RunMissing, now
 from production.crew import (ROLES, SPECIALISTS, SpecialistOutput, CriticOutput,

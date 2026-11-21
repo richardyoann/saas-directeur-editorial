@@ -51,7 +51,7 @@ class HumanReviewTests(unittest.IsolatedAsyncioTestCase):
         app.dependency_overrides[get_store] = lambda: self.store
         run, _ = self.store.start(self.tenant, self.actor, uuid4(), Brief(topic="Ys").model_dump())
         self.run_id = UUID(run["id"])
-        for step, parsed in zip(("analysis", "storyboard"), outputs()):
+        for step, parsed in zip(("analysis", "storyboard"), outputs(), strict=True):
             self.store.begin_step(self.tenant, self.actor, self.run_id, step, "prompt")
             self.store.save_step(self.tenant, self.actor, self.run_id, step, "prompt",
                                  {"response": json.dumps(parsed), "finish_reason": "stop"}, parsed)
