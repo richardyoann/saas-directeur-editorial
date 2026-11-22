@@ -1,5 +1,13 @@
 # Ordre des chantiers — 14 novembre 2026
 
+## Réconciliation PHASE 0 — 22 novembre 2026
+
+- **SHA référence :** `4b2accaec8a7df3072135c6c3f57c37b292c6326`.
+- **Constats :** PREP-001B (#252) et OPS-002 (#254) fusionnés ; Studio Lots 1-4 rebuild #255-#258 fusionnés. Les anciennes PR Studio #232/#233/#234/#239 restent ouvertes (remplacées, couverture fichiers vérifiée, fermeture différée après vérification complète demandée).
+- **PR phase 1 ciblées par cet ordre :** #248 (MEDIA-005) OPEN/MERGEABLE, #228 (SEC) OPEN/MERGEABLE. #241 (Lot 5 bis) OPEN/CONFLICTING, base obsolète `refactor/studio-cinematic-lot4-journal-admin-20261031` — à reprendre sur branche propre depuis `main` courant (PHASE 2).
+- **PR obsolètes/candidats à fermeture après vérification :** #246 (PREP-001, conflit, couvert par #252), #247 (OPS-002 groupé, conflit, couvert par #254), #232/#233/#234/#239 (remplacées par #255-#258). Aucune fermeture effectuée en PHASE 0.
+
+
 Ordre de travail pour préparer et séquencer la suite du MVP Arvor. Il s'appuie sur
 `ETAT_PROJET.md` (section « ÉTAT COURANT »), les limites connues des docs et
 `ROADMAP_TECHNIQUE_2026-10-14.md`. Il respecte `AGENTS.md`, qui reste l'unique source
