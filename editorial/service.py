@@ -137,12 +137,13 @@ async def run_steps(store, tenant, actor, run, client, base_url):
             response=response.get("response") if isinstance(response, dict) else "",
             status="success" if not error else "failed", error_code=error,
             prompt_version=PROMPT_VERSION,
+            workflow_version=run.get("workflow_version"),
             model=response.get("model") if isinstance(response, dict) else None,
             usage=response.get("usage") if isinstance(response, dict) else None,
             duration_seconds=(response.get("duration_seconds")
                               if isinstance(response, dict) and response.get("duration_seconds") is not None
                               else round(time.monotonic() - started, 3)),
-            max_tokens=2048,
+            max_tokens=2048, temperature=0.1, stream=False,
         )
         if error:
             break

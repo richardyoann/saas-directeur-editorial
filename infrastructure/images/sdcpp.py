@@ -5,7 +5,9 @@ import binascii
 import json
 import os
 import httpx
-from editorial.media_rules import MAX_PNG_BYTES, IMAGE_PARAMETERS, ImageUnavailable, validate_png, private_image_url
+from editorial.media_rules import (
+    MAX_PNG_BYTES, IMAGE_PARAMETERS, IMAGE_SAMPLE_PARAMETERS,
+    ImageUnavailable, validate_png, private_image_url)
 
 
 DEFAULT_IMAGE_TIMEOUT_SECONDS = 300
@@ -21,15 +23,42 @@ def image_timeout_seconds():
     return min(600, max(30, value))
 
 
-async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str):
+def native_extension(seed, sample_parameters=None):
+    """Encode explicit sampling controls for the OpenAI-compatible endpoint.
+
+    sd.cpp strips this block before generation; it only carries native sampling
+    fields.  Keeping the block deterministic makes the request reproducible.
+    """
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed <= 0x7FFFFFFF:
+        raise ImageUnavailable()
+    sample = dict(sample_parameters or IMAGE_SAMPLE_PARAMETERS)
+    payload = {
+        "seed": seed,
+        "sample_params": {
+            "sample_steps": int(sample["sample_steps"]),
+            "sample_method": str(sample["sample_method"]),
+            "scheduler": str(sample["scheduler"]),
+            "guidance": {"txt_cfg": float(sample["txt_cfg"])},
+        },
+    }
+    return ("<sd_cpp_extra_args>"
+            + json.dumps(payload, sort_keys=True, separators=(",", ":"))
+            + "</sd_cpp_extra_args>")
+
+
+async def render_png(client: httpx.AsyncClient, base_url: str, prompt: str,
+                     seed=None, sample_parameters=None):
     if not private_image_url(base_url):
         raise ImageUnavailable()
+    request_prompt = prompt
+    if seed is not None:
+        request_prompt = prompt + " " + native_extension(seed, sample_parameters)
     timeout = image_timeout_seconds()
     try:
         async with asyncio.timeout(timeout):
             async with client.stream(
                 "POST", base_url.rstrip("/") + "/v1/images/generations",
-                json={"prompt": prompt, **IMAGE_PARAMETERS},
+                json={"prompt": request_prompt, **IMAGE_PARAMETERS},
                 timeout=float(timeout), follow_redirects=False
             ) as response:
                 if response.status_code >= 500:
@@ -64,5 +93,5 @@ class PrivateImageRenderer:
     def configured(self):
         return private_image_url(self.base_url)
 
-    async def render(self, prompt):
-        return await render_png(self.client, self.base_url, prompt)
+    async def render(self, prompt, seed=None):
+        return await render_png(self.client, self.base_url, prompt, seed=seed)
