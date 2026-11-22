@@ -43,6 +43,12 @@ def audit_workflow(name: str, source: str) -> list[str]:
             problems.append(f"{name}:{number}: overly broad token permissions")
         if UNSAFE_EVENT.search(line):
             problems.append(f"{name}:{number}: pull_request_target requires separate review")
+    # A self-hosted runner executes on the private PC. Every such workflow must
+    # be gated by the administrator-controlled exact SHA variable, including
+    # approval branches created through the `create` event.
+    if re.search(r"(?m)^\s*runs-on:\s*\[[^\]]*self-hosted", source):
+        if "vars.LOCAL_PC_APPROVED_SHA" not in source:
+            problems.append(f"{name}: self-hosted job lacks exact-SHA repository approval")
     return problems
 
 

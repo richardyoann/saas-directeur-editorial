@@ -1,0 +1,12 @@
+# Sensitive delivery surfaces.
+#
+# The current GitHub plan does not expose branch protection or enforced
+# CODEOWNERS review on private repositories. These entries document the owner
+# to request when review becomes enforceable; the delivery control that is
+# actually enforced today is the LOCAL_PC_APPROVED_SHA variable checked by
+# deploy_local.py and the self-hosted workflows.
+/.github/ @richardyoann
+/deploy/ @richardyoann
+/scripts/deploy_local.py @richardyoann
+/scripts/provision_mlflow_local.py @richardyoann
+/scripts/validate_delivery_approval.py @richardyoann

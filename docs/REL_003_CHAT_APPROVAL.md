@@ -15,10 +15,13 @@ rejouer une installation : inspecter d'abord le résultat du run.
 GitHub reçoit l'événement create et exécute Chat approved PC delivery.
 Le validateur sur runner hébergé vérifie le dépôt, le format du SHA, le contenu
 de la branche et le SHA courant de main avant tout accès au runner privé.
-Le SHA validé est passé au script existant via LOCAL_PC_APPROVED_SHA dans
-l'environnement du job uniquement : aucune modification de variable globale.
-Le script de déploiement conserve ses preuves CI, sa vérification de main,
-sa recette isolée, ses contrôles HTTP et son retour arrière.
+Le SHA validé doit être égal à la variable de dépôt `LOCAL_PC_APPROVED_SHA`,
+configurée uniquement par un administrateur. Le job auto-hébergé est ignoré si
+la variable est absente, vide ou différente du SHA validé : la seule création
+d'une branche `delivery-approved/*` ne suffit plus. Le workflow ne modifie
+aucune variable. Le script de déploiement conserve ses preuves CI, sa
+vérification de main, sa recette isolée, ses contrôles HTTP et son retour
+arrière.
 
 ## Interrupteur initial
 
@@ -27,8 +30,9 @@ Il reste l'arrêt général et n'est jamais contourné. Le connecteur de cette
 session ne sait ni lire ni modifier cette variable. Si false ou absente, le
 job PC reste ignoré ; l'activation initiale doit être faite par un accès autorisé.
 LOCAL_RELEASE_ROOT et LOCAL_CONFIG_PATH doivent déjà être configurés.
-LOCAL_PC_APPROVED_SHA global reste utilisé par l'ancien workflow ; il n'est
-pas nécessaire pour cette nouvelle voie et ne doit pas être actualisé à chaque accord.
+LOCAL_PC_APPROVED_SHA est désormais le verrou de la voie create : il doit
+contenir le SHA complet exact autorisé, et être retiré ou remplacé avant toute
+autre livraison. Une autorisation ne couvre jamais un SHA ultérieur.
 
 ## Droits, traçabilité et limites
 
@@ -50,7 +54,9 @@ sans toucher aux données ni aux releases.
 
 ## Validation
 
-Deux tests unitaires locaux réussis : SHA exact accepté ; dépôt incorrect,
-format invalide, branche déplacée et main modifié refusés.
+Tests locaux réussis : SHA exact accepté ; dépôt incorrect, format invalide,
+branche déplacée et main modifié refusés ; workflow auto-hébergé sans
+`vars.LOCAL_PC_APPROVED_SHA` rejeté par `scripts/ci_policy.py` ; job PC non
+déclenché si la variable diffère du SHA validé.
 Régression complète et premier événement create : à qualifier sur le SHA final.
 Aucun test Qwen/HTTP réel ni changement PC effectué.
