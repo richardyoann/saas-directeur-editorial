@@ -294,8 +294,9 @@ class VisualIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(list(counts_before.values()), [2, 2, 2])
         plan = self.store.visual_plan(self.tenant, self.run_id)
         self.assertNotIn("character_references", plan["scenes"][0]["generation"]["provenance"])
-        self.assertIsNone(plan["scenes"][0]["generation"]["provenance"]["seed"])
         run = self.store.get(self.tenant, self.run_id)
+        from editorial.media_rules import image_seed
+        self.assertEqual(plan["scenes"][0]["generation"]["provenance"]["seed"], image_seed(run["scene_ids"][0]))
         path = Path(self.media.name) / str(self.tenant) / str(self.run_id) / (run["scene_ids"][0] + ".png")
         path.write_bytes(png + b"tampered")
         changed = (await self.client.get(base + "/visuals/verification", headers=self.auth)).json()
