@@ -98,8 +98,9 @@ class CinematicProductionCorrectiveTests(unittest.TestCase):
     def test_video_export_targets_private_media_content_route(self):
         self.assertIn("async function exportVideo", self.js)
         self.assertIn("/media/'+encodeURIComponent(video.id)+'/content", self.js)
-        self.assertIn("if(!plan.approved||video?.status!=='ready'||!video?.id)return", self.js)
-        self.assertIn("if(plan.run_id&&plan.run_id!==state.storyId)return", self.js)
+        self.assertIn("if(!plan.approved||video?.status!=='ready'||!video?.id||plan.run_id!==state.storyId)return", self.js)
+        self.assertIn("startsWith('video/mp4')", self.js)
+        self.assertIn("plan.run_id===state.storyId", self.js)
         self.assertIn('$$(\'[data-action="export-video"]\')', self.js)
         self.assertNotIn("data-action=\"export\" && canExport", self.js)
 
@@ -140,7 +141,7 @@ class CinematicLot4JournalAdminTests(unittest.TestCase):
     def test_journal_displays_trace_metadata_and_pagination(self):
         for token in ("journalVisible", "journalData", "journalError", "journalPage",
                       "data-journal-page", "data-journal-retry", "TRACES RÉELLES",
-                      "Traitement IA", "Décision humaine", "Version", "Agent"):
+                      "Traitement IA", "Décision humaine", "Version", "Acteur", "Résultat", "Date inconnue"):
             self.assertIn(token, self.js)
 
     def test_admin_distinguishes_source_states(self):
@@ -172,8 +173,15 @@ class CinematicLot5CorrectiveTests(unittest.TestCase):
 
     def test_human_decision_status_is_rendered(self):
         self.assertIn("status:r.valid?'Décision acceptée':'Décision refusée'", self.js)
-        self.assertIn("${r.human?`<span>Décision ${escapeHtml(r.actionLabel||r.action||'—')}</span>`:''}", self.js)
-        self.assertIn("<span>${escapeHtml(r.status)}</span>", self.js)
+        self.assertIn("['Type',r.human?'Décision humaine':'Traitement IA']", self.js)
+        self.assertIn("['Statut',r.status]", self.js)
+        self.assertIn("['Résultat',r.result]", self.js)
+
+    def test_video_export_is_single_disabled_action_until_run_is_approved_and_ready(self):
+        self.assertIn("const canExport=approved&&videoBelongsToRun&&video.status==='ready'&&!!video.id", self.js)
+        self.assertIn("class=\"button primary\" data-action=\"export-video\" ${canExport?'':'disabled'}", self.js)
+        self.assertIn("L’approbation de l’histoire est requise.", self.js)
+        self.assertIn("La vidéo n’est pas prête.", self.js)
 
     def test_journal_handles_full_and_partial_trace_failures(self):
         self.assertIn("const failures=[]", self.js)
