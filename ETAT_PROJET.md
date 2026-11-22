@@ -1,5 +1,14 @@
 # État du projet
 
+## MISE À JOUR PHASE 0 — 22 novembre 2026 (réconciliation)
+
+- **SHA de référence `main` distant :** `4b2accaec8a7df3072135c6c3f57c37b292c6326` (merge PR #258, 2026-11-22T09:46:14Z).
+- **Checkout protégé local non modifié :** `/home/yoann_admin/saas-directeur-editorial-github` reste sur `fix/native-image-validation-20261030` avec travail local non commité.
+- **PR fusionnées sur ce cycle :** #252 (`7ceb6d0d`, PREP-001B), #254 (`043551b4`, OPS-002 on main), #255 (`34e257fc`, Studio Lot 1 rebuild), #256 (`35467d87`, Lot 2), #257 (`6ea7749b`, Lot 3), #258 (`4b2accae`, Lot 4).
+- **Anciennes PR Studio remplacées (ouvertes, non fermées) :** #232, #233, #234, #239. Couverture fichier-par-fichier vérifiée contre #255-#258 : ensembles de fichiers identiques par lot (232≡255, 233≡256, 234≡257, 239≡258). Les SHAs diffèrent car rebuild sur `main` courant avec correctifs mineurs (JS syntaxe vidéo #234, sélecteur journal `$`→`$$` #239) ; reçus exact-SHA des rebuilds conservés.
+- **Inventaire PR ouvertes :** 27 PR ouvertes au 22/11/2026 (voir bilan PHASE 0). Aucune PR fermée pendant PHASE 0.
+
+
 ## ÉTAT COURANT — 14 novembre 2026
 
 Synthèse établie à partir du dépôt (`main` au merge de la PR #227, 28 octobre 2026)
