@@ -64,6 +64,12 @@ class CinematicShellNavigationTests(unittest.TestCase):
             self.assertIn(token, self.js)
         self.assertIn("route==='overview'", self.js)
 
+    def test_story_duration_is_derived_from_real_scenes(self):
+        self.assertIn("const storyDuration=", self.js)
+        self.assertIn("const storyDurationText=", self.js)
+        self.assertIn("Durée totale", self.js)
+        self.assertIn("storyDurationText(s)", self.js)
+
     def test_navigation_covers_existing_real_endpoints(self):
         for token in ("/studio/api/runs", "/studio/api/conception", "/studio/api/conception/commits",
                       "/studio/api/conception/ci", "/studio/logout"):
