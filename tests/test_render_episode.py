@@ -77,6 +77,40 @@ class EpisodeExportTests(unittest.TestCase):
         self.assertIn('id="duration" type="number" min="75" max="75" value="75" readonly', html)
 
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg export prerequisite absent")
+    def test_cinematic_profile_is_1080x1920_with_ken_burns_and_captions(self):
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=64x64",
+                        "-frames:v", "1", "-threads", "1", str(self.root / "scene.png")], check=True)
+        with wave.open(str(self.root / "voice.wav"), "wb") as audio:
+            audio.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+            audio.writeframes(b"\x00\x00" * 32000)
+        self.data["voice"] = "voice.wav"
+        self.save()
+        receipt = module.render(self.manifest, self.root / "export", profile="cinematic")
+        self.assertEqual((receipt["width"], receipt["height"]), (1080, 1920))
+        self.assertEqual(receipt["fps"], 24)
+        self.assertTrue(receipt["ken_burns"])
+        self.assertEqual(receipt["transitions"], "fade")
+        self.assertEqual(receipt["subtitles"], "sidecar+burned")
+        probe = json.loads(subprocess.check_output(
+            ["ffprobe", "-v", "error", "-show_streams", "-of", "json",
+             str(self.root / "export/episode.mp4")]))
+        video = next(stream for stream in probe["streams"] if stream["codec_type"] == "video")
+        audio = next(stream for stream in probe["streams"] if stream["codec_type"] == "audio")
+        self.assertEqual((video["width"], video["height"]), (1080, 1920))
+        self.assertEqual(video["codec_name"], "h264")
+        self.assertEqual(audio["codec_name"], "aac")
+        self.assertGreater((self.root / "export/episode.mp4").stat().st_size, 10000)
+        # Captions must be visible where they are claimed: the lower third.
+        # A solid blue scene makes any near-white pixel there attributable to
+        # the burned subtitle layer (no sky or image highlight can fake it).
+        frame = subprocess.check_output([
+            "ffmpeg", "-v", "error", "-ss", "0.5", "-i",
+            str(self.root / "export/episode.mp4"), "-frames:v", "1",
+            "-f", "rawvideo", "-pix_fmt", "gray", "-"])
+        lower_third = frame[1400 * 1080:1800 * 1080]
+        self.assertGreater(sum(1 for pixel in lower_third if pixel > 200), 100)
+
+    @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg export prerequisite absent")
     def test_real_mp4_audio_subtitles_and_reproducible_folder(self):
         subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=64x64", "-frames:v", "1", "-threads", "1", str(self.root / "scene.png")], check=True)
         with wave.open(str(self.root / "voice.wav"), "wb") as audio:

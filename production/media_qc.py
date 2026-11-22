@@ -75,7 +75,8 @@ def inspect_export(directory):
             checks.append("video_sha256_mismatch")
         if receipt.get("duration_seconds") != 75:
             checks.append("receipt_duration_not_75")
-        if receipt.get("width") != 720 or receipt.get("height") != 1280:
+        dimensions = (receipt.get("width"), receipt.get("height"))
+        if dimensions not in {(720, 1280), (1080, 1920)}:
             checks.append("receipt_format_not_vertical")
         if receipt.get("audio") is not True:
             checks.append("voice_not_present_in_receipt")
@@ -104,7 +105,8 @@ def inspect_export(directory):
                     checks.append("video_audio_streams_invalid")
                 if len(video_streams) == 1:
                     stream = video_streams[0]
-                    if (stream.get("width"), stream.get("height")) != (720, 1280):
+                    if ((stream.get("width"), stream.get("height")) != dimensions
+                            or dimensions not in {(720, 1280), (1080, 1920)}):
                         checks.append("video_not_9_16")
                     if stream.get("r_frame_rate") != "24/1":
                         checks.append("video_framerate_not_24")
