@@ -88,5 +88,42 @@ class CinematicResponsiveTests(unittest.TestCase):
         self.assertIn('class="mobile-shade"', self.html)
 
 
+class CinematicProductionCorrectiveTests(unittest.TestCase):
+    """Lot 3 corrective contracts (2026-11-01): video export, navigation state,
+    error states and quality control surfaced in apps/web/arvor_next.js."""
+
+    def setUp(self):
+        self.js = (ROOT / "apps/web/arvor_next.js").read_text(encoding="utf-8")
+
+    def test_video_export_targets_private_media_content_route(self):
+        self.assertIn("async function exportVideo", self.js)
+        self.assertIn("/media/'+encodeURIComponent(video.id)+'/content", self.js)
+        self.assertIn("if(!plan.approved||video?.status!=='ready'||!video?.id)return", self.js)
+        self.assertIn("if(plan.run_id&&plan.run_id!==state.storyId)return", self.js)
+        self.assertIn('$$(\'[data-action="export-video"]\')', self.js)
+        self.assertNotIn("data-action=\"export\" && canExport", self.js)
+
+    def test_story_switch_resets_production_state(self):
+        self.assertIn("if(storyId&&storyId!==state.storyId){prodData=null;mediaData=null;historyData=null;}", self.js)
+
+    def test_production_error_state_is_rendered(self):
+        self.assertIn("if(prodError)", self.js)
+        self.assertIn("if(!plan){", self.js)
+        self.assertIn("Consultation de la production", self.js)
+        self.assertIn("prodError=e.message", self.js)
+
+    def test_quality_control_separates_presence_technical_and_human_validation(self):
+        self.assertIn("['Présence des médias'", self.js)
+        self.assertIn("Validation technique", self.js)
+        self.assertIn("Validation artistique (humaine)", self.js)
+        self.assertIn("approved&&plan.duration_seconds===75", self.js)
+        self.assertIn("missing.length===0", self.js)
+
+    def test_export_button_uses_video_download_not_storyboard_json(self):
+        self.assertIn('data-action="export-video"', self.js)
+        self.assertIn("async function exportVideo", self.js)
+        self.assertNotIn("data-action=\"export\" ${canExport", self.js)
+
+
 if __name__ == "__main__":
     unittest.main()
