@@ -37,13 +37,16 @@ class ProductionMediaConfig:
     piper_model: str = ""
     ffmpeg_bin: str = "ffmpeg"
     media_directory: str = ""
+    video_profile: str = "standard"
 
     @classmethod
     def from_environment(cls):
+        profile = os.getenv("ARVOR_VIDEO_PROFILE", "standard")
         return cls(os.getenv("ARVOR_PIPER_BIN", "piper"),
                    os.getenv("ARVOR_PIPER_MODEL", ""),
                    os.getenv("ARVOR_FFMPEG_BIN", "ffmpeg"),
-                   os.getenv("ARVOR_MEDIA_WORK_DIR", ""))
+                   os.getenv("ARVOR_MEDIA_WORK_DIR", ""),
+                   profile if profile in {"standard", "cinematic"} else "standard")
 
     def voice_configured(self):
         model = Path(self.piper_model)
